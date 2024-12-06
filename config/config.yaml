@@ -1,0 +1,54 @@
+data:
+  xlsum_dataset: "GEM/xlsum"
+  scisummnet_path: "/Users/vanessa/Dropbox/synsearch/data/scisummnet_release1.1__20190413"
+  processed_path: "outputs/processed"
+
+preprocessing:
+  min_text_length: 100
+  max_text_length: 1000
+  language: "en"
+  validation:
+    missing_threshold: 5.0
+    min_dataset_size: 10000
+  min_words_per_sentence: 5
+  remove_stopwords: true
+
+embedding:
+  model_name: 'sentence-transformers/all-MiniLM-L6-v2'
+  batch_size: 32
+  output_dir: 'outputs/embeddings'
+  device: null  # Will use CUDA if available
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/processing.log"
+
+summarization:
+  enabled: true
+  model_name: 't5-base'
+  max_length: 512
+  min_length: 50
+  batch_size: 8
+  output_dir: 'outputs/summaries'
+  device: null  # Will use CUDA if available
+
+clustering:
+  method: 'hdbscan'
+  params:
+    min_cluster_size: 5
+    min_samples: 3
+    metric: 'euclidean'
+  output_dir: 'outputs/clusters'
+
+visualization:
+  enabled: true
+  method: 'umap'  # or 'tsne'
+  output_dir: 'outputs/figures'
+
+evaluation:
+  output_dir: 'outputs/metrics'
+  thresholds:
+    silhouette_score: 0.5
+    davies_bouldin_score: 1.0
+    rouge_l_f1: 0.4

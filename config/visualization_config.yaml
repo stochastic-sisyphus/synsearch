@@ -1,0 +1,14 @@
+umap:
+  n_neighbors: 15
+  min_dist: 0.1
+  metric: 'cosine'
+  random_state: 42
+
+plotly:
+  template: 'plotly_white'
+  width: 800
+  height: 600
+  
+clustering_colors:
+  noise: '#808080'
+  palette: 'Set3'  # Color palette for clusters 
