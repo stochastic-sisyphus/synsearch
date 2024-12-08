@@ -1,21 +1,22 @@
 import logging
 from pathlib import Path
 import yaml
-from data_loader import DataLoader
-from data_preparation import DataPreparator
-from data_validator import DataValidator
-from utils.logging_config import setup_logging
-from embedding_generator import EmbeddingGenerator
-from visualization.embedding_visualizer import EmbeddingVisualizer
+import pandas as pd
+from src.data_loader import DataLoader
+from src.data_preparation import DataPreparator
+from src.data_validator import DataValidator
+from src.utils.logging_config import setup_logging
+from src.embedding_generator import EmbeddingGenerator
+from src.visualization.embedding_visualizer import EmbeddingVisualizer
 import numpy as np
-from preprocessor import TextPreprocessor
-from clustering.cluster_manager import ClusterManager
+from src.preprocessor import TextPreprocessor
+from src.clustering.cluster_manager import ClusterManager
 from typing import List, Dict
 from datetime import datetime
-from summarization.hybrid_summarizer import HybridSummarizer
-from evaluation.metrics import EvaluationMetrics
+from src.summarization.hybrid_summarizer import HybridSummarizer
+from src.evaluation.metrics import EvaluationMetrics
 import json
-from utils.checkpoint_manager import CheckpointManager
+from src.utils.checkpoint_manager import CheckpointManager
 
 def main():
     # Setup logging
@@ -75,9 +76,10 @@ def main():
                 all_metadata.extend(processed_scisummnet.to_dict('records'))
             
             checkpoint_manager.save_stage('data_loading', {
-                'processed_docs': len(processed_data),
+                'xlsum_size': len(processed_xlsum) if 'processed_xlsum' in locals() else 0,
+                'scisummnet_size': len(processed_scisummnet) if 'processed_scisummnet' in locals() else 0,
                 'runtime': (datetime.now() - start_time).total_seconds(),
-                'data_path': str(output_path)
+                'data_path': str(config['data']['processed_path'])
             })
         else:
             # Load from checkpoint

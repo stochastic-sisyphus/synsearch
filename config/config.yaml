@@ -10,72 +10,22 @@ preprocessing:
   validation:
     missing_threshold: 5.0
     min_dataset_size: 10000
-  min_words_per_sentence: 5
-  remove_stopwords: true
+    min_text_length: 100
+    max_text_length: 1000
 
 embedding:
-  model_name: 'sentence-transformers/all-MiniLM-L6-v2'
+  model_name: "sentence-transformers/all-mpnet-base-v2"
   batch_size: 32
   max_seq_length: 128
-  num_threads: 8  # Adjust based on your CPU
-  checkpoint_dir: 'outputs/embeddings/checkpoints'
-  checkpoint_frequency: 1000
-  output_dir: 'outputs/embeddings'
-  device: null  # Will use CUDA if available
-
-logging:
-  level: "INFO"
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  file: "logs/processing.log"
-
-summarization:
-  enabled: true
-  model_name: 'facebook/bart-large-cnn'
-  max_length: 150
-  min_length: 50
-  batch_size: 4
-  style: 'balanced'  # or 'detailed'
-  output_dir: 'outputs/summaries'
-  device: null  # Will use CUDA if available
+  device: null  # Will auto-detect GPU/CPU
+  output_dir: "outputs/embeddings"
 
 clustering:
-  method: 'hdbscan'
+  method: "hdbscan"
   params:
     min_cluster_size: 5
-    min_samples: 3
-    metric: 'euclidean'
-  output_dir: 'outputs/clusters'
-
-visualization:
-  enabled: true
-  method: 'umap'  # or 'tsne'
-  output_dir: 'outputs/figures'
-
-evaluation:
-  output_dir: 'outputs/metrics'
-  thresholds:
-    silhouette_score: 0.5
-    davies_bouldin_score: 1.0
-    rouge_l_f1: 0.4
-
-training:
-  enabled: false  # Set to true when ready to train
-  output_dir: "models/summarization"
-
-datasets:
-  xlsum:
-    enabled: true
-    language: "en"
-    max_samples: 100000
-  scisummnet:
-    enabled: true
-    path: "/Users/vanessa/Dropbox/synsearch/data/scisummnet_release1.1__20190413"
-  
-model:
-  epochs: 5
-  learning_rate: 2e-5
-  warmup_steps: 1000
-  gradient_accumulation: 4
+    min_samples: 5
+  output_dir: "outputs/clusters"
 
 checkpoints:
   dir: "outputs/checkpoints"
@@ -106,3 +56,27 @@ personalization:
     learning_rate: 1e-5
     epochs: 3
     batch_size: 8
+
+summarization:
+  model_name: "facebook/bart-large-cnn"
+  max_length: 512
+  min_length: 50
+  batch_size: 8
+  output_dir: "outputs/summaries"
+
+visualization:
+  enabled: true
+  output_dir: "outputs/figures"
+  umap:
+    n_neighbors: 15
+    min_dist: 0.1
+    metric: "cosine"
+    random_state: 42
+
+evaluation:
+  output_dir: "outputs/evaluation"
+  metrics:
+    - "rouge"
+    - "clustering"
+    - "silhouette"
+    - "davies_bouldin"

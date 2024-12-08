@@ -1,4 +1,4 @@
-from transformers import AutoTokenizer, AutoModelForSeq2SeqGeneration
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 from typing import List, Dict, Optional
 import numpy as np
@@ -7,6 +7,24 @@ import logging
 from pathlib import Path
 
 class HybridSummarizer:
+    """
+    HybridSummarizer: A flexible summarization module that combines extractive and abstractive approaches.
+
+    Features:
+    - Style-aware summarization (technical, concise, detailed)
+    - Configurable length and parameters per style
+    - Batch processing support
+    - GPU acceleration
+    - Checkpoint support
+
+    Example:
+        summarizer = HybridSummarizer(
+            model_name='facebook/bart-large-cnn',
+            max_length=150,
+            min_length=50
+        )
+        summary = summarizer.summarize(texts, style='technical')
+    """
     def __init__(
         self,
         model_name: str = 'facebook/bart-large-cnn',
@@ -27,7 +45,7 @@ class HybridSummarizer:
         # Load model and tokenizer
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.model = AutoModelForSeq2SeqGeneration.from_pretrained(model_name).to(self.device)
+            self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(self.device)
             self.batch_size = batch_size
             self.max_length = max_length
             self.min_length = min_length
