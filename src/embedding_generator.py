@@ -4,16 +4,17 @@ import numpy as np
 from pathlib import Path
 import logging
 from typing import Dict, List, Union, Optional
-import pandas as pd
-from tqdm import tqdm
 import json
+from tqdm import tqdm
+import os
 
 class EmbeddingGenerator:
     def __init__(
         self,
         model_name: str = 'all-mpnet-base-v2',
         device: Optional[str] = None,
-        batch_size: int = 32
+        batch_size: int = 32,
+        max_seq_length: int = 128
     ):
         """Initialize the embedding generator"""
         self.logger = logging.getLogger(__name__)
@@ -26,9 +27,10 @@ class EmbeddingGenerator:
             
         self.logger.info(f"Using device: {self.device}")
         
-        # Load model
+        # Load model with optimizations
         try:
             self.model = SentenceTransformer(model_name, device=self.device)
+            self.model.max_seq_length = max_seq_length  # Limit sequence length
             self.batch_size = batch_size
         except Exception as e:
             self.logger.error(f"Failed to load model {model_name}: {e}")
@@ -37,17 +39,50 @@ class EmbeddingGenerator:
     def generate_embeddings(
         self,
         texts: List[str],
-        show_progress_bar: bool = True
+        show_progress_bar: bool = True,
+        checkpoint_dir: Optional[str] = None,
+        checkpoint_frequency: int = 1000
     ) -> np.ndarray:
-        """Generate embeddings for a list of texts"""
+        """Generate embeddings with checkpoints and progress tracking"""
         try:
-            embeddings = self.model.encode(
-                texts,
-                batch_size=self.batch_size,
-                show_progress_bar=show_progress_bar,
-                convert_to_numpy=True
-            )
-            return embeddings
+            total_texts = len(texts)
+            embeddings_list = []
+            
+            # Create checkpoint directory if needed
+            if checkpoint_dir:
+                os.makedirs(checkpoint_dir, exist_ok=True)
+                
+                # Load latest checkpoint if exists
+                checkpoints = sorted([f for f in os.listdir(checkpoint_dir) if f.startswith('checkpoint_')])
+                if checkpoints:
+                    latest = checkpoints[-1]
+                    start_idx = int(latest.split('_')[1].split('.')[0])
+                    embeddings_list = list(np.load(os.path.join(checkpoint_dir, latest)))
+                    texts = texts[start_idx:]
+                    self.logger.info(f"Resuming from checkpoint {latest}")
+                else:
+                    start_idx = 0
+            else:
+                start_idx = 0
+            
+            # Process in batches with progress bar
+            for i in tqdm(range(0, len(texts), self.batch_size), desc="Generating embeddings"):
+                batch_texts = texts[i:i + self.batch_size]
+                batch_embeddings = self.model.encode(
+                    batch_texts,
+                    show_progress_bar=False,
+                    convert_to_numpy=True
+                )
+                embeddings_list.extend(batch_embeddings)
+                
+                # Save checkpoint if enabled
+                if checkpoint_dir and (i + start_idx) % checkpoint_frequency == 0:
+                    checkpoint_path = os.path.join(checkpoint_dir, f'checkpoint_{i + start_idx}.npy')
+                    np.save(checkpoint_path, np.array(embeddings_list))
+                    self.logger.info(f"Saved checkpoint at {i + start_idx}/{total_texts} documents")
+            
+            return np.array(embeddings_list)
+            
         except Exception as e:
             self.logger.error(f"Error generating embeddings: {e}")
             raise

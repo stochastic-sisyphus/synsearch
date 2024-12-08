@@ -95,3 +95,17 @@ class EvaluationMetrics:
             json.dump(metrics, f, indent=2)
             
         self.logger.info(f"Saved metrics to {output_dir / filename}") 
+        
+    def calculate_baseline_metrics(self, dataset_name: str, metrics: Dict) -> Dict[str, float]:
+        """Calculate and store baseline metrics for a dataset"""
+        baseline_metrics = {
+            'dataset': dataset_name,
+            'runtime': metrics.get('runtime', 0),
+            'rouge_scores': metrics.get('rouge_scores', {}),
+            'clustering_scores': {
+                'silhouette': metrics.get('silhouette_score', 0),
+                'davies_bouldin': metrics.get('davies_bouldin_score', 0)
+            },
+            'preprocessing_time': metrics.get('preprocessing_time', 0)
+        }
+        return baseline_metrics 

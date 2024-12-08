@@ -2,93 +2,57 @@ from pathlib import Path
 import pandas as pd
 from datasets import load_dataset
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Union, List
 import json
 import xml.etree.ElementTree as ET
 
 class DataLoader:
-    def __init__(self, scisummnet_path: str):
-        self.scisummnet_path = Path(scisummnet_path)
-        self.logger = logging.getLogger(__name__)
+    def __init__(self, config: Dict):
+        self.supported_formats = {
+            '.md': self._load_markdown,
+            '.txt': self._load_text,
+            '.pdf': self._load_pdf,
+            '.json': self._load_json,
+            'url': self._load_url
+        }
         
-        # Verify ScisummNet path exists
-        if not self.scisummnet_path.exists():
-            raise FileNotFoundError(f"ScisummNet path not found: {scisummnet_path}")
+    def load_data(self, source: Union[str, Path, List[str]]) -> List[Dict]:
+        """Universal data loading method"""
+        if isinstance(source, (str, Path)):
+            ext = Path(source).suffix.lower()
+            if ext in self.supported_formats:
+                return self.supported_formats[ext](source)
+            elif source.startswith(('http://', 'https://')):
+                return self.supported_formats['url'](source)
+        elif isinstance(source, list):
+            return self._batch_process(source)
     
-    def load_xlsum(self, language='english'):
-        """Load XL-Sum dataset for a specific language"""
-        try:
-            self.logger.info(f"Loading XL-Sum dataset for language: {language}")
-            dataset = load_dataset('GEM/xlsum', language)
-            return dataset
-        except Exception as e:
-            self.logger.error(f"Failed to load XL-Sum dataset: {e}")
-            raise
+    def _load_markdown(self, source: str) -> List[Dict]:
+        """Load markdown data from the given source"""
+        # Implementation for markdown loading
+        pass
     
-    def load_scisummnet(self, path: str) -> pd.DataFrame:
-        """Load ScisummNet dataset from the given path"""
-        try:
-            self.logger.info(f"Loading ScisummNet from {path}")
-            papers = []
-            top1000_path = Path(path) / 'top1000_complete'
-            
-            for doc_dir in top1000_path.iterdir():
-                if not doc_dir.is_dir():
-                    continue
-                    
-                try:
-                    doc_id = doc_dir.name
-                    
-                    # Load XML document
-                    xml_dir = doc_dir / 'Documents_xml'
-                    if not xml_dir.exists():
-                        continue
-                    
-                    # Find main document XML
-                    xml_files = list(xml_dir.glob('*.xml'))
-                    if not xml_files:
-                        continue
-                    
-                    # Load citation data
-                    citation_path = doc_dir / 'citing_sentences_annotated.json'
-                    citations = []
-                    if citation_path.exists():
-                        with open(citation_path, 'r') as f:
-                            citations = json.load(f)
-                    
-                    # Load summary
-                    summary_path = doc_dir / 'summary' / 'summary.txt'
-                    summary = ''
-                    if summary_path.exists():
-                        with open(summary_path, 'r') as f:
-                            summary = f.read().strip()
-                    
-                    # Parse XML
-                    tree = ET.parse(xml_files[0])
-                    root = tree.getroot()
-                    
-                    # Extract data with better error handling
-                    title = root.find('.//title')
-                    abstract = root.find('.//abstract')
-                    
-                    paper_data = {
-                        'doc_id': doc_id,
-                        'title': title.text.strip() if title is not None and title.text else '',
-                        'text': abstract.text.strip() if abstract is not None and abstract.text else '',
-                        'summary': summary,
-                        'citation_count': len(citations),
-                        'citations': citations
-                    }
-                    papers.append(paper_data)
-                    
-                except Exception as e:
-                    self.logger.error(f"Error processing {doc_dir}: {str(e)}")
-                    continue
-            
-            df = pd.DataFrame(papers)
-            self.logger.info(f"Loaded {len(df)} documents from ScisummNet")
-            return df
-            
-        except Exception as e:
-            self.logger.error(f"Failed to load ScisummNet: {e}")
-            return pd.DataFrame()
+    def _load_text(self, source: str) -> List[Dict]:
+        """Load text data from the given source"""
+        # Implementation for text loading
+        pass
+    
+    def _load_pdf(self, source: str) -> List[Dict]:
+        """Load PDF data from the given source"""
+        # Implementation for PDF loading
+        pass
+    
+    def _load_json(self, source: str) -> List[Dict]:
+        """Load JSON data from the given source"""
+        # Implementation for JSON loading
+        pass
+    
+    def _load_url(self, source: str) -> List[Dict]:
+        """Load data from the given URL"""
+        # Implementation for URL loading
+        pass
+    
+    def _batch_process(self, sources: List[str]) -> List[Dict]:
+        """Process a batch of data sources"""
+        # Implementation for batch processing
+        pass

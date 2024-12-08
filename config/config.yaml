@@ -16,6 +16,10 @@ preprocessing:
 embedding:
   model_name: 'sentence-transformers/all-MiniLM-L6-v2'
   batch_size: 32
+  max_seq_length: 128
+  num_threads: 8  # Adjust based on your CPU
+  checkpoint_dir: 'outputs/embeddings/checkpoints'
+  checkpoint_frequency: 1000
   output_dir: 'outputs/embeddings'
   device: null  # Will use CUDA if available
 
@@ -26,10 +30,11 @@ logging:
 
 summarization:
   enabled: true
-  model_name: 't5-base'
-  max_length: 512
+  model_name: 'facebook/bart-large-cnn'
+  max_length: 150
   min_length: 50
-  batch_size: 8
+  batch_size: 4
+  style: 'balanced'  # or 'detailed'
   output_dir: 'outputs/summaries'
   device: null  # Will use CUDA if available
 
@@ -52,3 +57,52 @@ evaluation:
     silhouette_score: 0.5
     davies_bouldin_score: 1.0
     rouge_l_f1: 0.4
+
+training:
+  enabled: false  # Set to true when ready to train
+  output_dir: "models/summarization"
+
+datasets:
+  xlsum:
+    enabled: true
+    language: "en"
+    max_samples: 100000
+  scisummnet:
+    enabled: true
+    path: "/Users/vanessa/Dropbox/synsearch/data/scisummnet_release1.1__20190413"
+  
+model:
+  epochs: 5
+  learning_rate: 2e-5
+  warmup_steps: 1000
+  gradient_accumulation: 4
+
+checkpoints:
+  dir: "outputs/checkpoints"
+  enabled: true
+  cleanup_after_completion: false
+  stages:
+    data_loading:
+      enabled: true
+      save_intermediate: true
+    embedding:
+      enabled: true
+      batch_size: 1000  # Save every N documents
+    clustering:
+      enabled: true
+      save_intermediate: false
+    summarization:
+      enabled: true
+      save_intermediate: true
+
+personalization:
+  enabled: true
+  user_preferences:
+    summary_style: "technical"  # [technical, concise, detailed]
+    min_length: 100
+    max_length: 500
+  fine_tuning:
+    enabled: true
+    learning_rate: 1e-5
+    epochs: 3
+    batch_size: 8
