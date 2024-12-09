@@ -8,7 +8,37 @@ from pathlib import Path
 import torch.nn.functional as F
 from sklearn.metrics.pairwise import cosine_similarity
 
-class EnhancedHybridSummarizer:
+class HybridSummarizer:
+    """Base class for hybrid summarization approaches."""
+    
+    def __init__(self, model_name='t5-base', tokenizer=None, device='cuda' if torch.cuda.is_available() else 'cpu'):
+        self.model_name = model_name
+        self.device = device
+        self.tokenizer = tokenizer or AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(device)
+        
+    def summarize(self, texts: List[str], max_length: int = 150) -> List[str]:
+        """Generate summaries for input texts."""
+        summaries = []
+        for text in texts:
+            inputs = self.tokenizer(text, return_tensors="pt", max_length=512, truncation=True)
+            inputs = inputs.to(self.device)
+            
+            outputs = self.model.generate(
+                **inputs,
+                max_length=max_length,
+                min_length=40,
+                length_penalty=2.0,
+                num_beams=4,
+                early_stopping=True
+            )
+            
+            summary = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            summaries.append(summary)
+            
+        return summaries
+
+class EnhancedHybridSummarizer(HybridSummarizer):
     """
     EnhancedHybridSummarizer: A flexible summarization module that combines extractive and abstractive approaches.
 

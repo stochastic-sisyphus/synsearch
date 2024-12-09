@@ -30,7 +30,6 @@ import torch
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from utils.style_selector import determine_cluster_style, get_style_parameters
-from summarization.enhanced_summarizer import EnhancedHybridSummarizer
 from summarization.adaptive_summarizer import AdaptiveSummarizer
 from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
 
