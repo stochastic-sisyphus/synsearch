@@ -3,6 +3,8 @@ from typing import List, Dict, Any
 import numpy as np
 import torch
 from src.utils.metrics_utils import calculate_cluster_metrics
+import json
+from pathlib import Path
 
 class AdaptiveSummarizer:
     def __init__(self, config: Dict[str, Any]):
@@ -97,3 +99,16 @@ class AdaptiveSummarizer:
         # Decode and return
         summary = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
         return summary
+
+    def save_summaries(self, summaries: Dict[str, Any], output_path: str) -> None:
+        """Save summaries to disk."""
+        output_file = Path(output_path) / "summaries.json"
+        with open(output_file, 'w') as f:
+            json.dump(summaries, f, indent=2)
+    
+    def load_summaries(self, input_path: str) -> Dict[str, Any]:
+        """Load summaries from disk."""
+        input_file = Path(input_path) / "summaries.json"
+        with open(input_file, 'r') as f:
+            summaries = json.load(f)
+        return summaries

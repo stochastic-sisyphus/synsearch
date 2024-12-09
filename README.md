@@ -331,3 +331,110 @@ year = {2024},
 url = {https://github.com/yourusername/dynamic-summarization}
 }
 ```
+
+## Detailed Instructions for Running the Pipeline
+
+### Step-by-Step Instructions
+
+1. **Clone the repository**
+```bash
+git clone https://github.com/yourusername/dynamic-summarization.git
+cd dynamic-summarization
+```
+
+2. **Create and activate a virtual environment**
+```bash
+python -m venv .venv
+source .venv/bin/activate # On Windows: .venv\Scripts\activate
+```
+
+3. **Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+4. **Prepare your data**
+   - For XL-Sum dataset:
+     ```python
+     from datasets import load_dataset
+     dataset = load_dataset('GEM/xlsum', 'english')
+     ```
+   - For ScisummNet dataset:
+     ```python
+     from src.data_loader import DataLoader
+     loader = DataLoader()
+     data = loader.load_scisummnet('path/to/scisummnet')
+     ```
+
+5. **Run the pipeline**
+```bash
+python -m src.main --input "data/documents/" --output "results/"
+```
+
+### Usage Examples for Each Module
+
+1. **Data Preparation**
+   ```python
+   from src.data_preparation import DataPreparator
+   preparator = DataPreparator()
+   processed_data = preparator.process(raw_data)
+   ```
+
+2. **Embedding Generation**
+   ```python
+   from src.embedding_generator import EnhancedEmbeddingGenerator
+   generator = EnhancedEmbeddingGenerator(model_name='all-mpnet-base-v2')
+   embeddings = generator.generate_embeddings(processed_data)
+   ```
+
+3. **Clustering**
+   ```python
+   from src.clustering.dynamic_cluster_manager import DynamicClusterManager
+   cluster_manager = DynamicClusterManager(config={'min_cluster_size': 5, 'min_samples': 3})
+   clusters = cluster_manager.fit_predict(embeddings)
+   ```
+
+4. **Summarization**
+   ```python
+   from src.summarization.hybrid_summarizer import HybridSummarizer
+   summarizer = HybridSummarizer(model_name='facebook/bart-large-cnn', max_length=150, min_length=50)
+   summaries = summarizer.summarize_all_clusters(clusters, style='technical')
+   ```
+
+5. **Visualization**
+   ```python
+   from src.visualization.embedding_visualizer import EmbeddingVisualizer
+   visualizer = EmbeddingVisualizer(config={'method': 'umap', 'n_neighbors': 15})
+   visualizer.plot_embeddings(embeddings, labels, output_path='outputs/figures')
+   ```
+
+## Evaluation Metrics
+
+The framework tracks multiple metrics for quality assessment:
+
+- **Embedding Quality**
+  - Intra-cluster cosine similarity
+  - Dimension reduction quality
+
+- **Clustering Performance**
+  - Silhouette score
+  - Davies-Bouldin index
+  - Cluster stability metrics
+
+- **Summarization Quality**
+  - ROUGE scores
+  - BLEU scores
+  - Summary coherence metrics
+
+### Example Code for Evaluation
+
+```python
+from src.evaluation.metrics import EvaluationMetrics
+
+metrics = EvaluationMetrics()
+scores = metrics.calculate_rouge_scores(generated_summaries, reference_summaries)
+print(f"ROUGE-L F1: {scores['rougeL']['fmeasure']:.3f}")
+
+bleu_scores = metrics.calculate_bleu_scores(generated_summaries, reference_summaries)
+print(f"BLEU Score: {bleu_scores['bleu']:.3f}")
+```

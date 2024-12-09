@@ -256,7 +256,26 @@ def main():
                 'source': dataset_name
             }
         
-        # Continue with the rest of your pipeline...
+        # Initialize clustering manager
+        cluster_manager = DynamicClusterManager(config['clustering'])
+        
+        # Initialize adaptive summarizer
+        summarizer = AdaptiveSummarizer(config['summarization'])
+        
+        # Initialize evaluation metrics
+        evaluator = EvaluationMetrics()
+        
+        # Process each dataset through the pipeline
+        for dataset_name, dataset in processed_datasets.items():
+            logger.info(f"Running pipeline for dataset: {dataset_name}")
+            results = process_dataset(
+                dataset=dataset,
+                cluster_manager=cluster_manager,
+                summarizer=summarizer,
+                evaluator=evaluator,
+                config=config
+            )
+            logger.info(f"Pipeline results for {dataset_name}: {results}")
         
         logger.info("Pipeline completed successfully!")
         
