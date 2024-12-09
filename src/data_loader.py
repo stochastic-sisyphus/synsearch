@@ -31,7 +31,7 @@ class DataLoader:
                     if dataset and 'train' in dataset:
                         df = pd.DataFrame({
                             'text': dataset['train']['text'],
-                            'summary': dataset['train']['summary'],
+                            'summary': dataset['train']['target'],
                             'id': range(len(dataset['train'])),
                             'source': ['xlsum'] * len(dataset['train'])
                         })
@@ -46,16 +46,16 @@ class DataLoader:
             elif dataset_config['name'] == 'scisummnet':
                 try:
                     self.logger.info("Loading ScisummNet dataset...")
-                    scisummnet_path = self.config['data']['scisummnet_path']
-                    if scisummnet_path:
-                        df = self.load_scisummnet(scisummnet_path)
+                    scisummnet_path = Path(self.config['data']['scisummnet_path'])
+                    if scisummnet_path.exists():
+                        df = self.load_scisummnet(str(scisummnet_path))
                         if df is not None and not df.empty:
                             datasets['scisummnet'] = df
                             self.logger.info(f"Successfully loaded {len(df)} documents from ScisummNet")
                         else:
                             self.logger.warning("No valid documents found in ScisummNet dataset")
                     else:
-                        self.logger.warning("ScisummNet path not configured")
+                        self.logger.warning(f"ScisummNet path not found: {scisummnet_path}")
                 except Exception as e:
                     self.logger.warning(f"Failed to load ScisummNet dataset: {e}")
 
@@ -69,7 +69,7 @@ class DataLoader:
         try:
             self.logger.info(f"Loading ScisummNet dataset from {path}...")
             data = []
-            top1000_dir = Path(path) / 'top1000_complete'
+            top1000_dir = Path(path)
             
             if not top1000_dir.exists():
                 self.logger.error(f"Directory not found: {top1000_dir}")
