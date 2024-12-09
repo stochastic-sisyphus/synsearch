@@ -17,6 +17,16 @@ class AdaptiveSummarizer:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model.to(self.device)
         self.style_selector = AdaptiveStyleSelector(config)
+        
+        # Add temperature scaling for generation
+        self.temperature_scaling = config['summarization'].get('temperature_scaling', True)
+        
+        # Add support for multi-style templates
+        self.style_templates = config['summarization'].get('style_templates', {
+            'technical': 'Summarize technically: ',
+            'narrative': 'Provide a narrative summary: ',
+            'concise': 'Summarize concisely: '
+        })
     
     def summarize_cluster(
         self, 
@@ -54,33 +64,60 @@ class AdaptiveSummarizer:
         }
     
     def _get_adaptive_params(self, style: str, metrics: Dict[str, float]) -> Dict[str, Any]:
-        """Dynamically adjust generation parameters based on metrics."""
+        """Enhanced parameter adaptation based on content characteristics."""
         base_params = self.config['summarization']['style_params'][style].copy()
         
-        # Adjust length based on cluster complexity
-        if metrics['lexical_diversity'] > 0.8:  # High diversity
-            base_params['min_length'] = int(base_params['min_length'] * 1.2)
-            base_params['max_length'] = int(base_params['max_length'] * 1.2)
+        # Dynamic temperature scaling based on cluster coherence
+        if self.temperature_scaling:
+            coherence = metrics.get('cluster_coherence', 0.5)
+            base_params['temperature'] = max(0.7, min(1.0, 1.0 - coherence))
         
-        # Adjust other parameters based on metrics
-        if metrics['cluster_density'] < 0.5:  # Sparse cluster
-            base_params['num_beams'] = max(4, base_params.get('num_beams', 4))
+        # Adjust length based on content complexity and diversity
+        complexity_factor = (
+            metrics['lexical_diversity'] * 0.6 + 
+            metrics.get('structural_complexity', 0.5) * 0.4
+        )
+        
+        if complexity_factor > 0.7:  # High complexity content
+            base_params['min_length'] = int(base_params['min_length'] * 1.3)
+            base_params['max_length'] = int(base_params['max_length'] * 1.3)
+            base_params['num_beams'] = max(5, base_params.get('num_beams', 4))
+        
+        # Adjust repetition penalty for diverse content
+        if metrics['lexical_diversity'] > 0.75:
+            base_params['repetition_penalty'] = max(
+                1.5, 
+                base_params.get('repetition_penalty', 1.0)
+            )
         
         return base_params
     
     def _generate_summary(self, texts: List[str], gen_params: Dict[str, Any]) -> str:
-        """Generate summary with attention to key sentences."""
-        # Combine texts with special attention to representative sentences
-        combined_text = " ".join(texts)
+        """Enhanced summary generation with style-specific prompting."""
+        # Get style-specific template
+        style = gen_params.get('style', 'narrative')
+        template = self.style_templates.get(style, '')
+        
+        # Combine texts with special attention to key sentences
+        combined_text = template + " ".join(texts)
+        
+        # Add length guidance
+        target_length = gen_params.get('max_length', 150)
+        combined_text = f"Length: {target_length} tokens. {combined_text}"
+        
         inputs = self.tokenizer(
             combined_text, 
             return_tensors="pt", 
             truncation=True,
-            max_length=self.config['summarization'].get('max_input_length', 1024)
+            max_length=self.config['summarization'].get('max_input_length', 1024),
+            padding=True
         ).to(self.device)
         
+        # Generate with enhanced parameters
         summary_ids = self.model.generate(
             inputs["input_ids"],
+            do_sample=gen_params.get('do_sample', True),
+            top_p=gen_params.get('top_p', 0.9),
             **gen_params
         )
         
