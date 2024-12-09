@@ -27,6 +27,8 @@ clustering:
   params:
     min_cluster_size: 5
     min_samples: 5
+    metric: 'euclidean'
+    cluster_selection_epsilon: 0.5
   device: null  # Will use performance.device setting
   num_workers: null  # Will use performance.num_workers setting
   output_dir: "outputs/clusters"

@@ -11,7 +11,7 @@ import yaml
 import pandas as pd
 from data_loader import DataLoader
 from data_preparation import DataPreparator
-from data_validator import DataValidator
+from data_validator import DataValidator, ConfigValidator
 from utils.logging_config import setup_logging
 from embedding_generator import EnhancedEmbeddingGenerator
 from visualization.embedding_visualizer import EmbeddingVisualizer
@@ -46,10 +46,15 @@ def get_optimal_workers():
     """Get optimal number of worker processes."""
     return multiprocessing.cpu_count()
 
-def load_config(config_path: str = "config/config.yaml") -> Dict[str, Any]:
-    """Load configuration from YAML file."""
+def load_config(config_path: str) -> Dict[str, Any]:
+    """Load and validate configuration from YAML file."""
     with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+    
+    validator = ConfigValidator()
+    validator.validate_config(config)  # Will raise ValueError if invalid
+    
+    return config
 
 def process_texts(texts: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
     """Process texts with adaptive summarization and enhanced metrics."""
@@ -80,7 +85,7 @@ def main():
     
     try:
         # Load configuration
-        config = load_config()
+        config = load_config('config/config.yaml')
         
         # Validate required config parameters
         required_params = {
@@ -249,6 +254,9 @@ def main():
     except Exception as e:
         logger.error(f"Pipeline failed: {e}")
         raise
+    except ValueError as e:
+        logger.error(f"Configuration error: {str(e)}")
+        sys.exit(1)
 
 def generate_summaries(cluster_texts: Dict[str, List[str]], config: Dict) -> Dict[str, Dict]:
     """Generate and evaluate summaries for clustered texts with adaptive style selection."""

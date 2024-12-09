@@ -1,6 +1,7 @@
 import pandas as pd
-from typing import Dict, List
+from typing import Dict, List, Any
 import logging
+import yaml
 
 class DataValidator:
     def __init__(self):
@@ -89,3 +90,62 @@ class DataValidator:
         return checks
     
     # Add more validation methods as needed 
+
+class ConfigValidator:
+    """Validates configuration settings for the pipeline."""
+    
+    REQUIRED_FIELDS = {
+        'embedding': {
+            'model_name': str,
+            'dimension': int,
+            'batch_size': int,
+            'device': str
+        },
+        'clustering': {
+            'n_clusters': int,  # Added this required field
+            'min_cluster_size': int,
+            'hybrid_mode': bool,
+            'params': {
+                'cluster_selection_epsilon': float
+            }
+        },
+        'visualization': {
+            'enabled': bool,
+            'output_dir': str
+        },
+        'summarization': {
+            'enabled': bool,
+            'model_name': str,
+            'max_length': int
+        }
+    }
+
+    def validate_config(self, config: Dict[str, Any]) -> bool:
+        """
+        Validates the configuration dictionary against required fields.
+        Returns True if valid, raises ValueError if invalid.
+        """
+        try:
+            self._validate_section(config, self.REQUIRED_FIELDS)
+            return True
+        except ValueError as e:
+            raise ValueError(f"Configuration validation failed: {str(e)}")
+
+    def _validate_section(self, config: Dict[str, Any], required: Dict[str, Any], path: str = "") -> None:
+        """Recursively validates configuration sections."""
+        for key, value_type in required.items():
+            current_path = f"{path}.{key}" if path else key
+            
+            if key not in config:
+                raise ValueError(f"Missing required field: {current_path}")
+            
+            if isinstance(value_type, dict):
+                if not isinstance(config[key], dict):
+                    raise ValueError(f"Field {current_path} must be a dictionary")
+                self._validate_section(config[key], value_type, current_path)
+            else:
+                if not isinstance(config[key], value_type):
+                    raise ValueError(
+                        f"Field {current_path} must be of type {value_type.__name__}, "
+                        f"got {type(config[key]).__name__}"
+                    )
