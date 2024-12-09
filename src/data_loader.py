@@ -74,8 +74,9 @@ class DataLoader:
         try:
             self.logger.info(f"Loading ScisummNet dataset from {path}...")
             data = []
-            top1000_dir = Path(path)
             
+            # Get path to top1000_complete directory
+            top1000_dir = Path(path) / 'top1000_complete'
             if not top1000_dir.exists():
                 self.logger.error(f"Directory not found: {top1000_dir}")
                 return None
@@ -86,15 +87,16 @@ class DataLoader:
             
             for doc_dir in doc_dirs:
                 try:
-                    # Load document text
-                    doc_path = doc_dir / 'Documents_xml' / f'{doc_dir.name}.xml'
-                    summary_path = doc_dir / 'summary' / 'summary.txt'
+                    paper_id = doc_dir.name
+                    xml_path = doc_dir / 'Documents_xml' / f'{paper_id}.xml'
+                    summary_path = doc_dir / 'summary' / f'{paper_id}.gold.txt'
                     
-                    if not doc_path.exists() or not summary_path.exists():
+                    if not xml_path.exists() or not summary_path.exists():
+                        self.logger.debug(f"Missing files for paper {paper_id}")
                         continue
                     
-                    # Read document text from XML
-                    tree = ET.parse(doc_path)
+                    # Read XML content
+                    tree = ET.parse(xml_path)
                     root = tree.getroot()
                     text_elements = root.findall('.//S')
                     text = ' '.join(elem.text.strip() for elem in text_elements if elem.text)
@@ -105,9 +107,9 @@ class DataLoader:
                     
                     if text and summary:  # Only add if both text and summary exist
                         data.append({
-                            'id': doc_dir.name,
                             'text': text,
                             'summary': summary,
+                            'paper_id': paper_id,
                             'source': 'scisummnet'
                         })
                         
@@ -118,7 +120,7 @@ class DataLoader:
             if not data:
                 self.logger.error("No valid documents found in ScisummNet dataset")
                 return None
-                
+            
             df = pd.DataFrame(data)
             self.logger.info(f"Successfully loaded {len(df)} documents from ScisummNet")
             return df
