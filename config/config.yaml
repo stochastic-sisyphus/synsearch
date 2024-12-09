@@ -56,7 +56,21 @@ summarization:
   model_name: "facebook/bart-large-cnn"
   max_length: 150
   min_length: 50
-  batch_size: 16
+  device: "cuda"
+  batch_size: 8
+  style_params:
+    concise:
+      max_length: 100
+      min_length: 30
+    detailed:
+      max_length: 300
+      min_length: 100
+    technical:
+      max_length: 200
+      min_length: 50
+  num_beams: 4
+  length_penalty: 2.0
+  early_stopping: true
 
 # Logging Configuration
 logging:
