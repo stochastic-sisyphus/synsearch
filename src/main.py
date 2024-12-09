@@ -103,8 +103,17 @@ def validate_config(config):
 def get_dataset_path(dataset_config):
     """Helper function to resolve dataset paths"""
     if dataset_config['name'] == 'scisummnet':
-        # Use relative path from current working directory
-        return os.path.join('.', dataset_config['path'], dataset_config['top1000_dir'])
+        # Get absolute path of the script's directory
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # Go up one level to project root
+        project_root = os.path.dirname(current_dir)
+        # Construct the full path
+        full_path = os.path.join(project_root, dataset_config['path'], dataset_config['top1000_dir'])
+        # Log the path construction
+        logging.info(f"Current directory: {current_dir}")
+        logging.info(f"Project root: {project_root}")
+        logging.info(f"Constructed path: {full_path}")
+        return full_path
     return dataset_config['path']
 
 def load_datasets(config):
@@ -133,8 +142,11 @@ def load_datasets(config):
         elif dataset_config['name'] == 'scisummnet':
             dataset_path = get_dataset_path(dataset_config)
             
-            # Log the actual path being checked
-            logging.info(f"Checking ScisummNet path: {os.path.abspath(dataset_path)}")
+            # Log the actual path and check if it exists
+            abs_path = os.path.abspath(dataset_path)
+            logging.info(f"Checking ScisummNet path: {abs_path}")
+            logging.info(f"Path exists: {os.path.exists(abs_path)}")
+            logging.info(f"Directory contents: {os.listdir(os.path.dirname(abs_path)) if os.path.exists(os.path.dirname(abs_path)) else 'Directory not found'}")
             
             if not os.path.exists(dataset_path):
                 logging.warning(f"ScisummNet dataset path not found: {dataset_path}")
