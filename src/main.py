@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 import yaml
 import pandas as pd
-from data_loader import DataLoader
+from data.data_loader import DataLoader
 from data_preparation import DataPreparator
 from data_validator import DataValidator, ConfigValidator
 from utils.logging_config import setup_logging

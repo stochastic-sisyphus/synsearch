@@ -143,6 +143,43 @@ class DataLoader:
         # Implementation for batch processing
         pass
 
+    def load_all_datasets(self) -> Dict[str, pd.DataFrame]:
+        """Load all configured datasets."""
+        datasets = {}
+        
+        # Load XL-Sum dataset
+        try:
+            xl_sum = self.load_xlsum_dataset()
+            datasets['xlsum'] = xl_sum
+        except Exception as e:
+            self.logger.warning(f"Failed to load XL-Sum dataset: {e}")
+        
+        # Load ScisummNet dataset
+        try:
+            scisumm = self.load_scisummnet_dataset()
+            datasets['scisummnet'] = scisumm
+        except Exception as e:
+            self.logger.warning(f"Failed to load ScisummNet dataset: {e}")
+            
+        if not datasets:
+            raise ValueError("No datasets were successfully loaded")
+            
+        return datasets
+        
+    def load_xlsum_dataset(self) -> pd.DataFrame:
+        """Load XL-Sum dataset from Hugging Face."""
+        dataset = load_dataset('GEM/xlsum')
+        # Convert to DataFrame and process as needed
+        df = pd.DataFrame(dataset['train'])
+        return df
+        
+    def load_scisummnet_dataset(self) -> pd.DataFrame:
+        """Load ScisummNet dataset from local path."""
+        path = self.config['data']['scisummnet_path']
+        # Add your existing ScisummNet loading logic here
+        # Return the loaded data as a DataFrame
+        pass
+
 def load_xlsum_dataset():
     """Load and preprocess XL-Sum dataset"""
     from datasets import load_dataset
