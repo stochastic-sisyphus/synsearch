@@ -219,6 +219,33 @@ class DomainAgnosticPreprocessor:
         
         return processed_df
 
+    def preprocess_text(self, text: str) -> str:
+        """Preprocess a single text string in a domain-agnostic way.
+        
+        Args:
+            text: Input text to preprocess
+            
+        Returns:
+            Preprocessed text string
+        """
+        if not isinstance(text, str):
+            return ""
+        
+        # Convert to lowercase
+        text = text.lower()
+        
+        # Remove special characters and extra whitespace
+        text = re.sub(r'[^\w\s]', ' ', text)
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Remove numbers (optional - comment out if numbers are important)
+        # text = re.sub(r'\d+', '', text)
+        
+        # Strip whitespace
+        text = text.strip()
+        
+        return text
+
 # Example usage
 if __name__ == "__main__":
     from data_loader import DataLoader
