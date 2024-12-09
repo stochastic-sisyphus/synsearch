@@ -1,4 +1,4 @@
-from transformers import AutoTokenizer, AutoModelForSeq2SeqGeneration
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from typing import List, Dict, Any
 from src.utils.style_selector import AdaptiveStyleSelector
 from src.utils.metrics_utils import calculate_cluster_metrics
@@ -8,7 +8,7 @@ import torch
 class AdaptiveSummarizer:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.model = AutoModelForSeq2SeqGeneration.from_pretrained(
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(
             config['summarization']['model_name']
         )
         self.tokenizer = AutoTokenizer.from_pretrained(
