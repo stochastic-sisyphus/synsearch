@@ -78,6 +78,32 @@ def group_texts_by_similarity(texts: List[str], embeddings: np.ndarray) -> Dict[
     # ... existing clustering logic ...
     return {0: texts}  # Placeholder - implement your clustering logic
 
+def validate_config(config: dict) -> None:
+    """Validate the configuration before running the pipeline."""
+    validator = ConfigValidator()
+    
+    try:
+        validator.validate_config(config)
+    except ValueError as e:
+        raise ValueError(f"Configuration validation failed: {str(e)}")
+    
+    # Additional validation for specific values
+    if config['embedding']['dimension'] <= 0:
+        raise ValueError("Embedding dimension must be positive")
+    
+    if config['embedding']['batch_size'] <= 0:
+        raise ValueError("Batch size must be positive")
+    
+    if config['embedding']['max_seq_length'] <= 0:
+        raise ValueError("Max sequence length must be positive")
+    
+    # Validate paths exist
+    data_paths = ['input_path', 'scisummnet_path']
+    for path_key in data_paths:
+        path = config['data'].get(path_key)
+        if path and not os.path.exists(path):
+            raise ValueError(f"Path does not exist: {path} ({path_key})")
+
 def main():
     # Setup logging
     setup_logging('logs/processing.log')
@@ -86,6 +112,9 @@ def main():
     try:
         # Load configuration
         config = load_config('config/config.yaml')
+        
+        # Validate config
+        validate_config(config)
         
         # Validate required config parameters
         required_params = {

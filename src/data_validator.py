@@ -96,31 +96,48 @@ class ConfigValidator:
     
     REQUIRED_FIELDS = {
         'data': {
-            'input_dir': str,
-            'output_dir': str
+            'input_path': str,
+            'output_path': str,
+            'scisummnet_path': str,
+            'processed_path': str,
+            'batch_size': int
         },
         'preprocessing': {
             'min_length': int,
-            'max_length': int
+            'max_length': int,
+            'validation': dict  # For validation thresholds
         },
         'embedding': {
             'model_name': str,
-            'max_seq_length': int
+            'dimension': int,  # Added this required field
+            'batch_size': int,
+            'max_seq_length': int,
+            'device': str
         },
         'clustering': {
             'algorithm': str,
-            'min_cluster_size': int,  # This was missing
+            'min_cluster_size': int,
             'min_samples': int,
-            'metric': str
+            'metric': str,
+            'params': dict,
+            'output_dir': str
+        },
+        'visualization': {
+            'enabled': bool,
+            'output_dir': str
         },
         'summarization': {
             'model_name': str,
             'max_length': int,
-            'min_length': int
+            'min_length': int,
+            'batch_size': int
         },
         'logging': {
             'level': str,
             'format': str
+        },
+        'checkpoints': {
+            'dir': str
         }
     }
 
