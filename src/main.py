@@ -24,8 +24,13 @@ from summarization.hybrid_summarizer import HybridSummarizer
 from evaluation.metrics import EvaluationMetrics
 import json
 from utils.checkpoint_manager import CheckpointManager
-from dashboard.app import DashboardApp
-from datasets import load_dataset
+try:
+    from dashboard.app import DashboardApp
+except ImportError as e:
+    print(f"Warning: Dashboard functionality not available - {str(e)}")
+    print("To enable dashboard, install required packages: pip install dash plotly umap-learn")
+    DashboardApp = None
+
 import torch
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
@@ -247,6 +252,12 @@ def main():
                 labels,
                 Path(config['visualization']['output_dir'])
             )
+        
+        if DashboardApp is not None:
+            app = DashboardApp(embedding_generator, cluster_manager)
+            app.run_server(debug=True)
+        else:
+            print("Dashboard disabled - running in CLI mode only")
         
         logger.info("Processing complete!")
         

@@ -1,12 +1,19 @@
-import dash
-from dash import html, dcc
-import plotly.express as px
-from dash.dependencies import Input, Output, State
-import numpy as np
-from umap import UMAP
-
+try:
+    import dash
+    from dash import html, dcc
+    import plotly.express as px
+    from dash.dependencies import Input, Output, State
+    import numpy as np
+    from umap import UMAP
+    DASHBOARD_ENABLED = True
+except ImportError:
+    DASHBOARD_ENABLED = False
+    
 class DashboardApp:
     def __init__(self, embedding_generator, cluster_manager):
+        if not DASHBOARD_ENABLED:
+            raise ImportError("Dashboard dependencies not installed. Run: pip install dash plotly umap-learn")
+            
         self.app = dash.Dash(__name__)
         self.embedding_generator = embedding_generator
         self.cluster_manager = cluster_manager
