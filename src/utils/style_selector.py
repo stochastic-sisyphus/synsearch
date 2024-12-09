@@ -10,17 +10,20 @@ class AdaptiveStyleSelector:
             'concise': {
                 'max_length': 100,
                 'min_length': 30,
-                'length_penalty': 1.0
+                'length_penalty': 1.5,
+                'num_beams': 3
             },
             'detailed': {
-                'max_length': 200,
+                'max_length': 250,
                 'min_length': 100,
-                'length_penalty': 2.0
+                'length_penalty': 1.0,
+                'num_beams': 4
             },
             'balanced': {
                 'max_length': 150,
                 'min_length': 50,
-                'length_penalty': 1.5
+                'length_penalty': 1.2,
+                'num_beams': 4
             }
         }
     
@@ -28,13 +31,13 @@ class AdaptiveStyleSelector:
         """Determine appropriate summarization style based on cluster characteristics."""
         # Calculate metrics
         avg_text_length = np.mean([len(text.split()) for text in texts])
-        embedding_variance = np.var(embeddings, axis=0).mean()
+        embedding_variance = np.var(embeddings)
         
-        # Select style based on characteristics
-        if embedding_variance > 0.5 or avg_text_length > 300:
-            style = 'detailed'
-        elif embedding_variance < 0.2 and avg_text_length < 150:
+        # Determine style based on characteristics
+        if avg_text_length < 100 and embedding_variance < 0.5:
             style = 'concise'
+        elif avg_text_length > 200 or embedding_variance > 1.0:
+            style = 'detailed'
         else:
             style = 'balanced'
             
@@ -46,4 +49,15 @@ class AdaptiveStyleSelector:
                 'embedding_variance': float(embedding_variance)
             }
         }
+
+def determine_cluster_style(embeddings: np.ndarray, texts: List[str], config: Dict[str, Any] = None) -> str:
+    """Determine the appropriate summarization style for a cluster."""
+    selector = AdaptiveStyleSelector(config)
+    result = selector.select_style(embeddings, texts)
+    return result['style']
+
+def get_style_parameters(style: str) -> Dict[str, Any]:
+    """Get the parameters for a given summarization style."""
+    selector = AdaptiveStyleSelector()
+    return selector.style_params.get(style, selector.style_params['balanced'])
  
