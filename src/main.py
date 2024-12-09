@@ -56,17 +56,22 @@ def get_optimal_workers():
     """Get optimal number of worker processes."""
     return multiprocessing.cpu_count()
 
-def load_config(config_path: str = "config/config.yaml") -> dict:
-    """Load configuration from YAML file."""
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
-
-def setup_logging(config: dict) -> None:
+def setup_logging(config):
     """Configure logging based on config settings."""
     logging.basicConfig(
-        level=config['logging']['level'],
+        level=getattr(logging, config['logging']['level']),
         format=config['logging']['format']
     )
+    return logging.getLogger(__name__)
+
+def load_config():
+    """Load configuration from YAML file."""
+    config_path = Path("config/config.yaml")
+    if not config_path.exists():
+        raise FileNotFoundError(f"Configuration file not found at {config_path}")
+    
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
 
 def process_texts(texts: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
     """Process texts with adaptive summarization and enhanced metrics."""
@@ -165,16 +170,18 @@ def process_dataset(
 
 def main():
     try:
-        # Load configuration
-        with open('config/config.yaml', 'r') as f:
-            config = yaml.safe_load(f)
+        # Load configuration first
+        config = load_config()
         
-        # Initialize components
+        # Setup logging using config values
+        logger = setup_logging(config)
+        
+        # Initialize pipeline components with their specific config sections
         data_loader = DataLoader(config)
-        preprocessor = DomainAgnosticPreprocessor()
-        embedding_generator = EnhancedEmbeddingGenerator(config)
-        cluster_manager = DynamicClusterManager(config)
-        summarizer = AdaptiveSummarizer(config)
+        preprocessor = DomainAgnosticPreprocessor(config['preprocessing'])
+        embedding_generator = EnhancedEmbeddingGenerator(config['embedding'])
+        cluster_manager = DynamicClusterManager(config['clustering'])
+        summarizer = AdaptiveSummarizer(config['summarization'])
         metrics_calc = EvaluationMetrics()
         
         # Load and preprocess datasets
