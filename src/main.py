@@ -127,7 +127,7 @@ def load_datasets(config):
                     logging.error(f"Failed to load ScisummNet dataset: {str(e)}")
             else:
                 logging.warning(f"ScisummNet dataset path not found: {scisummnet_path}")
-                logging.info("To use ScisummNet, please ensure the dataset is in the correct location")
+                logging.info("Please ensure the dataset is in: /Users/vanessa/Dropbox/synsearch/data/scisummnet_release1.1__20190413/top1000_complete")
         
         elif dataset_config['name'] == 'xlsum':
             logging.info(f"Loading XL-Sum dataset for language: {dataset_config['language']}")
