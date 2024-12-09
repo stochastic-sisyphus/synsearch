@@ -13,12 +13,6 @@ class DataLoader:
         self.config = config
         self.logger = logging.getLogger(__name__)
         self.batch_size = config.get('data', {}).get('batch_size', 32)
-        self.supported_formats = {
-            '.md': self._load_markdown,
-            '.txt': self._load_text,
-            '.pdf': self._load_pdf,
-            '.json': self._load_json
-        }
 
     def load_all_datasets(self) -> Dict[str, pd.DataFrame]:
         """Load all configured datasets."""
