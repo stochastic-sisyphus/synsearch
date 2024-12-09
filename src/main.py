@@ -333,15 +333,24 @@ def load_scisummnet(path: str) -> Dict:
         data = []
         papers_path = os.path.join(path, 'top1000_complete')
         
-        for paper_dir in os.listdir(papers_path):
+        # Add logging to see what's happening
+        logging.info(f"Scanning papers directory: {papers_path}")
+        paper_dirs = os.listdir(papers_path)
+        logging.info(f"Found {len(paper_dirs)} potential papers")
+        
+        for paper_dir in paper_dirs:
             paper_path = os.path.join(papers_path, paper_dir)
             if not os.path.isdir(paper_path):
                 continue
                 
             try:
-                # Updated paths to match actual file structure
                 summary_path = os.path.join(paper_path, 'summary', f'{paper_dir}.gold.txt')
                 xml_path = os.path.join(paper_path, 'Documents_xml', f'{paper_dir}.xml')
+                
+                # Add logging for file checks
+                logging.info(f"Checking paper {paper_dir}:")
+                logging.info(f"  Summary path: {summary_path} (exists: {os.path.exists(summary_path)})")
+                logging.info(f"  XML path: {xml_path} (exists: {os.path.exists(xml_path)})")
                 
                 if not os.path.exists(summary_path) or not os.path.exists(xml_path):
                     logging.warning(f"Missing files for paper {paper_dir}")
@@ -361,6 +370,7 @@ def load_scisummnet(path: str) -> Dict:
                     'abstract': abstract,
                     'summary': summary
                 })
+                logging.info(f"Successfully loaded paper {paper_dir}")
                 
             except Exception as e:
                 logging.warning(f"Failed to load paper {paper_dir}: {str(e)}")
@@ -379,7 +389,8 @@ def load_scisummnet(path: str) -> Dict:
         }
         
     except Exception as e:
-        raise Exception(f"Failed to load ScisummNet dataset: {str(e)}")
+        logging.error(f"Failed to load ScisummNet dataset: {str(e)}")
+        raise
 
 def load_scisummnet_dataset(config):
     dataset_path = config['datasets']['scisummnet']['path']
