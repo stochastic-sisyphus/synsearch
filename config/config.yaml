@@ -67,7 +67,7 @@ personalization:
     batch_size: 8
 
 summarization:
-  model_name: "facebook/bart-large-cnn"
+  model_name: "t5-base"
   max_length: 512
   min_length: 50
   batch_size: 8

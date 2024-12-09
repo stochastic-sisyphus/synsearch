@@ -201,59 +201,28 @@ def main():
         # Generate attention-refined embeddings
         embeddings = embedding_generator.generate_embeddings(all_texts)
         
-        # Perform dynamic clustering
-        labels, metrics = cluster_manager.fit_predict(embeddings)
+        # Process clusters with enhanced metrics
+        results = process_clusters(texts=all_texts, embeddings=embeddings, config=config)
+        logger.info(f"Processed {len(results['clusters'])} clusters")
+        logger.info(f"Data characteristics: {results['data_characteristics']}")
         
-        # Log enhanced metrics
-        logger.info(f"Clustering metrics: {metrics}")
-        logger.info(f"Data characteristics: {metrics['data_characteristics']}")
-        
-        # Group documents by cluster
-        clusters = cluster_manager.get_cluster_documents(all_metadata, labels)
-        
-        # Generate summaries for clusters
-        if config.get('summarization', {}).get('enabled', True):
-            logger.info("Generating summaries for clusters...")
-            cluster_texts = {
-                label: [
-                    {
-                        'processed_text': doc['processed_text'],
-                        'reference_summary': doc.get('summary', '')  # Add reference summary if available
-                    }
-                    for doc in docs
-                ]
-                for label, docs in clusters.items()
-                if label != -1  # Skip noise cluster
-            }
-            summaries = generate_summaries(cluster_texts, config)
-            
-            # Log summary statistics
-            logger.info(f"Generated {len(summaries)} cluster summaries")
-            if any('metrics' in data for data in summaries.values()):
-                avg_rouge_l = np.mean([
-                    data['metrics']['rougeL']['fmeasure']
-                    for data in summaries.values()
-                    if 'metrics' in data
-                ])
-                logger.info(f"Average ROUGE-L F1: {avg_rouge_l:.3f}")
-        
-        # Save results
-        logger.info("Saving results...")
-        cluster_manager.save_results(
-            clusters,
-            metrics,
-            Path(config['clustering']['output_dir'])
-        )
-        
-        # Visualize embeddings if configured
+        # Use results for visualization
         if config.get('visualization', {}).get('enabled', True):
             logger.info("Generating visualizations...")
             visualizer = EmbeddingVisualizer(config['visualization'])
             visualizer.plot_embeddings(
                 embeddings,
-                labels,
+                [results['clusters'][doc_id] for doc_id in range(len(all_texts))],
                 Path(config['visualization']['output_dir'])
             )
+        
+        # Save results
+        logger.info("Saving results...")
+        cluster_manager.save_results(
+            results['clusters'],
+            results['clustering_metrics'],
+            Path(config['clustering']['output_dir'])
+        )
         
         if DashboardApp is not None:
             app = DashboardApp(embedding_generator, cluster_manager)
@@ -309,30 +278,72 @@ def generate_summaries(cluster_texts: Dict[str, List[str]], config: Dict) -> Dic
 
 def process_clusters(texts: List[str], embeddings: np.ndarray, config: Dict[str, Any]) -> Dict[str, Any]:
     """Process clusters with adaptive summarization and enhanced metrics."""
-    summarizer = AdaptiveSummarizer(config=config)
-    results = {}
-    
-    # Calculate cluster-specific metrics
-    cluster_metrics = {
-        'variance': calculate_cluster_variance(embeddings),
-        'lexical_diversity': calculate_lexical_diversity(texts)
-    }
-    
-    # Generate summary with metrics-based adaptation
-    summary_data = summarizer.summarize(
-        texts=texts,
-        embeddings=embeddings,
-        metrics=cluster_metrics
+    # Initialize components with configuration
+    cluster_manager = DynamicClusterManager(
+        config={
+            'clustering': {
+                'hybrid_mode': True,
+                'params': {
+                    'n_clusters': config.get('clustering', {}).get('n_clusters', 5),
+                    'min_cluster_size': config.get('clustering', {}).get('min_cluster_size', 10)
+                }
+            }
+        }
     )
     
-    results['summary'] = summary_data['summary']
-    results['style'] = summary_data['style']
-    results['metrics'] = {
-        **summary_data['metrics'],
-        **cluster_metrics
-    }
+    # Perform dynamic clustering with data characteristics analysis
+    labels, metrics = cluster_manager.fit_predict(embeddings)
     
-    return results
+    # Group documents by cluster
+    clusters = cluster_manager.get_cluster_documents(
+        [{'text': text} for text in texts],
+        labels
+    )
+    
+    # Initialize summarizer with adaptive configuration
+    summarizer = AdaptiveSummarizer(config=config)
+    
+    # Process each cluster for summarization
+    summaries = {}
+    for cluster_id, docs in clusters.items():
+        if cluster_id == -1:  # Skip noise cluster
+            continue
+            
+        cluster_texts = [doc['text'] for doc in docs]
+        cluster_embeddings = embeddings[labels == cluster_id]
+        
+        # Calculate cluster-specific metrics
+        cluster_metrics = {
+            'size': len(cluster_texts),
+            'cohesion': float(np.mean([
+                np.linalg.norm(emb - np.mean(cluster_embeddings, axis=0))
+                for emb in cluster_embeddings
+            ])),
+            'variance': float(np.var(cluster_embeddings))
+        }
+        
+        # Generate summary with metrics-based adaptation
+        summary_data = summarizer.summarize(
+            texts=cluster_texts,
+            embeddings=cluster_embeddings,
+            metrics=cluster_metrics
+        )
+        
+        summaries[cluster_id] = {
+            'summary': summary_data['summary'],
+            'style': summary_data['style'],
+            'metrics': {
+                **summary_data['metrics'],
+                **cluster_metrics
+            }
+        }
+    
+    return {
+        'clusters': clusters,
+        'summaries': summaries,
+        'clustering_metrics': metrics,
+        'data_characteristics': metrics['data_characteristics']
+    }
 
 if __name__ == "__main__":
     main() 
