@@ -1,14 +1,19 @@
 import os
 import sys
 import logging
+from pathlib import Path
 
-# Set up logging at the start of the script
+# Set up logging with absolute paths
+log_dir = Path(__file__).parent.parent / "logs"
+log_dir.mkdir(exist_ok=True)
+log_file = log_dir / "pipeline.log"
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(),  # Print to console
-        logging.FileHandler('pipeline.log')  # Save to file
+        logging.StreamHandler(sys.stdout),  # Print to stdout explicitly
+        logging.FileHandler(str(log_file))  # Convert Path to string for logging
     ]
 )
 
@@ -197,9 +202,17 @@ def main():
     try:
         logging.info("Starting pipeline execution...")
         
+        # Print current working directory and script location
+        logging.info(f"Current working directory: {os.getcwd()}")
+        logging.info(f"Script location: {Path(__file__).absolute()}")
+        
         # Load configuration with default path
         config = load_config()
-        logging.info("Loaded configuration")
+        logging.info(f"Loaded configuration: {config}")
+        
+        # Check if dataset path exists
+        dataset_path = Path(config['data']['datasets'][0]['path'])
+        logging.info(f"Checking dataset path: {dataset_path} (exists: {dataset_path.exists()})")
         
         # Validate configuration and create directories
         validate_config(config)
@@ -229,7 +242,7 @@ def main():
         # Continue with the rest of your pipeline...
         
     except Exception as e:
-        logging.error(f"Pipeline failed: {str(e)}")
+        logging.error(f"Pipeline failed: {str(e)}", exc_info=True)  # Include full traceback
         raise
     except ValueError as e:
         logging.error(f"Configuration error: {str(e)}")
