@@ -1,4 +1,4 @@
-from transformers import AutoTokenizer, AutoModelForSeq2SeqGeneration
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from typing import List, Dict, Any
 import numpy as np
 import torch
@@ -11,7 +11,7 @@ class AdaptiveSummarizer:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         # Initialize model and tokenizer
-        self.model = AutoModelForSeq2SeqGeneration.from_pretrained(
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(
             config.get('model_name', 'facebook/bart-large-cnn')
         ).to(self.device)
         
