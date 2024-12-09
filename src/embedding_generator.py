@@ -5,17 +5,18 @@ from typing import List, Dict, Any
 from tqdm import tqdm
 
 class EmbeddingGenerator:
-    def __init__(self, model_name: str = 'all-mpnet-base-v2', **kwargs):
-        """Initialize the embedding generator with a pre-trained model.
+    def __init__(self, model_name='sentence-transformers/all-mpnet-base-v2', embedding_dim=768, **kwargs):
+        """Initialize the embedding generator.
         
         Args:
-            model_name: Name of the pre-trained model to use (default: 'all-mpnet-base-v2')
-            **kwargs: Additional arguments for model configuration
+            model_name: Name of the pretrained model to use
+            embedding_dim: Dimension of the embeddings to generate
+            **kwargs: Additional arguments
         """
         self.model_name = model_name
-        self.model = AutoModel.from_pretrained(model_name)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.embedding_dim = embedding_dim
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model = AutoModel.from_pretrained(model_name)
         self.model.to(self.device)
         
     def generate_embeddings(self, texts: List[str], batch_size: int = 32) -> np.ndarray:

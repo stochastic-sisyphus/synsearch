@@ -180,7 +180,7 @@ def main():
         
         # Initialize components with enhanced features
         embedding_generator = EmbeddingGenerator(
-            model_name=config['embedding']['model_name'],
+            model_name='sentence-transformers/all-mpnet-base-v2',
             embedding_dim=config['embedding']['dimension']
         )
         
