@@ -3,6 +3,8 @@ import numpy as np
 from collections import Counter
 import nltk
 from nltk.tokenize import word_tokenize, sent_tokenize
+from rouge_score import rouge_scorer
+from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 nltk.download('punkt', quiet=True)
 
 def calculate_lexical_diversity(texts: List[str]) -> float:
@@ -37,4 +39,45 @@ def calculate_cluster_metrics(embeddings: np.ndarray, texts: List[str]) -> Dict[
         'variance': calculate_cluster_variance(embeddings),
         'lexical_diversity': calculate_lexical_diversity(texts),
         'size': len(texts)
+    }
+
+def calculate_rouge_scores(summaries: List[str], references: List[str]) -> Dict[str, Dict[str, float]]:
+    """Calculate ROUGE scores for summaries."""
+    scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
+    scores = {
+        'rouge1': {'precision': [], 'recall': [], 'fmeasure': []},
+        'rouge2': {'precision': [], 'recall': [], 'fmeasure': []},
+        'rougeL': {'precision': [], 'recall': [], 'fmeasure': []}
+    }
+    
+    for summary, reference in zip(summaries, references):
+        score = scorer.score(reference, summary)
+        
+        for metric, values in score.items():
+            scores[metric]['precision'].append(values.precision)
+            scores[metric]['recall'].append(values.recall)
+            scores[metric]['fmeasure'].append(values.fmeasure)
+    
+    # Calculate averages
+    averaged_scores = {}
+    for metric, values in scores.items():
+        averaged_scores[metric] = {
+            k: float(np.mean(v)) for k, v in values.items()
+        }
+        
+    return averaged_scores
+
+def calculate_bleu_scores(summaries: List[str], references: List[str]) -> Dict[str, float]:
+    """Calculate BLEU scores for summaries."""
+    smoothie = SmoothingFunction().method4
+    scores = []
+    
+    for summary, reference in zip(summaries, references):
+        reference_tokens = [reference.split()]
+        summary_tokens = summary.split()
+        score = sentence_bleu(reference_tokens, summary_tokens, smoothing_function=smoothie)
+        scores.append(score)
+    
+    return {
+        'bleu': float(np.mean(scores))
     }
