@@ -8,6 +8,14 @@ import xml.etree.ElementTree as ET
 from sentence_transformers import SentenceTransformer
 
 class DataLoader:
+    """
+    DataLoader class to handle loading and processing of datasets.
+
+    Attributes:
+        config (Dict[str, Any]): Configuration dictionary for data loading.
+        logger (logging.Logger): Logger for logging information and errors.
+        batch_size (int): Batch size for data loading.
+    """
     def __init__(self, config: Dict[str, Any]):
         """Initialize DataLoader with configuration"""
         self.config = config
@@ -20,7 +28,12 @@ class DataLoader:
             self.config['data']['scisummnet_path'] = str(project_root / self.config['data']['scisummnet_path'])
 
     def load_all_datasets(self) -> Dict[str, pd.DataFrame]:
-        """Load all configured datasets."""
+        """
+        Load all configured datasets.
+
+        Returns:
+            Dict[str, pd.DataFrame]: Dictionary of loaded datasets.
+        """
         datasets = {}
         
         # Load XL-Sum dataset if enabled
@@ -70,7 +83,15 @@ class DataLoader:
         return datasets
 
     def load_scisummnet(self, path: str) -> Optional[pd.DataFrame]:
-        """Load ScisummNet dataset from local directory"""
+        """
+        Load ScisummNet dataset from local directory.
+
+        Args:
+            path (str): Path to the ScisummNet dataset.
+
+        Returns:
+            Optional[pd.DataFrame]: DataFrame containing the loaded data.
+        """
         try:
             self.logger.info(f"Loading ScisummNet dataset from {path}...")
             data = []
@@ -130,7 +151,12 @@ class DataLoader:
             return None
 
     def load_scisummnet_dataset(self) -> pd.DataFrame:
-        """Load ScisummNet dataset."""
+        """
+        Load ScisummNet dataset.
+
+        Returns:
+            pd.DataFrame: DataFrame containing the loaded data.
+        """
         try:
             self.logger.info(f"Loading ScisummNet dataset from {self.config['data']['scisummnet_path']}...")
             

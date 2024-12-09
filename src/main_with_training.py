@@ -180,4 +180,4 @@ def generate_summaries(cluster_texts: Dict[str, List[str]], config: Dict) -> Lis
     return summaries
 
 if __name__ == "__main__":
-    main() 
+    main()

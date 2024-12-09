@@ -3,9 +3,13 @@ import numpy as np
 from sklearn.metrics import silhouette_score
 
 class ClusterManager:
+    """
+    Manages dynamic clustering operations with adaptive algorithm selection.
+    """
     def __init__(self, config):
         self.config = config
         self.clusterer = None
+        self.method = self.config['clustering']['method']
         
     def perform_clustering(self, embeddings):
         """Perform clustering on embeddings and return labels."""

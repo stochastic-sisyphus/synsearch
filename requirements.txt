@@ -72,7 +72,3 @@ language-tool-python>=2.7.1  # For grammar checking
 
 # Domain-agnostic processing
 textacy>=0.12.0
-
-# Add these lines to requirements.txt
-beautifulsoup4>=4.9.3
-lxml>=4.9.0  # Optional but recommended parser for bs4
