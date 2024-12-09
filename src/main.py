@@ -181,7 +181,9 @@ def main():
         # Initialize components with enhanced features
         embedding_generator = EmbeddingGenerator(
             model_name='sentence-transformers/all-mpnet-base-v2',
-            embedding_dim=config['embedding']['dimension']
+            embedding_dim=config['embedding']['dimension'],
+            batch_size=8,  # Conservative batch size
+            max_seq_length=512  # Limit sequence length
         )
         
         cluster_manager = DynamicClusterManager(
