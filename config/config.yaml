@@ -24,8 +24,9 @@ embedding:
 
 clustering:
   method: "hdbscan"
+  n_clusters: 5
   params:
-    min_cluster_size: 5
+    min_cluster_size: 10
     min_samples: 5
     metric: 'euclidean'
     cluster_selection_epsilon: 0.5
@@ -33,9 +34,6 @@ clustering:
   num_workers: null  # Will use performance.num_workers setting
   output_dir: "outputs/clusters"
   hybrid_mode: true
-  params:
-    n_clusters: 5
-    min_cluster_size: 10
 
 checkpoints:
   dir: "outputs/checkpoints"

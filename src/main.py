@@ -209,10 +209,7 @@ def main():
             config={
                 'clustering': {
                     'hybrid_mode': True,
-                    'params': {
-                        'n_clusters': 5,
-                        'min_cluster_size': 10
-                    }
+                    'params': config['clustering']
                 }
             }
         )
@@ -305,10 +302,7 @@ def process_clusters(texts: List[str], embeddings: np.ndarray, config: Dict[str,
         config={
             'clustering': {
                 'hybrid_mode': True,
-                'params': {
-                    'n_clusters': config.get('clustering', {}).get('n_clusters', 5),
-                    'min_cluster_size': config.get('clustering', {}).get('min_cluster_size', 10)
-                }
+                'params': config['clustering']
             }
         }
     )
