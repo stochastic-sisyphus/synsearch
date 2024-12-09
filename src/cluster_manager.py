@@ -6,6 +6,7 @@ class ClusterManager:
     def __init__(self, config):
         self.config = config
         self.clusterer = None
+        self.method = self.config['clustering']['method']
         
     def perform_clustering(self, embeddings):
         """Perform clustering on embeddings and return labels."""

@@ -40,7 +40,6 @@ sys.path.append(project_root)
 
 import torch
 import multiprocessing
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from utils.style_selector import determine_cluster_style, get_style_parameters
 from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
 from datasets import load_dataset
@@ -203,6 +202,9 @@ def get_optimal_batch_size():
     return 16  # Default for CPU
 
 def main():
+    """
+    Main function to run the entire pipeline.
+    """
     # Initialize logger first
     logger = logging.getLogger(__name__)
     
