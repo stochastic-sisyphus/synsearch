@@ -129,7 +129,11 @@ def load_datasets(config):
                     logging.error(f"Failed to load ScisummNet dataset: {str(e)}")
             else:
                 logging.warning(f"ScisummNet dataset path not found: {scisummnet_path}")
-                logging.info("Please ensure the dataset is in the correct location relative to the project root")
+                logging.info("Please download the ScisummNet dataset and place it in:")
+                logging.info(f"  {os.path.dirname(scisummnet_path)}")
+                logging.info("You can download it from: https://cs.stanford.edu/~myasu/projects/scisumm_net/")
+                # Continue with other datasets even if this one fails
+                continue
         
         elif dataset_config['name'] == 'xlsum':
             logging.info(f"Loading XL-Sum dataset for language: {dataset_config['language']}")
