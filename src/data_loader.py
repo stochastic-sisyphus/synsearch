@@ -149,15 +149,29 @@ class DataLoader:
         
         # Load XL-Sum dataset
         try:
-            xl_sum = self.load_xlsum_dataset()
-            datasets['xlsum'] = xl_sum
+            self.logger.info("Loading XL-Sum dataset...")
+            dataset = load_dataset('GEM/xlsum')
+            # Convert to DataFrame and process
+            df = pd.DataFrame({
+                'text': dataset['train']['text'],
+                'summary': dataset['train']['summary'],
+                'id': range(len(dataset['train'])),
+                'source': 'xlsum'
+            })
+            datasets['xlsum'] = df
         except Exception as e:
             self.logger.warning(f"Failed to load XL-Sum dataset: {e}")
         
         # Load ScisummNet dataset
         try:
-            scisumm = self.load_scisummnet_dataset()
-            datasets['scisummnet'] = scisumm
+            self.logger.info("Loading ScisummNet dataset...")
+            scisummnet_path = self.config.get('data', {}).get('scisummnet_path')
+            if not scisummnet_path:
+                self.logger.warning("ScisummNet path not found in config")
+            else:
+                scisumm = self.load_scisummnet(scisummnet_path)
+                if scisumm is not None:
+                    datasets['scisummnet'] = scisumm
         except Exception as e:
             self.logger.warning(f"Failed to load ScisummNet dataset: {e}")
             
