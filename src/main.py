@@ -47,15 +47,10 @@ def get_optimal_workers():
     """Get optimal number of worker processes."""
     return multiprocessing.cpu_count()
 
-def load_config(config_path: str) -> Dict[str, Any]:
-    """Load and validate configuration from YAML file."""
+def load_config(config_path: str = "config/config.yaml") -> dict:
+    """Load configuration from YAML file."""
     with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    
-    validator = ConfigValidator()
-    validator.validate_config(config)  # Will raise ValueError if invalid
-    
-    return config
+        return yaml.safe_load(f)
 
 def process_texts(texts: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
     """Process texts with adaptive summarization and enhanced metrics."""
@@ -137,176 +132,25 @@ def load_datasets(config):
 
 def main():
     """Main pipeline execution."""
-    # Load configuration
-    config = load_config()
-    
-    # Validate configuration and create directories
-    validate_config(config)
-    
-    # Load datasets
-    datasets = load_datasets(config)
-    if not datasets:
-        raise ValueError("No datasets were successfully loaded")
-    
-    # Continue with the rest of your pipeline...
-    
-    # Setup logging
-    setup_logging('logs/processing.log')
-    logger = logging.getLogger(__name__)
-    
     try:
-        # Initialize checkpoint manager with metrics tracking
-        checkpoint_manager = CheckpointManager(
-            checkpoint_dir=config.get('checkpoints', {}).get('dir', 'outputs/checkpoints'),
-            enable_metrics=True
-        )
+        # Load configuration with default path
+        config = load_config()
         
-        # Process datasets with checkpointing
-        if not checkpoint_manager.is_stage_complete('data_loading'):
-            start_time = datetime.now()
-            # Initialize components
-            loader = DataLoader(config['data']['scisummnet_path'])
-            preprocessor = DomainAgnosticPreprocessor(config['preprocessing'])
-            
-            # Load and process XL-Sum
-            xlsum = loader.load_xlsum()
-            if xlsum:
-                # Convert Dataset to DataFrame
-                xlsum_df = pd.DataFrame(xlsum['train'])
-                processed_xlsum = preprocessor.process_dataset(
-                    xlsum_df,
-                    text_column='text',
-                    summary_column='summary'
-                )
-                logger.info(f"Processed {len(processed_xlsum)} XL-Sum documents")
-            
-            # Load and process ScisummNet
-            scisummnet = loader.load_scisummnet(config['data']['scisummnet_path'])
-            if scisummnet is not None:
-                processed_scisummnet = preprocessor.process_dataset(
-                    scisummnet,
-                    text_column='text',
-                    summary_column='summary'
-                )
-                logger.info(f"Processed {len(processed_scisummnet)} ScisummNet documents")
-            
-            # Combine datasets if both are available
-            all_texts = []
-            all_metadata = []
-            
-            if 'processed_xlsum' in locals():
-                all_texts.extend(processed_xlsum['processed_text'].tolist())
-                all_metadata.extend(processed_xlsum.to_dict('records'))
-                
-            if 'processed_scisummnet' in locals():
-                all_texts.extend(processed_scisummnet['processed_text'].tolist())
-                all_metadata.extend(processed_scisummnet.to_dict('records'))
-            
-            checkpoint_manager.save_stage('data_loading', {
-                'xlsum_size': len(processed_xlsum) if 'processed_xlsum' in locals() else 0,
-                'scisummnet_size': len(processed_scisummnet) if 'processed_scisummnet' in locals() else 0,
-                'runtime': (datetime.now() - start_time).total_seconds(),
-                'data_path': str(config['data']['processed_path'])
-            })
-        else:
-            # Load from checkpoint
-            data_state = checkpoint_manager.get_stage_data('data_loading')
-            logger.info(f"Resuming from checkpoint with {data_state['xlsum_size']} XL-Sum and {data_state['scisummnet_size']} ScisummNet documents")
-            
-            # Initialize components
-            loader = DataLoader(config['data']['scisummnet_path'])
-            preprocessor = DomainAgnosticPreprocessor(config['preprocessing'])
-            
-            # Load and process XL-Sum
-            xlsum = loader.load_xlsum()
-            if xlsum:
-                # Convert Dataset to DataFrame
-                xlsum_df = pd.DataFrame(xlsum['train'])
-                processed_xlsum = preprocessor.process_dataset(
-                    xlsum_df,
-                    text_column='text',
-                    summary_column='summary'
-                )
-                logger.info(f"Processed {len(processed_xlsum)} XL-Sum documents")
-            
-            # Load and process ScisummNet
-            scisummnet = loader.load_scisummnet(config['data']['scisummnet_path'])
-            if scisummnet is not None:
-                processed_scisummnet = preprocessor.process_dataset(
-                    scisummnet,
-                    text_column='text',
-                    summary_column='summary'
-                )
-                logger.info(f"Processed {len(processed_scisummnet)} ScisummNet documents")
-            
-            # Combine datasets if both are available
-            all_texts = []
-            all_metadata = []
-            
-            if 'processed_xlsum' in locals():
-                all_texts.extend(processed_xlsum['processed_text'].tolist())
-                all_metadata.extend(processed_xlsum.to_dict('records'))
-                
-            if 'processed_scisummnet' in locals():
-                all_texts.extend(processed_scisummnet['processed_text'].tolist())
-                all_metadata.extend(processed_scisummnet.to_dict('records'))
+        # Validate configuration and create directories
+        validate_config(config)
         
-        # Initialize components with enhanced features
-        embedding_generator = EnhancedEmbeddingGenerator(
-            model_name='sentence-transformers/all-mpnet-base-v2',
-            embedding_dim=config['embedding']['dimension'],
-            batch_size=8,  # Conservative batch size
-            max_seq_length=512  # Limit sequence length
-        )
+        # Load datasets
+        datasets = load_datasets(config)
+        if not datasets:
+            raise ValueError("No datasets were successfully loaded")
         
-        cluster_manager = DynamicClusterManager(
-            config={
-                'clustering': {
-                    'hybrid_mode': True,
-                    'params': config['clustering']
-                }
-            }
-        )
-        
-        # Generate attention-refined embeddings
-        embeddings = embedding_generator.generate_embeddings(all_texts)
-        
-        # Process clusters with enhanced metrics
-        results = process_clusters(texts=all_texts, embeddings=embeddings, config=config)
-        logger.info(f"Processed {len(results['clusters'])} clusters")
-        logger.info(f"Data characteristics: {results['data_characteristics']}")
-        
-        # Use results for visualization
-        if config.get('visualization', {}).get('enabled', True):
-            logger.info("Generating visualizations...")
-            visualizer = EmbeddingVisualizer(config['visualization'])
-            visualizer.plot_embeddings(
-                embeddings,
-                [results['clusters'][doc_id] for doc_id in range(len(all_texts))],
-                Path(config['visualization']['output_dir'])
-            )
-        
-        # Save results
-        logger.info("Saving results...")
-        cluster_manager.save_results(
-            results['clusters'],
-            results['clustering_metrics'],
-            Path(config['clustering']['output_dir'])
-        )
-        
-        if DashboardApp is not None:
-            app = DashboardApp(embedding_generator, cluster_manager)
-            app.run_server(debug=True)
-        else:
-            print("Dashboard disabled - running in CLI mode only")
-        
-        logger.info("Processing complete!")
+        # Continue with the rest of your pipeline...
         
     except Exception as e:
-        logger.error(f"Pipeline failed: {e}")
+        logging.error(f"Pipeline failed: {e}")
         raise
     except ValueError as e:
-        logger.error(f"Configuration error: {str(e)}")
+        logging.error(f"Configuration error: {str(e)}")
         sys.exit(1)
 
 def generate_summaries(cluster_texts: Dict[str, List[str]], config: Dict) -> Dict[str, Dict]:
