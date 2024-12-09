@@ -6,11 +6,11 @@ from src.data_loader import DataLoader
 from src.data_preparation import DataPreparator
 from src.data_validator import DataValidator
 from src.utils.logging_config import setup_logging
-from src.embedding_generator import EmbeddingGenerator
+from src.embedding_generator import EnhancedEmbeddingGenerator
 from src.visualization.embedding_visualizer import EmbeddingVisualizer
 import numpy as np
 from src.preprocessor import TextPreprocessor
-from src.clustering.cluster_manager import ClusterManager
+from src.clustering.dynamic_cluster_manager import DynamicClusterManager
 from typing import List, Dict
 from datetime import datetime
 from src.summarization.hybrid_summarizer import HybridSummarizer
@@ -124,23 +124,33 @@ def main():
                 all_texts.extend(processed_scisummnet['processed_text'].tolist())
                 all_metadata.extend(processed_scisummnet.to_dict('records'))
         
-        # Generate embeddings
-        if not checkpoint_manager.is_stage_complete('embeddings'):
-            logger.info("Generating embeddings...")
-            embeddings = generate_embeddings(all_texts, config)
-            checkpoint_manager.save_stage('embeddings', {
-                'shape': embeddings.shape,
-                'path': str(Path(config['embedding']['output_dir']) / 'embeddings.npy')
-            })
-        else:
-            # Load embeddings from checkpoint
-            embedding_state = checkpoint_manager.get_stage_data('embeddings')
-            embeddings = np.load(embedding_state['path'])
+        # Initialize components with enhanced features
+        embedding_generator = EnhancedEmbeddingGenerator(
+            model_name=config['embedding']['model_name'],
+            embedding_dim=config['embedding']['dimension']
+        )
         
-        # Initialize and run clustering
-        logger.info("Performing clustering...")
-        cluster_manager = ClusterManager(config)
-        labels, clustering_metrics = cluster_manager.fit_predict(embeddings)
+        cluster_manager = DynamicClusterManager(
+            config={
+                'clustering': {
+                    'hybrid_mode': True,
+                    'params': {
+                        'n_clusters': 5,
+                        'min_cluster_size': 10
+                    }
+                }
+            }
+        )
+        
+        # Generate attention-refined embeddings
+        embeddings = embedding_generator.generate_embeddings(all_texts)
+        
+        # Perform dynamic clustering
+        labels, metrics = cluster_manager.fit_predict(embeddings)
+        
+        # Log enhanced metrics
+        logger.info(f"Clustering metrics: {metrics}")
+        logger.info(f"Data characteristics: {metrics['data_characteristics']}")
         
         # Group documents by cluster
         clusters = cluster_manager.get_cluster_documents(all_metadata, labels)
@@ -175,7 +185,7 @@ def main():
         logger.info("Saving results...")
         cluster_manager.save_results(
             clusters,
-            clustering_metrics,
+            metrics,
             Path(config['clustering']['output_dir'])
         )
         
@@ -192,43 +202,8 @@ def main():
         logger.info("Processing complete!")
         
     except Exception as e:
-        logger.error(f"Pipeline failed: {str(e)}", exc_info=True)
+        logger.error(f"Pipeline failed: {e}")
         raise
-
-def generate_embeddings(texts: List[str], config: Dict) -> np.ndarray:
-    """Generate embeddings for the input texts"""
-    # Set up multi-threading
-    import torch
-    n_threads = config.get('embedding', {}).get('num_threads', 8)  # Default to 8 threads
-    torch.set_num_threads(n_threads)
-    
-    embedding_generator = EmbeddingGenerator(
-        model_name=config['embedding']['model_name'],
-        batch_size=config['embedding']['batch_size'],
-        max_seq_length=128  # Add shorter sequence length
-    )
-    
-    # Generate embeddings with progress tracking and checkpoints
-    embeddings = embedding_generator.generate_embeddings(
-        texts,
-        checkpoint_dir=config['embedding'].get('checkpoint_dir', 'outputs/embeddings/checkpoints'),
-        checkpoint_frequency=1000  # Save every 1000 documents
-    )
-    
-    # Save final embeddings
-    if 'output_dir' in config['embedding']:
-        metadata = {
-            'model_name': config['embedding']['model_name'],
-            'timestamp': datetime.now().isoformat(),
-            'num_documents': len(texts)
-        }
-        embedding_generator.save_embeddings(
-            embeddings,
-            metadata,
-            config['embedding']['output_dir']
-        )
-    
-    return embeddings
 
 def generate_summaries(cluster_texts: Dict[str, List[str]], config: Dict) -> Dict[str, Dict]:
     """Generate and evaluate summaries for clustered texts"""
