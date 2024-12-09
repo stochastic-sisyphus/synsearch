@@ -3,6 +3,7 @@ import torch.nn as nn
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from typing import List, Optional, Union
+import logging
 
 class AttentionLayer(nn.Module):
     def __init__(self, embedding_dim: int):
@@ -24,20 +25,16 @@ class EnhancedEmbeddingGenerator:
         device: Optional[str] = None,
         **kwargs
     ):
-        """Initialize the embedding generator with attention mechanism.
+        """Initialize the embedding generator with configuration."""
+        self.logger = logging.getLogger(__name__)
         
-        Args:
-            model_name: Name of the pretrained model to use
-            embedding_dim: Dimension of embeddings
-            max_seq_length: Maximum sequence length for tokenization
-            device: Device to use (cuda/cpu)
-            **kwargs: Additional arguments
-        """
-        super().__init__()
-        self.model_name = model_name
+        # Set device
+        self.device = device if device else ('cuda' if torch.cuda.is_available() else 'cpu')
+        self.logger.info(f"Use pytorch device_name: {self.device}")
+        
+        # Store parameters
         self.embedding_dim = embedding_dim
         self.max_seq_length = max_seq_length
-        self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
         self.batch_size = batch_size
         
         # Initialize the model and attention layer

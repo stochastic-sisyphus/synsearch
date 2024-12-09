@@ -179,7 +179,13 @@ def main():
         # Initialize pipeline components with their specific config sections
         data_loader = DataLoader(config)
         preprocessor = DomainAgnosticPreprocessor(config['preprocessing'])
-        embedding_generator = EnhancedEmbeddingGenerator(config['embedding'])
+        embedding_generator = EnhancedEmbeddingGenerator(
+            model_name=config['embedding']['model_name'],
+            embedding_dim=config['embedding'].get('dimension', 768),
+            max_seq_length=config['embedding'].get('max_seq_length', 512),
+            batch_size=config['embedding'].get('batch_size', 32),
+            device=config['embedding'].get('device', None)
+        )
         cluster_manager = DynamicClusterManager(config['clustering'])
         summarizer = AdaptiveSummarizer(config['summarization'])
         metrics_calc = EvaluationMetrics()
