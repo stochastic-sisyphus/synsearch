@@ -173,14 +173,16 @@ def get_optimal_batch_size():
     if torch.cuda.is_available():
         # Get available GPU memory
         gpu_memory = torch.cuda.get_device_properties(0).total_memory
-        # Use smaller batch size for GPUs with less memory
-        if gpu_memory < 6e9:  # Less than 6GB
+        # Use more conservative batch sizes
+        if gpu_memory < 4e9:  # Less than 4GB
+            return 4
+        elif gpu_memory < 6e9:  # Less than 6GB
             return 8
         elif gpu_memory < 8e9:  # Less than 8GB
-            return 16
+            return 12
         else:
-            return 32
-    return 32  # Default for CPU
+            return 16
+    return 16  # Default for CPU
 
 def main():
     try:
@@ -197,12 +199,12 @@ def main():
         # Get optimal batch size based on available memory
         optimal_batch_size = get_optimal_batch_size()
         
-        # Initialize embedding generator with memory-aware settings
+        # Initialize embedding generator with more conservative memory settings
         embedding_generator = EnhancedEmbeddingGenerator(
             model_name=config['embedding']['model_name'],
             embedding_dim=config['embedding'].get('dimension', 768),
-            max_seq_length=config['embedding'].get('max_seq_length', 512),
-            batch_size=min(config['embedding'].get('batch_size', 32), optimal_batch_size),
+            max_seq_length=config['embedding'].get('max_seq_length', 384),  # Reduced from 512
+            batch_size=min(config['embedding'].get('batch_size', 8), optimal_batch_size),
             device='cuda' if torch.cuda.is_available() else 'cpu'
         )
         cluster_manager = DynamicClusterManager(config['clustering'])
