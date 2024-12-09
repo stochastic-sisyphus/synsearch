@@ -54,7 +54,14 @@
   - Datasets: N/A
   - Paper Sections: Full paper
   - Concepts to Research: Formatting, NLP publication venues
-  - 
+
+- **Configuration Options**
+  - Lines of Code (Approx.): ~100-200
+  - Files: 1-2
+  - Datasets: Configuration files
+  - Paper Sections: Methodology
+  - Concepts to Research: YAML, configuration management
+
 ---
 
 ### **2. Detailed Breakdown**
@@ -462,9 +469,60 @@ Dynamic Summarization and Adaptive Clustering: A Framework for Real-Time Researc
 3. **Cloud Deployment**: Enable processing at scale using AWS/GCP.
 
 ---
----
----
 
+## **Configuration Details**
+
+### **Data Configuration**
+- **input_path**: Path to the input data directory.
+- **output_path**: Path to the output data directory.
+- **processed_path**: Path to the processed data directory.
+- **batch_size**: Batch size for data processing.
+- **scisummnet_path**: Path to the ScisummNet dataset.
+- **datasets**: List of datasets to be used, with their respective configurations.
+
+### **Preprocessing Configuration**
+- **min_length**: Minimum length of the text to be considered.
+- **max_length**: Maximum length of the text to be considered.
+- **validation**: Validation parameters for the preprocessing step.
+
+### **Embedding Configuration**
+- **model_name**: Name of the embedding model to be used.
+- **dimension**: Dimension of the generated embeddings.
+- **batch_size**: Batch size for embedding generation.
+- **max_seq_length**: Maximum sequence length for the embedding model.
+- **device**: Device to be used for embedding generation (e.g., "cuda" for GPU).
+
+### **Clustering Configuration**
+- **algorithm**: Clustering algorithm to be used (e.g., "hdbscan").
+- **min_cluster_size**: Minimum size of clusters.
+- **min_samples**: Minimum number of samples for a cluster.
+- **metric**: Distance metric to be used for clustering.
+- **params**: Additional parameters for the clustering algorithm.
+- **output_dir**: Directory to save the clustering results.
+
+### **Visualization Configuration**
+- **enabled**: Whether visualization is enabled.
+- **output_dir**: Directory to save the visualization results.
+
+### **Summarization Configuration**
+- **model_name**: Name of the summarization model to be used.
+- **max_length**: Maximum length of the generated summaries.
+- **min_length**: Minimum length of the generated summaries.
+- **device**: Device to be used for summarization (e.g., "cuda" for GPU).
+- **batch_size**: Batch size for summarization.
+- **style_params**: Parameters for different summarization styles (e.g., concise, detailed, technical).
+- **num_beams**: Number of beams for beam search.
+- **length_penalty**: Length penalty for beam search.
+- **early_stopping**: Whether to stop early during beam search.
+
+### **Logging Configuration**
+- **level**: Logging level (e.g., "INFO").
+- **format**: Format of the log messages.
+
+### **Checkpoints Configuration**
+- **dir**: Directory to save the checkpoints.
+
+---
 # INFO:
 
 # **data: XL-Sum and ScisummNet**
