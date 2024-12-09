@@ -1,164 +1,80 @@
+# Data Configuration
 data:
-  xlsum_dataset: "GEM/xlsum"
-  scisummnet_path: "data/scisummnet_release1.1__20190413"
-  processed_path: "outputs/processed"
+  input_dir: "data/scisummnet_release1.1__20190413/top1000_complete"
+  output_dir: "outputs"
+  datasets:
+    - name: "xlsum"
+      type: "huggingface"
+      path: "GEM/xlsum"
+    - name: "scisummnet"
+      type: "local"
+      path: "data/scisummnet_release1.1__20190413"
 
+# Preprocessing Configuration
 preprocessing:
-  min_text_length: 100
-  max_text_length: 1000
-  language: "en"
-  validation:
-    missing_threshold: 5.0
-    min_dataset_size: 10000
-    min_text_length: 100
-    max_text_length: 1000
+  min_length: 100
+  max_length: 1000
+  remove_stopwords: true
+  language: "english"
+  lowercase: true
 
+# Embedding Configuration
 embedding:
   model_name: "all-mpnet-base-v2"
-  dimension: 768
   max_seq_length: 512
   batch_size: 32
-  device: "cuda"  # or 'cpu'
-  num_workers: null  # Will use performance.num_workers setting
-  output_dir: "outputs/embeddings"
+  device: "cuda" # or "cpu" if no GPU available
+  cache_dir: "models/embeddings"
 
+# Clustering Configuration
 clustering:
-  method: "hdbscan"
-  n_clusters: 5
+  algorithm: "hdbscan"
+  min_cluster_size: 5  # This was missing in the original config
+  min_samples: 5
+  metric: "euclidean"
+  cluster_selection_epsilon: 0.5
   params:
-    min_cluster_size: 10
+    min_cluster_size: 5
     min_samples: 5
-    metric: 'euclidean'
+    metric: "euclidean"
     cluster_selection_epsilon: 0.5
-  device: null  # Will use performance.device setting
-  num_workers: null  # Will use performance.num_workers setting
-  output_dir: "outputs/clusters"
-  hybrid_mode: true
 
-checkpoints:
-  dir: "outputs/checkpoints"
-  enabled: true
-  cleanup_after_completion: false
-  stages:
-    data_loading:
-      enabled: true
-      save_intermediate: true
-    embedding:
-      enabled: true
-      batch_size: 1000  # Save every N documents
-    clustering:
-      enabled: true
-      save_intermediate: false
-    summarization:
-      enabled: true
-      save_intermediate: true
-  save_frequency: 100
-
-personalization:
-  enabled: true
-  user_preferences:
-    summary_style: "technical"  # [technical, concise, detailed]
-    min_length: 100
-    max_length: 500
-  fine_tuning:
-    enabled: true
-    learning_rate: 1e-5
-    epochs: 3
-    batch_size: 8
-
+# Summarization Configuration
 summarization:
-  model_name: "t5-base"
-  max_length: 512
+  model_name: "facebook/bart-large-cnn"
+  max_length: 150
   min_length: 50
   batch_size: 8
-  enabled: true
-  style_params:
-    detailed:
-      max_length: 512
-      min_length: 150
-      num_beams: 4
-    balanced:
-      max_length: 384
-      min_length: 100
-      num_beams: 3
-    concise:
-      max_length: 256
-      min_length: 50
-      num_beams: 2
-  thresholds:
-    lexical_diversity:
-      low: 0.3
-      high: 0.6
-    variance:
-      low: 0.1
-      high: 0.3
-    complexity:
-      low: 10
-      high: 25
-  device: null  # Will use performance.device setting
-  num_workers: null  # Will use performance.num_workers setting
-  output_dir: "outputs/summaries"
-  style_thresholds:
-    high_variance: 0.8
-    high_lexical_div: 0.7
-  styles:
-    technical:
-      max_length: 200
-      focus: "terminology"
-    detailed:
-      max_length: 300
-      focus: "comprehensive"
-    balanced:
-      max_length: 150
-      focus: "general"
+  device: "cuda" # or "cpu" if no GPU available
+  cache_dir: "models/summarization"
 
+# Visualization Configuration
 visualization:
-  enabled: true
-  output_dir: "outputs/figures"
-  umap:
-    n_neighbors: 15
-    min_dist: 0.1
-    metric: "cosine"
-    random_state: 42
-  plot_types:
-    - "umap"
-    - "tsne"
-    - "wordcloud"
+  plot_type: "interactive"
+  dimensions: 2
+  perplexity: 30
+  n_iter: 1000
 
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "outputs/pipeline.log"
+
+# Evaluation Configuration
 evaluation:
-  output_dir: "outputs/evaluation"
   metrics:
     - "rouge"
     - "bleu"
-    - "bertscore"
-  thresholds:
-    rouge_l: 0.4
-    bleu: 0.3
+    - "silhouette_score"
+  rouge_types:
+    - "rouge1"
+    - "rouge2"
+    - "rougeL"
 
-performance:
-  device: null  # Will auto-detect GPU/CPU
-  num_workers: -1  # -1 means use all available CPU cores
-  batch_sizes:
-    embedding: 32
-    clustering: 1000
-    summarization: 8
-  use_mixed_precision: true  # For GPU optimization
-  parallel_processing:
-    enabled: true
-    chunk_size: 1000  # Documents per chunk for parallel processing
-
-datasets:
-  xlsum:
-    enabled: true
-    languages: ["en"]  # Can be expanded for multilingual support
-    max_samples: 10000
-  scisummnet:
-    enabled: true
-    path: "/Users/vanessa/Dropbox/synsearch/data/scisummnet_release1.1__20190413"
-    subset: "top1000_complete"
-  xl_sum:
-    path: "GEM/xlsum"
-    type: "huggingface"
-  scisummnet:
-    path: "/Users/vanessa/Dropbox/synsearch/data/scisummnet_release1.1__20190413"
-    type: "local"
+# System Configuration
+system:
+  random_seed: 42
+  num_workers: 4
+  use_gpu: true
+  debug_mode: false

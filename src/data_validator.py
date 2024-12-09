@@ -95,28 +95,32 @@ class ConfigValidator:
     """Validates configuration settings for the pipeline."""
     
     REQUIRED_FIELDS = {
-        'embedding': {
-            'model_name': str,
-            'dimension': int,
-            'batch_size': int,
-            'device': str
-        },
-        'clustering': {
-            'n_clusters': int,  # Added this required field
-            'min_cluster_size': int,
-            'hybrid_mode': bool,
-            'params': {
-                'cluster_selection_epsilon': float
-            }
-        },
-        'visualization': {
-            'enabled': bool,
+        'data': {
+            'input_dir': str,
             'output_dir': str
         },
-        'summarization': {
-            'enabled': bool,
-            'model_name': str,
+        'preprocessing': {
+            'min_length': int,
             'max_length': int
+        },
+        'embedding': {
+            'model_name': str,
+            'max_seq_length': int
+        },
+        'clustering': {
+            'algorithm': str,
+            'min_cluster_size': int,  # This was missing
+            'min_samples': int,
+            'metric': str
+        },
+        'summarization': {
+            'model_name': str,
+            'max_length': int,
+            'min_length': int
+        },
+        'logging': {
+            'level': str,
+            'format': str
         }
     }
 
