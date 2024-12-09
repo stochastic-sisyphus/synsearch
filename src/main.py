@@ -75,8 +75,7 @@ def group_texts_by_similarity(texts: List[str], embeddings: np.ndarray) -> Dict[
     return {0: texts}  # Placeholder - implement your clustering logic
 
 def validate_config(config):
-    """Validate configuration and create directories if they don't exist."""
-    # Create required directories
+    """Validate configuration and create directories."""
     required_dirs = [
         ('input_path', config['data']['input_path']),
         ('output_path', config['data']['output_path']),
@@ -90,43 +89,47 @@ def validate_config(config):
         if not os.access(dir_path, os.W_OK):
             raise ValueError(f"No write permission for path: {dir_path} ({dir_key})")
     
-    # Validate ScisummNet dataset
-    scisummnet_path = config['data']['scisummnet_path']
-    if not os.path.exists(scisummnet_path):
-        logging.warning(f"ScisummNet dataset not found at: {scisummnet_path}")
-        logging.info("Please download ScisummNet dataset and place it in the correct directory")
-    
-    # Validate/Download XL-Sum dataset
-    try:
-        logging.info("Checking XL-Sum dataset availability...")
-        load_dataset(config['data']['datasets'][1]['dataset_name'], split='train')
-        logging.info("XL-Sum dataset is available")
-    except Exception as e:
-        logging.warning(f"Error accessing XL-Sum dataset: {str(e)}")
-        logging.info("Will attempt to download when needed")
+    # Validate dataset configurations
+    for dataset_config in config['data']['datasets']:
+        if dataset_config['name'] == 'xlsum' and dataset_config.get('enabled', False):
+            if 'language' not in dataset_config:
+                raise ValueError("XL-Sum dataset requires 'language' specification in config")
 
 def load_datasets(config):
-    """Load datasets based on configuration."""
+    """Load and prepare datasets."""
     datasets = []
     
-    # Load enabled datasets
     for dataset_config in config['data']['datasets']:
-        if dataset_config['enabled']:
-            if dataset_config['name'] == 'scisummnet':
-                # Load ScisummNet dataset
-                if os.path.exists(dataset_config['path']):
-                    logging.info("Loading ScisummNet dataset...")
-                    # Add your ScisummNet loading logic here
-                    # datasets.append(load_scisummnet(dataset_config['path']))
+        if not dataset_config.get('enabled', False):
+            continue
             
-            elif dataset_config['name'] == 'xlsum':
-                # Load XL-Sum dataset
-                logging.info("Loading XL-Sum dataset...")
-                try:
-                    xlsum_data = load_dataset(dataset_config['dataset_name'])
-                    datasets.append(xlsum_data)
-                except Exception as e:
-                    logging.error(f"Failed to load XL-Sum dataset: {str(e)}")
+        if dataset_config['name'] == 'scisummnet':
+            if os.path.exists(dataset_config['path']):
+                logging.info(f"Loading ScisummNet dataset from {dataset_config['path']}")
+                # TODO: Implement ScisummNet loading
+                # datasets.append(load_scisummnet(dataset_config['path']))
+                logging.warning("ScisummNet loading not yet implemented")
+            else:
+                logging.warning(f"ScisummNet dataset not found at: {dataset_config['path']}")
+        
+        elif dataset_config['name'] == 'xlsum':
+            logging.info(f"Loading XL-Sum dataset for language: {dataset_config['language']}")
+            try:
+                xlsum_data = load_dataset(
+                    dataset_config['dataset_name'],
+                    dataset_config['language'],
+                    split='train'
+                )
+                datasets.append(xlsum_data)
+                logging.info(f"Successfully loaded XL-Sum dataset ({dataset_config['language']})")
+            except Exception as e:
+                logging.error(f"Failed to load XL-Sum dataset: {str(e)}")
+    
+    if not datasets:
+        logging.warning("No datasets were successfully loaded")
+        # Don't raise an error if ScisummNet is the only dataset that failed
+        if not any(d['name'] == 'xlsum' and d['enabled'] for d in config['data']['datasets']):
+            return datasets
     
     return datasets
 
@@ -141,7 +144,7 @@ def main():
         
         # Load datasets
         datasets = load_datasets(config)
-        if not datasets:
+        if not datasets and all(d['enabled'] for d in config['data']['datasets']):
             raise ValueError("No datasets were successfully loaded")
         
         # Continue with the rest of your pipeline...

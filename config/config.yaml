@@ -3,7 +3,6 @@ data:
   input_path: "data/input"
   output_path: "data/output"
   scisummnet_path: "data/scisummnet_release1.1__20190413"
-  xlsum_dataset: "GEM/xlsum"
   processed_path: "data/processed"
   batch_size: 32
   datasets:
@@ -14,6 +13,7 @@ data:
       enabled: true
       source: "huggingface"
       dataset_name: "GEM/xlsum"
+      language: "english"
 
 # Preprocessing Configuration
 preprocessing:
