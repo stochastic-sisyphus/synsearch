@@ -26,6 +26,7 @@ from utils.style_selector import determine_cluster_style, get_style_parameters
 from summarization.enhanced_summarizer import EnhancedHybridSummarizer
 from summarization.adaptive_summarizer import AdaptiveSummarizer
 from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
+from src.embedding_generator import EmbeddingGenerator
 
 def get_device():
     """Get the best available device (GPU if available, else CPU)."""
@@ -35,6 +36,33 @@ def get_optimal_workers():
     """Get optimal number of worker processes."""
     return multiprocessing.cpu_count()
 
+def load_config(config_path: str = "config/config.yaml") -> Dict[str, Any]:
+    """Load configuration from YAML file."""
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
+
+def process_texts(texts: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
+    """Process texts with adaptive summarization and enhanced metrics."""
+    # Initialize components with config settings
+    embedding_gen = EmbeddingGenerator(
+        model_name=config['embedding']['model_name'],
+        batch_size=config['embedding']['batch_size'],
+        max_seq_length=config['embedding']['max_seq_length']
+    )
+    
+    # Generate embeddings with performance settings
+    embeddings = embedding_gen(texts)
+    
+    # Process clusters with metrics
+    results = process_clusters(texts, embeddings, config)
+    
+    return results
+
+def group_texts_by_similarity(texts: List[str], embeddings: np.ndarray) -> Dict[int, List[str]]:
+    """Group texts into clusters based on embedding similarity."""
+    # ... existing clustering logic ...
+    return {0: texts}  # Placeholder - implement your clustering logic
+
 def main():
     # Setup logging
     setup_logging('logs/processing.log')
@@ -42,9 +70,8 @@ def main():
     
     try:
         # Load config
-        with open('config/config.yaml', 'r') as f:
-            config = yaml.safe_load(f)
-            
+        config = load_config()
+        
         # Initialize checkpoint manager with metrics tracking
         checkpoint_manager = CheckpointManager(
             checkpoint_dir=config.get('checkpoints', {}).get('dir', 'outputs/checkpoints'),
@@ -262,37 +289,30 @@ def generate_summaries(cluster_texts: Dict[str, List[str]], config: Dict) -> Dic
     
     return summaries
 
-def process_clusters(clusters: Dict[int, List[str]], embeddings: np.ndarray, config: Dict[str, Any]) -> Dict[str, Any]:
+def process_clusters(texts: List[str], embeddings: np.ndarray, config: Dict[str, Any]) -> Dict[str, Any]:
     """Process clusters with adaptive summarization and enhanced metrics."""
     summarizer = AdaptiveSummarizer(config=config)
     results = {}
     
-    for cluster_id, texts in clusters.items():
-        # Get cluster-specific embeddings
-        cluster_mask = [i for i, text in enumerate(texts) if text in clusters[cluster_id]]
-        cluster_embeddings = embeddings[cluster_mask]
-        
-        # Calculate cluster-specific metrics
-        cluster_metrics = {
-            'variance': calculate_cluster_variance(cluster_embeddings),
-            'lexical_diversity': calculate_lexical_diversity(texts)
-        }
-        
-        # Generate summary with metrics-based adaptation
-        summary_data = summarizer.summarize(
-            texts=texts,
-            embeddings=cluster_embeddings,
-            metrics=cluster_metrics
-        )
-        
-        results[cluster_id] = {
-            'summary': summary_data['summary'],
-            'style': summary_data['style'],
-            'metrics': {
-                **summary_data['metrics'],
-                **cluster_metrics
-            }
-        }
+    # Calculate cluster-specific metrics
+    cluster_metrics = {
+        'variance': calculate_cluster_variance(embeddings),
+        'lexical_diversity': calculate_lexical_diversity(texts)
+    }
+    
+    # Generate summary with metrics-based adaptation
+    summary_data = summarizer.summarize(
+        texts=texts,
+        embeddings=embeddings,
+        metrics=cluster_metrics
+    )
+    
+    results['summary'] = summary_data['summary']
+    results['style'] = summary_data['style']
+    results['metrics'] = {
+        **summary_data['metrics'],
+        **cluster_metrics
+    }
     
     return results
 
