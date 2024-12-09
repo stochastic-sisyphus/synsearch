@@ -7,7 +7,7 @@ class ClusterManager:
         self.config = config
         self.clusterer = None
         
-    def fit_predict(self, embeddings):
+    def perform_clustering(self, embeddings):
         """Perform clustering on embeddings and return labels."""
         self.clusterer = hdbscan.HDBSCAN(
             min_cluster_size=self.config['clustering']['min_cluster_size'],
