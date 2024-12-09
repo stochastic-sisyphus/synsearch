@@ -32,7 +32,8 @@ class DataLoader:
             if dataset_config['name'] == 'xlsum':
                 try:
                     self.logger.info("Loading XL-Sum dataset...")
-                    dataset = load_dataset('GEM/xlsum', 'english')
+                    language = dataset_config.get('language', 'english')
+                    dataset = load_dataset('GEM/xlsum', language)
                     if dataset and 'train' in dataset:
                         df = pd.DataFrame({
                             'text': dataset['train']['text'],

@@ -9,6 +9,7 @@ data:
     - name: "xlsum"
       source: "huggingface"
       enabled: true
+      language: "english"
     - name: "scisummnet"
       source: "local"
       enabled: true
