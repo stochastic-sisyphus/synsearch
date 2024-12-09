@@ -15,7 +15,7 @@ preprocessing:
 
 embedding:
   model_name: "all-mpnet-base-v2"
-  embedding_dim: 768
+  dimension: 768
   max_seq_length: 512
   batch_size: 32
   device: "cuda"  # or 'cpu'

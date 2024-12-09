@@ -79,8 +79,22 @@ def main():
     logger = logging.getLogger(__name__)
     
     try:
-        # Load config
+        # Load configuration
         config = load_config()
+        
+        # Validate required config parameters
+        required_params = {
+            'embedding': ['model_name', 'dimension'],
+            'clustering': ['n_clusters', 'min_cluster_size'],
+            'visualization': ['enabled', 'output_dir']
+        }
+        
+        for section, params in required_params.items():
+            if section not in config:
+                raise KeyError(f"Missing '{section}' section in config")
+            for param in params:
+                if param not in config[section]:
+                    raise KeyError(f"Missing '{param}' parameter in {section} config")
         
         # Initialize checkpoint manager with metrics tracking
         checkpoint_manager = CheckpointManager(
