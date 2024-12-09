@@ -48,40 +48,50 @@ class EnhancedEmbeddingGenerator:
     def generate_embeddings(
         self, 
         texts: List[str], 
-        apply_attention: bool = False
-    ) -> np.ndarray:
-        """Generate embeddings in batches with optional attention mechanism.
+        apply_attention: bool = True
+    ) -> torch.Tensor:
+        """Generate embeddings with optional attention mechanism.
         
         Args:
             texts: List of input texts to embed
-            apply_attention: Whether to apply attention mechanism to embeddings
+            apply_attention: Whether to apply attention mechanism
             
         Returns:
-            numpy.ndarray: Matrix of embeddings
+            torch.Tensor: Generated embeddings with shape (n_texts, embedding_dim)
         """
-        embeddings = []
+        embeddings_list = []
         
-        # Process in batches
+        # Process in batches to manage memory
         for i in range(0, len(texts), self.batch_size):
             batch_texts = texts[i:i + self.batch_size]
-            with torch.no_grad():  # Reduce memory usage during inference
+            
+            # Generate base embeddings
+            with torch.no_grad():
                 batch_embeddings = self.model.encode(
                     batch_texts,
                     convert_to_tensor=True,
-                    show_progress_bar=True
+                    show_progress_bar=False
                 ).to(self.device)
                 
                 # Apply attention if requested
                 if apply_attention:
                     batch_embeddings = self.attention_layer(batch_embeddings)
-                
-                embeddings.append(batch_embeddings.cpu().numpy())
+                    
+                embeddings_list.append(batch_embeddings)
         
-        return np.vstack(embeddings)
+        # Concatenate all batches
+        all_embeddings = torch.cat(embeddings_list, dim=0)
+        
+        # Calculate intra-cluster similarity for monitoring
+        if len(all_embeddings) > 1:
+            similarity = self.calculate_similarity(all_embeddings[0], all_embeddings[1])
+            print(f"Sample embedding similarity: {similarity:.4f}")
+            
+        return all_embeddings
     
-    def calculate_similarity(self, emb1: np.ndarray, emb2: np.ndarray) -> float:
+    def calculate_similarity(self, emb1: torch.Tensor, emb2: torch.Tensor) -> float:
         """Calculate cosine similarity between two embeddings."""
-        return np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2))
+        return torch.nn.functional.cosine_similarity(emb1.unsqueeze(0), emb2.unsqueeze(0)).item()
     
     def get_intracluster_similarity(self, cluster_embeddings: np.ndarray) -> float:
         """Calculate average pairwise similarity within a cluster."""
