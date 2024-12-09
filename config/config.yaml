@@ -5,16 +5,16 @@ data:
   processed_path: "data/processed"
   batch_size: 32
   datasets:
-    - name: "scisummnet"
-      enabled: true
-      path: "./data/scisummnet_release1.1__20190413"
-      top1000_dir: "top1000_complete"
-      papers: []
     - name: "xlsum"
       enabled: true
       source: "huggingface"
       dataset_name: "GEM/xlsum"
       language: "english"
+    - name: "scisummnet"
+      enabled: true
+      path: "./data/scisummnet_release1.1__20190413"
+      top1000_dir: "top1000_complete"
+      papers: 100
 
 # Preprocessing Configuration
 preprocessing:

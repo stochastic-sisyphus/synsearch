@@ -5,6 +5,7 @@ import logging
 from typing import Dict, Any, Union, List, Optional
 import json
 import xml.etree.ElementTree as ET
+from sentence_transformers import SentenceTransformer
 
 class DataLoader:
     def __init__(self, config: Dict):
@@ -150,3 +151,74 @@ def load_scisummnet():
     data_path = base_path / "top1000_complete"
     # Process ScisummNet data
     return processed_data
+
+def load_dataset(dataset_config: Dict[str, Any]) -> Dict[str, Any]:
+    """Load and prepare dataset based on configuration."""
+    logger = logging.getLogger(__name__)
+    
+    if dataset_config.get('source') == 'huggingface':
+        # Load XL-Sum from Hugging Face
+        logger.info(f"Loading {dataset_config['dataset_name']} from Hugging Face")
+        dataset = load_dataset(dataset_config['dataset_name'])
+        
+        # Filter for English if specified
+        if dataset_config.get('language') == 'english':
+            dataset = dataset.filter(lambda x: x['language'] == 'english')
+        
+        # Prepare documents
+        documents = [
+            {
+                'text': item['text'],
+                'summary': item['summary'],
+                'id': idx
+            }
+            for idx, item in enumerate(dataset['train'])
+        ]
+        
+    elif 'scisummnet' in dataset_config['path']:
+        # Load ScisummNet from local path
+        logger.info("Loading ScisummNet dataset")
+        path = Path(dataset_config['path'])
+        documents = load_scisummnet(
+            path / dataset_config['top1000_dir'],
+            max_papers=dataset_config.get('papers', None)
+        )
+    
+    else:
+        raise ValueError(f"Unsupported dataset source: {dataset_config}")
+    
+    # Generate embeddings
+    model = SentenceTransformer('all-mpnet-base-v2')
+    embeddings = model.encode([doc['text'] for doc in documents])
+    
+    return {
+        'name': dataset_config['name'],
+        'documents': documents,
+        'embeddings': embeddings
+    }
+
+def load_scisummnet(path: Path, max_papers: int = None) -> List[Dict]:
+    """Load papers from ScisummNet dataset."""
+    documents = []
+    paper_dirs = list(path.glob('*'))
+    
+    if max_papers:
+        paper_dirs = paper_dirs[:max_papers]
+    
+    for paper_dir in paper_dirs:
+        try:
+            with open(paper_dir / 'summary.txt') as f:
+                summary = f.read().strip()
+            with open(paper_dir / 'paper.txt') as f:
+                text = f.read().strip()
+                
+            documents.append({
+                'text': text,
+                'summary': summary,
+                'id': paper_dir.name
+            })
+        except Exception as e:
+            logging.warning(f"Error loading paper {paper_dir}: {e}")
+            continue
+    
+    return documents
