@@ -146,3 +146,5 @@ if __name__ == "__main__":
     generator = EnhancedEmbeddingGenerator()
     embeddings = generator.generate_embeddings(texts)
     print(f"Generated embeddings shape: {embeddings.shape}")
+
+EmbeddingGenerator = EnhancedEmbeddingGenerator  # Alias for backward compatibility

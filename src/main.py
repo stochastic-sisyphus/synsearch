@@ -13,7 +13,7 @@ from data_loader import DataLoader
 from data_preparation import DataPreparator
 from data_validator import DataValidator
 from utils.logging_config import setup_logging
-from embedding_generator import EmbeddingGenerator
+from embedding_generator import EnhancedEmbeddingGenerator
 from visualization.embedding_visualizer import EmbeddingVisualizer
 import numpy as np
 from preprocessor import TextPreprocessor, DomainAgnosticPreprocessor
@@ -54,7 +54,7 @@ def load_config(config_path: str = "config/config.yaml") -> Dict[str, Any]:
 def process_texts(texts: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
     """Process texts with adaptive summarization and enhanced metrics."""
     # Initialize components with config settings
-    embedding_gen = EmbeddingGenerator(
+    embedding_gen = EnhancedEmbeddingGenerator(
         model_name=config['embedding']['model_name'],
         batch_size=config['embedding']['batch_size'],
         max_seq_length=config['embedding']['max_seq_length']
@@ -179,7 +179,7 @@ def main():
                 all_metadata.extend(processed_scisummnet.to_dict('records'))
         
         # Initialize components with enhanced features
-        embedding_generator = EmbeddingGenerator(
+        embedding_generator = EnhancedEmbeddingGenerator(
             model_name='sentence-transformers/all-mpnet-base-v2',
             embedding_dim=config['embedding']['dimension'],
             batch_size=8,  # Conservative batch size
