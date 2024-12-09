@@ -12,11 +12,11 @@ from embedding_generator import EnhancedEmbeddingGenerator
 from visualization.embedding_visualizer import EmbeddingVisualizer
 import numpy as np
 from preprocessor import TextPreprocessor, DomainAgnosticPreprocessor
-from clustering.dynamic_cluster_manager import DynamicClusterManager
+from src.clustering.dynamic_cluster_manager import DynamicClusterManager
 from typing import List, Dict, Any
 from datetime import datetime
-from summarization.hybrid_summarizer import HybridSummarizer
-from evaluation.metrics import EvaluationMetrics
+from src.summarization.adaptive_summarizer import AdaptiveSummarizer
+from src.evaluation.metrics import EvaluationMetrics
 from utils.metrics_utils import calculate_cluster_metrics
 
 # Set up logging with absolute paths
@@ -41,7 +41,7 @@ import torch
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from utils.style_selector import determine_cluster_style, get_style_parameters
-from summarization.adaptive_summarizer import AdaptiveSummarizer
+from src.summarization.adaptive_summarizer import AdaptiveSummarizer
 from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
 from datasets import load_dataset
 from utils.metrics_calculator import MetricsCalculator
@@ -74,44 +74,6 @@ def load_datasets(config):
         xlsum = load_dataset('GEM/xlsum')
         datasets['texts'].extend(xlsum['train']['text'][:config['data'].get('batch_size', 100)])
         datasets['summaries'].extend(xlsum['train']['summary'][:config['data'].get('batch_size', 100)])
-    
-    # Load ScisummNet dataset if enabled
-    scisummnet_config = next((d for d in config['data']['datasets'] if d['name'] == 'scisummnet'), None)
-    if scisummnet_config and scisummnet_config['enabled']:
-        logger = logging.getLogger(__name__)
-        logger.info("Loading ScisummNet dataset...")
-        scisummnet_path = Path(scisummnet_config['path'])
-        if scisummnet_path.exists():
-            top1000_dir = scisummnet_path / scisummnet_config['top1000_dir']
-            if top1000_dir.exists():
-                # Load papers up to the configured limit
-                paper_limit = scisummnet_config.get('papers', 100)
-                paper_count = 0
-                
-                for paper_dir in top1000_dir.iterdir():
-                    if paper_count >= paper_limit:
-                        break
-                    if paper_dir.is_dir():
-                        try:
-                            # Load abstract and summary
-                            abstract_path = paper_dir / 'Abstract.txt'
-                            summary_path = paper_dir / 'Summary.txt'
-                            
-                            if abstract_path.exists() and summary_path.exists():
-                                with open(abstract_path, 'r', encoding='utf-8') as f:
-                                    abstract = f.read().strip()
-                                with open(summary_path, 'r', encoding='utf-8') as f:
-                                    summary = f.read().strip()
-                                    
-                                datasets['texts'].append(abstract)
-                                datasets['summaries'].append(summary)
-                                paper_count += 1
-                        except Exception as e:
-                            logger.warning(f"Error loading paper from {paper_dir}: {str(e)}")
-                            continue
-    
-    if not datasets['texts']:
-        raise ValueError("No datasets were successfully loaded")
     
     return datasets
 
@@ -170,7 +132,7 @@ def main():
             embeddings=embeddings,
             clusters=clusters,
             summaries=summaries,
-            references=dataset.get('summaries', None)  # Pass reference summaries if available
+            references=dataset.get('summaries', None)
         )
         
         # Save results
