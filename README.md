@@ -32,7 +32,12 @@ python -m src.main --config path/to/custom_config.yaml
 python -m src.main --input "data/documents/" --output "results/"
 ```
 
-3. **Expected Output Structure**
+3. **Run the pipeline with the new configuration file**
+```bash
+python -m src.main --config config/config.yaml
+```
+
+4. **Expected Output Structure**
 ```
 outputs/
 ├── checkpoints/          # Processing checkpoints
@@ -437,4 +442,114 @@ print(f"ROUGE-L F1: {scores['rougeL']['fmeasure']:.3f}")
 
 bleu_scores = metrics.calculate_bleu_scores(generated_summaries, reference_summaries)
 print(f"BLEU Score: {bleu_scores['bleu']:.3f}")
+```
+
+## Configuration
+
+### Configuration Options
+
+The configuration file (`config.yaml`) allows you to customize various aspects of the pipeline. Below are the key configuration options:
+
+#### Data Configuration
+```yaml
+data:
+  input_path: "data/input"
+  output_path: "data/output"
+  processed_path: "data/processed"
+  batch_size: 32
+  scisummnet_path: "data/scisummnet_release1.1__20190413"
+  datasets:
+    - name: "xlsum"
+      source: "huggingface"
+      enabled: true
+      language: "english"
+      dataset_name: "GEM/xlsum"
+    - name: "scisummnet"
+      source: "local"
+      enabled: true
+      file_patterns:
+        xml: "{paper_id}.xml"
+        summary: "{paper_id}.gold.txt"
+      subdirs:
+        documents: "Documents_xml"
+        summaries: "summary"
+```
+
+#### Preprocessing Configuration
+```yaml
+preprocessing:
+  min_length: 100
+  max_length: 1000
+  validation:
+    missing_threshold: 5.0
+    min_dataset_size: 10000
+    min_text_length: 100
+    max_text_length: 1000
+```
+
+#### Embedding Configuration
+```yaml
+embedding:
+  model_name: "all-mpnet-base-v2"
+  dimension: 768
+  batch_size: 32
+  max_seq_length: 512
+  device: "cuda"
+```
+
+#### Clustering Configuration
+```yaml
+clustering:
+  algorithm: "hdbscan"
+  min_cluster_size: 5
+  min_samples: 5
+  metric: "euclidean"
+  params:
+    min_cluster_size: 5
+    min_samples: 5
+    metric: "euclidean"
+  output_dir: "outputs/clusters"
+```
+
+#### Visualization Configuration
+```yaml
+visualization:
+  enabled: true
+  output_dir: "outputs/figures"
+```
+
+#### Summarization Configuration
+```yaml
+summarization:
+  model_name: "facebook/bart-large-cnn"
+  max_length: 150
+  min_length: 50
+  device: "cuda"
+  batch_size: 8
+  style_params:
+    concise:
+      max_length: 100
+      min_length: 30
+    detailed:
+      max_length: 300
+      min_length: 100
+    technical:
+      max_length: 200
+      min_length: 50
+  num_beams: 4
+  length_penalty: 2.0
+  early_stopping: true
+```
+
+#### Logging Configuration
+```yaml
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+```
+
+#### Checkpoints Configuration
+```yaml
+checkpoints:
+  dir: "outputs/checkpoints"
 ```
