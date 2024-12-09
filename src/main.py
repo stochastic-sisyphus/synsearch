@@ -105,6 +105,7 @@ def get_dataset_path(dataset_config):
     if dataset_config['name'] == 'scisummnet':
         # Get the absolute path of where the script is being run from
         current_dir = os.getcwd()
+        logging.info(f"Current working directory: {current_dir}")
         
         # Construct path directly to scisummnet directory
         dataset_path = os.path.join(current_dir, 'data', 'scisummnet_release1.1__20190413')
@@ -112,12 +113,23 @@ def get_dataset_path(dataset_config):
         # Log paths and directory contents
         logging.info(f"Looking for dataset at: {dataset_path}")
         
+        # Check if data directory exists
+        data_dir = os.path.join(current_dir, 'data')
+        if not os.path.exists(data_dir):
+            logging.error(f"Data directory not found at: {data_dir}")
+            logging.error("Please create the data directory and copy the dataset:")
+            logging.error("1. mkdir -p data")
+            logging.error("2. Copy scisummnet_release1.1__20190413 to the data directory")
+            return dataset_path
+            
+        # Check if dataset exists
         if os.path.exists(dataset_path):
             logging.info(f"Found dataset directory. Contents: {os.listdir(dataset_path)}")
             return dataset_path
         else:
-            logging.warning(f"Dataset directory not found at: {dataset_path}")
-            logging.warning("Expected path: ./data/scisummnet_release1.1__20190413")
+            logging.error(f"Dataset directory not found at: {dataset_path}")
+            logging.error("Please copy the dataset from your local machine:")
+            logging.error("scp -r /Users/vanessa/Dropbox/synsearch/data/scisummnet_release1.1__20190413 charhub@charhub-inference-0:~/vb/synsearch/data/")
             
         return dataset_path
     return dataset_config['path']
