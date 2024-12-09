@@ -4,6 +4,7 @@ import hdbscan
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 from typing import Dict, Tuple, List, Any
 import logging
+from sklearn.manifold import TSNE
 
 class DynamicClusterManager:
     """Dynamic clustering manager that adapts to data characteristics."""
@@ -23,10 +24,22 @@ class DynamicClusterManager:
         # Calculate data spread
         spread = np.std(embeddings)
         
+        # Calculate dimensionality reduction for visualization
+        if self.config['visualization']['enabled']:
+            tsne = TSNE(n_components=2, random_state=42)
+            reduced_embeddings = tsne.fit_transform(embeddings)
+            visualization_data = {
+                'x': reduced_embeddings[:, 0].tolist(),
+                'y': reduced_embeddings[:, 1].tolist()
+            }
+        else:
+            visualization_data = None
+        
         return {
             'density': float(density),
             'spread': float(spread),
-            'dimensionality': embeddings.shape[1]
+            'dimensionality': embeddings.shape[1],
+            'visualization': visualization_data
         }
         
     def _select_algorithm(self, characteristics: Dict[str, float]) -> Tuple[str, Dict[str, Any]]:

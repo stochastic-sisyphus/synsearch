@@ -12,12 +12,11 @@ from embedding_generator import EnhancedEmbeddingGenerator
 from visualization.embedding_visualizer import EmbeddingVisualizer
 import numpy as np
 from preprocessor import TextPreprocessor, DomainAgnosticPreprocessor
-from src.clustering.dynamic_cluster_manager import DynamicClusterManager
+from clustering.dynamic_cluster_manager import DynamicClusterManager
 from typing import List, Dict, Any
 from datetime import datetime
-from src.summarization.adaptive_summarizer import AdaptiveSummarizer
-from src.evaluation.metrics import EvaluationMetrics
-from utils.metrics_utils import calculate_cluster_metrics
+from summarization.hybrid_summarizer import HybridSummarizer
+from evaluation.metrics import EvaluationMetrics
 
 # Set up logging with absolute paths
 log_dir = Path(__file__).parent.parent / "logs"
@@ -41,7 +40,7 @@ import torch
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from utils.style_selector import determine_cluster_style, get_style_parameters
-from src.summarization.adaptive_summarizer import AdaptiveSummarizer
+from summarization.adaptive_summarizer import AdaptiveSummarizer
 from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
 from datasets import load_dataset
 from utils.metrics_calculator import MetricsCalculator
@@ -56,94 +55,163 @@ def get_optimal_workers():
     """Get optimal number of worker processes."""
     return multiprocessing.cpu_count()
 
-def load_config():
+def load_config(config_path: str = "config/config.yaml") -> dict:
     """Load configuration from YAML file."""
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
 
-def load_datasets(config):
-    """Load and prepare datasets based on configuration."""
-    datasets = {'texts': [], 'summaries': []}
-    
-    # Load XLSum dataset if enabled
-    xlsum_config = next((d for d in config['data']['datasets'] if d['name'] == 'xlsum'), None)
-    if xlsum_config and xlsum_config['enabled']:
-        logger = logging.getLogger(__name__)
-        logger.info("Loading XLSum dataset...")
-        xlsum = load_dataset('GEM/xlsum')
-        datasets['texts'].extend(xlsum['train']['text'][:config['data'].get('batch_size', 100)])
-        datasets['summaries'].extend(xlsum['train']['summary'][:config['data'].get('batch_size', 100)])
-    
-    return datasets
-
-def save_results(results, summaries, output_path):
-    """Save results and summaries to output directory."""
-    os.makedirs(output_path, exist_ok=True)
-    
-    # Save results
-    results_path = os.path.join(output_path, 'results.yaml')
-    with open(results_path, 'w') as f:
-        yaml.dump(results, f)
-    
-    # Save summaries
-    summaries_path = os.path.join(output_path, 'summaries.txt')
-    with open(summaries_path, 'w') as f:
-        for cluster_id, summary in summaries.items():
-            f.write(f"Cluster {cluster_id}:\n{summary}\n\n")
-
-def main():
-    # Load configuration
-    config = load_config()
-    
-    # Configure logging
-    logging.basicConfig(
-        level=config['logging']['level'],
-        format=config['logging']['format']
+def process_texts(texts: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
+    """Process texts with adaptive summarization and enhanced metrics."""
+    # Initialize components with config settings
+    embedding_gen = EnhancedEmbeddingGenerator(
+        model_name=config['embedding']['model_name'],
+        batch_size=config['embedding']['batch_size'],
+        max_seq_length=config['embedding']['max_seq_length']
     )
+    
+    # Generate embeddings with performance settings
+    embeddings = embedding_gen(texts)
+    
+    # Process clusters with metrics
+    results = process_clusters(texts, embeddings, config)
+    
+    return results
+
+def validate_config(config):
+    """Validate configuration and create directories."""
+    required_dirs = [
+        ('input_path', config['data']['input_path']),
+        ('output_path', config['data']['output_path']),
+        ('processed_path', config['data']['processed_path']),
+        ('visualization_output', config['visualization']['output_dir']),
+        ('checkpoints_dir', config['checkpoints']['dir'])
+    ]
+    
+    for dir_key, dir_path in required_dirs:
+        os.makedirs(dir_path, exist_ok=True)
+        if not os.access(dir_path, os.W_OK):
+            raise ValueError(f"No write permission for path: {dir_path} ({dir_key})")
+    
+    # Validate dataset configurations
+    for dataset_config in config['data']['datasets']:
+        if dataset_config['name'] == 'xlsum' and dataset_config.get('enabled', False):
+            if 'language' not in dataset_config:
+                raise ValueError("XL-Sum dataset requires 'language' specification in config")
+            if 'dataset_name' not in dataset_config:
+                raise ValueError("XL-Sum dataset requires 'dataset_name' specification in config")
+        elif dataset_config['name'] == 'scisummnet' and dataset_config.get('enabled', False):
+            if 'path' not in dataset_config:
+                raise ValueError("ScisummNet dataset requires 'path' specification in config")
+
+def process_dataset(
+    dataset: Dict[str, Any],
+    cluster_manager: DynamicClusterManager,
+    summarizer: AdaptiveSummarizer,
+    evaluator: EvaluationMetrics,
+    config: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Process a single dataset through the pipeline."""
     logger = logging.getLogger(__name__)
     
-    try:
-        # Load datasets
-        logger.info("Loading datasets...")
-        dataset = load_datasets(config)
+    # Perform clustering
+    labels, clustering_metrics = cluster_manager.fit_predict(dataset['embeddings'])
+    logger.info(f"Clustering completed with metrics: {clustering_metrics}")
+    
+    # Group documents by cluster
+    clusters = cluster_manager.get_cluster_documents(dataset['documents'], labels)
+    
+    # Generate summaries for each cluster
+    summaries = {}
+    for cluster_id, docs in clusters.items():
+        cluster_texts = [doc['text'] for doc in docs]
+        cluster_embeddings = np.array([doc['embedding'] for doc in docs])
         
-        # Initialize components
-        logger.info("Initializing pipeline components...")
-        cluster_manager = DynamicClusterManager(config)
-        summarizer = AdaptiveSummarizer(config)
-        metrics_calc = EvaluationMetrics()
+        summary_data = summarizer.summarize_cluster(
+            texts=cluster_texts,
+            embeddings=cluster_embeddings,
+            cluster_id=cluster_id
+        )
+        summaries[str(cluster_id)] = summary_data
+    
+    # Calculate comprehensive metrics
+    metrics = evaluator.calculate_comprehensive_metrics(
+        summaries=summaries,
+        references=dataset.get('references', {}),
+        embeddings=dataset['embeddings']
+    )
+    
+    # Save results
+    results = {
+        'clustering_metrics': clustering_metrics,
+        'summaries': summaries,
+        'evaluation_metrics': metrics
+    }
+    
+    evaluator.save_metrics(
+        metrics=results,
+        output_dir=config['data']['output_path'],
+        prefix=dataset.get('name', 'unnamed_dataset')
+    )
+    
+    return results
+
+def main():
+    """Main pipeline execution."""
+    # Load configuration
+    config_path = Path("config/config.yaml")
+    if not config_path.exists():
+        raise FileNotFoundError(f"Configuration file not found at {config_path}")
+    
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+    
+    # Setup logging
+    setup_logging(config)
+    logger = logging.getLogger(__name__)
+    
+    # Initialize components with config
+    cluster_manager = DynamicClusterManager(config['clustering'])
+    summarizer = AdaptiveSummarizer(config['summarization'])
+    metrics_calc = MetricsCalculator()
+
+    # Process each dataset
+    for dataset_config in config['data']['datasets']:
+        if not dataset_config['enabled']:
+            continue
+
+        logging.info(f"Processing dataset: {dataset_config['name']}")
         
-        # Generate embeddings and perform clustering
-        logger.info("Generating embeddings and clustering...")
-        embeddings = cluster_manager.generate_embeddings(dataset['texts'])
-        clusters = cluster_manager.fit_predict(embeddings)
-        
+        # Load and validate dataset
+        dataset = load_dataset(dataset_config)
+        validate_dataset(dataset, config['preprocessing'])
+
+        # Generate embeddings with attention refinement
+        embeddings = generate_embeddings(
+            texts=dataset['texts'],
+            config=config['embedding']
+        )
+
+        # Dynamic clustering with hybrid approach
+        clusters = cluster_manager.fit_predict(
+            embeddings=embeddings,
+            texts=dataset['texts']
+        )
+
         # Generate adaptive summaries
-        logger.info("Generating summaries...")
         summaries = summarizer.summarize_clusters(
             clusters=clusters,
             texts=dataset['texts']
         )
-        
+
         # Calculate metrics
-        logger.info("Computing metrics...")
         results = metrics_calc.compute_all_metrics(
             embeddings=embeddings,
             clusters=clusters,
-            summaries=summaries,
-            references=dataset.get('summaries', None)
+            summaries=summaries
         )
-        
+
         # Save results
-        logger.info("Saving results...")
         save_results(results, summaries, config['data']['output_path'])
-        
-        logger.info("Pipeline completed successfully!")
-        
-    except Exception as e:
-        logger.error(f"An error occurred: {str(e)}", exc_info=True)
-        raise
 
 if __name__ == "__main__":
-    main() 
+    main()
