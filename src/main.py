@@ -18,6 +18,7 @@ from src.evaluation.metrics import EvaluationMetrics
 import json
 from src.utils.checkpoint_manager import CheckpointManager
 from dashboard.app import DashboardApp
+from datasets import load_dataset
 
 def main():
     # Setup logging
