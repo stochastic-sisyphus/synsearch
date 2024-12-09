@@ -115,6 +115,24 @@ def validate_config(config):
         elif dataset_config['name'] == 'scisummnet' and dataset_config.get('enabled', False):
             if 'path' not in dataset_config:
                 raise ValueError("ScisummNet dataset requires 'path' specification in config")
+    
+    # Validate summarization configuration
+    if 'summarization' not in config:
+        config['summarization'] = {
+            'model_name': 'facebook/bart-large-cnn',
+            'style_params': {
+                'concise': {'max_length': 100, 'min_length': 30},
+                'detailed': {'max_length': 300, 'min_length': 100},
+                'technical': {'max_length': 200, 'min_length': 50}
+            },
+            'num_beams': 4,
+            'length_penalty': 2.0,
+            'early_stopping': True
+        }
+    elif 'model_name' not in config['summarization']:
+        config['summarization']['model_name'] = 'facebook/bart-large-cnn'
+    
+    return config
 
 def process_dataset(
     dataset: Dict[str, Any],
@@ -186,8 +204,9 @@ def get_optimal_batch_size():
 
 def main():
     try:
-        # Load configuration first
+        # Load and validate configuration
         config = load_config()
+        config = validate_config(config)
         
         # Setup logging using config values
         logger = setup_logging(config)
