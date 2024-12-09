@@ -14,7 +14,7 @@ import numpy as np
 from preprocessor import TextPreprocessor, DomainAgnosticPreprocessor
 from typing import List, Dict, Any
 from datetime import datetime
-from summarization.hybrid_summarizer import HybridSummarizer
+from src.summarization.hybrid_summarizer import HybridSummarizer
 from evaluation.metrics import EvaluationMetrics
 from src.clustering.dynamic_cluster_manager import DynamicClusterManager
 from src.summarization.adaptive_summarizer import AdaptiveSummarizer
@@ -42,12 +42,11 @@ import torch
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from utils.style_selector import determine_cluster_style, get_style_parameters
-from summarization.adaptive_summarizer import AdaptiveSummarizer
 from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
 from datasets import load_dataset
 from utils.metrics_calculator import MetricsCalculator
-from models.adaptive_summarizer import AdaptiveSummarizer
-from models.dynamic_cluster_manager import DynamicClusterManager
+from src.summarization.adaptive_summarizer import AdaptiveSummarizer
+from src.clustering.dynamic_cluster_manager import DynamicClusterManager
 
 def get_device():
     """Get the best available device (GPU if available, else CPU)."""
@@ -57,10 +56,17 @@ def get_optimal_workers():
     """Get optimal number of worker processes."""
     return multiprocessing.cpu_count()
 
-def load_config():
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
+def load_config(config_path: str = "config/config.yaml") -> dict:
+    """Load configuration from YAML file."""
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
+
+def setup_logging(config: dict) -> None:
+    """Configure logging based on config settings."""
+    logging.basicConfig(
+        level=config['logging']['level'],
+        format=config['logging']['format']
+    )
 
 def process_texts(texts: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
     """Process texts with adaptive summarization and enhanced metrics."""
@@ -158,43 +164,72 @@ def process_dataset(
     return results
 
 def main():
-    """Main pipeline execution."""
     try:
-        # Setup logging
-        logging.basicConfig(level=logging.INFO)
-        logger = logging.getLogger(__name__)
-        
         # Load configuration
-        config_path = Path(__file__).parent.parent / 'config' / 'config.yaml'
-        with open(config_path) as f:
+        with open('config/config.yaml', 'r') as f:
             config = yaml.safe_load(f)
         
         # Initialize components
         data_loader = DataLoader(config)
-        preprocessor = DomainAgnosticPreprocessor(config)
-        embedding_generator = EnhancedEmbeddingGenerator(
-            model_name=config['embedding']['model_name'],
-            embedding_dim=config['embedding']['dimension'],
-            max_seq_length=config['embedding']['max_length']
-        )
+        preprocessor = DomainAgnosticPreprocessor()
+        embedding_generator = EnhancedEmbeddingGenerator(config)
         cluster_manager = DynamicClusterManager(config)
         summarizer = AdaptiveSummarizer(config)
-        evaluator = EvaluationMetrics()
+        metrics_calc = EvaluationMetrics()
         
-        # Process pipeline
-        dataset = data_loader.load_data(config['data']['source'])
-        processed_data = preprocessor.process_dataset(dataset)
-        embeddings = embedding_generator.generate_embeddings(processed_data['processed_text'])
-        clusters = cluster_manager.cluster_documents(embeddings)
-        summaries = summarizer.summarize_clusters(clusters, processed_data)
-        metrics = evaluator.evaluate(summaries, processed_data)
+        # Load and preprocess datasets
+        datasets = data_loader.load_all_datasets()
+        processed_datasets = []
         
-        logger.info("Pipeline completed successfully")
-        return metrics
+        for dataset in datasets:
+            # Preprocess
+            processed_texts = preprocessor.preprocess_texts(dataset['texts'])
+            
+            # Generate embeddings
+            embeddings = embedding_generator.generate_embeddings(processed_texts)
+            
+            # Perform clustering
+            labels, cluster_metrics = cluster_manager.fit_predict(embeddings)
+            
+            # Generate summaries for each cluster
+            summaries = {}
+            for cluster_id in set(labels):
+                if cluster_id == -1:  # Skip noise points
+                    continue
+                    
+                cluster_mask = labels == cluster_id
+                cluster_texts = [t for i, t in enumerate(processed_texts) if cluster_mask[i]]
+                cluster_embeddings = embeddings[cluster_mask]
+                
+                summary_data = summarizer.summarize_cluster(
+                    texts=cluster_texts,
+                    embeddings=cluster_embeddings,
+                    cluster_id=cluster_id
+                )
+                summaries[cluster_id] = summary_data
+            
+            # Compute evaluation metrics
+            results = metrics_calc.calculate_comprehensive_metrics(
+                summaries=summaries,
+                references=dataset.get('summaries', None),
+                embeddings=embeddings
+            )
+            
+            processed_datasets.append({
+                'name': dataset['name'],
+                'summaries': summaries,
+                'metrics': results,
+                'cluster_metrics': cluster_metrics
+            })
+        
+        # Save results
+        save_results(processed_datasets, config['data']['output_path'])
+        
+        logger.info("Pipeline completed successfully!")
         
     except Exception as e:
-        logger.error(f"An error occurred: {e}")
-        return None
+        logger.error(f"An error occurred: {str(e)}", exc_info=True)
+        raise
 
 if __name__ == "__main__":
     main()
