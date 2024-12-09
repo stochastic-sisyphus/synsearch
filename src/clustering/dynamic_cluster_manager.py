@@ -15,29 +15,37 @@ class DynamicClusterManager:
         self.clusterer = None
         self.labels_ = None
         
-    def _analyze_data_characteristics(self, embeddings: np.ndarray) -> Dict[str, float]:
-        """Analyze embedding space characteristics to inform clustering strategy."""
-        # Calculate data density
+    def _calculate_density(self, embeddings: np.ndarray) -> float:
+        """Calculate data density."""
         distances = np.linalg.norm(embeddings[:, None] - embeddings, axis=2)
         density = np.mean(np.partition(distances, 5, axis=1)[:, 1:6])
-        
-        # Calculate data spread
+        return float(density)
+    
+    def _calculate_spread(self, embeddings: np.ndarray) -> float:
+        """Calculate data spread."""
         spread = np.std(embeddings)
-        
-        # Calculate dimensionality reduction for visualization
+        return float(spread)
+    
+    def _calculate_dimensionality_reduction(self, embeddings: np.ndarray) -> Dict[str, List[float]]:
+        """Calculate dimensionality reduction for visualization."""
         if self.config['visualization']['enabled']:
             tsne = TSNE(n_components=2, random_state=42)
             reduced_embeddings = tsne.fit_transform(embeddings)
-            visualization_data = {
+            return {
                 'x': reduced_embeddings[:, 0].tolist(),
                 'y': reduced_embeddings[:, 1].tolist()
             }
-        else:
-            visualization_data = None
+        return None
+    
+    def _analyze_data_characteristics(self, embeddings: np.ndarray) -> Dict[str, float]:
+        """Analyze embedding space characteristics to inform clustering strategy."""
+        density = self._calculate_density(embeddings)
+        spread = self._calculate_spread(embeddings)
+        visualization_data = self._calculate_dimensionality_reduction(embeddings)
         
         return {
-            'density': float(density),
-            'spread': float(spread),
+            'density': density,
+            'spread': spread,
             'dimensionality': embeddings.shape[1],
             'visualization': visualization_data
         }

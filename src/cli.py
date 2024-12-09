@@ -12,6 +12,6 @@ def cli():
 @click.option('--style', default='balanced', type=click.Choice(['technical', 'concise', 'detailed', 'balanced']))
 @click.option('--output-dir', type=click.Path(), default='outputs')
 @click.option('--batch-size', type=int, default=4)
-def summarize(input_path: str, style: str, output_dir: str, batch_size: int):
+def generate_summaries(input_path: str, style: str, output_dir: str, batch_size: int):
     """Generate summaries for input documents"""
     # Implementation here 

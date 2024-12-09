@@ -3,7 +3,7 @@ import torch.nn as nn
 from typing import List, Dict, Optional
 import numpy as np
 
-class AttentionRefinement(nn.Module):
+class AttentionRefiner(nn.Module):
     """Refines embeddings using self-attention before clustering."""
     
     def __init__(self, embedding_dim: int):
@@ -34,4 +34,4 @@ class HybridClusteringModule:
     
     def __init__(self, embedding_dim: int, device: Optional[str] = None):
         self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
-        self.attention_refiner = AttentionRefinement(embedding_dim).to(self.device) 
+        self.attention_refiner = AttentionRefiner(embedding_dim).to(self.device) 

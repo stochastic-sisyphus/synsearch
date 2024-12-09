@@ -18,10 +18,10 @@ class DashboardApp:
         self.embedding_generator = embedding_generator
         self.cluster_manager = cluster_manager
         
-        self.app.layout = self._create_layout()
+        self.app.layout = self._create_dashboard_layout()
         self._setup_callbacks()
         
-    def _create_layout(self):
+    def _create_dashboard_layout(self):
         return html.Div([
             html.H1("Research Synthesis Dashboard"),
             
