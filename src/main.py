@@ -102,9 +102,10 @@ def validate_config(config):
 
 def get_dataset_path(dataset_config):
     """Helper function to resolve dataset paths"""
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if dataset_config['name'] == 'scisummnet':
-        return os.path.join(base_dir, dataset_config['path'], 'top1000_complete')
+        # Use the exact path structure shown in your directory tree
+        base_path = os.path.join('data', 'scisummnet_release1.1__20190413')
+        return os.path.join(base_path, 'top1000_complete')
     return dataset_config['path']
 
 def load_datasets(config):
@@ -115,26 +116,43 @@ def load_datasets(config):
         if not dataset_config.get('enabled', True):
             continue
             
-        if dataset_config['name'] == 'scisummnet':
-            dataset_path = get_dataset_path(dataset_config)
-            if not os.path.exists(dataset_path):
-                logging.warning(f"ScisummNet dataset path not found: {dataset_path}")
-                logging.info("Please ensure the dataset is downloaded and placed in the correct location:")
-                logging.info(f"  {os.path.dirname(dataset_path)}")
-                logging.info("Download from: https://cs.stanford.edu/~myasu/projects/scisumm_net/")
+        if dataset_config['name'] == 'xlsum':
+            try:
+                dataset = load_dataset(
+                    dataset_config['dataset_name'],
+                    dataset_config['language']
+                )
+                datasets.append({
+                    'name': 'xlsum',
+                    'data': dataset
+                })
+                logging.info(f"Successfully loaded XL-Sum dataset for {dataset_config['language']}")
+            except Exception as e:
+                logging.error(f"Failed to load XL-Sum dataset: {str(e)}")
                 continue
                 
+        elif dataset_config['name'] == 'scisummnet':
+            dataset_path = get_dataset_path(dataset_config)
+            full_path = os.path.join(os.getcwd(), dataset_path)
+            
+            if not os.path.exists(full_path):
+                logging.warning(f"ScisummNet dataset path not found: {full_path}")
+                logging.warning("Expected path structure: ./data/scisummnet_release1.1__20190413/top1000_complete")
+                continue
+            
             try:
                 scisummnet_data = {
                     'name': 'scisummnet',
-                    'path': dataset_path,
-                    'data': load_scisummnet(dataset_path)  # Implement this function based on your needs
+                    'path': full_path,
+                    'data': load_scisummnet(full_path)
                 }
                 datasets.append(scisummnet_data)
-                logging.info(f"Successfully loaded ScisummNet dataset from {dataset_path}")
+                logging.info(f"Successfully loaded ScisummNet dataset from {full_path}")
             except Exception as e:
                 logging.error(f"Failed to load ScisummNet dataset: {str(e)}")
                 continue
+    
+    return datasets
 
 def main():
     """Main pipeline execution."""
@@ -147,8 +165,22 @@ def main():
         
         # Load datasets
         datasets = load_datasets(config)
-        if not datasets and all(d['enabled'] for d in config['data']['datasets']):
-            raise ValueError("No datasets were successfully loaded")
+        
+        # Check if any enabled datasets were loaded
+        enabled_datasets = [d for d in config['data']['datasets'] if d.get('enabled', True)]
+        if not datasets:
+            if enabled_datasets:
+                logging.warning("No datasets were successfully loaded. Attempting to proceed with XL-Sum only.")
+                # Try loading XL-Sum as fallback
+                try:
+                    from datasets import load_dataset
+                    dataset = load_dataset('GEM/xlsum', 'english')
+                    datasets = [{'name': 'xlsum', 'data': dataset}]
+                    logging.info("Successfully loaded XL-Sum dataset as fallback")
+                except Exception as e:
+                    raise ValueError(f"Failed to load any datasets, including fallback: {str(e)}")
+            else:
+                raise ValueError("No datasets were enabled in configuration")
         
         # Continue with the rest of your pipeline...
         
@@ -264,6 +296,63 @@ def process_clusters(texts: List[str], embeddings: np.ndarray, config: Dict[str,
         'clustering_metrics': metrics,
         'data_characteristics': metrics['data_characteristics']
     }
+
+def load_scisummnet(path: str) -> Dict:
+    """Load and parse ScisummNet dataset from the given path."""
+    logging.info(f"Loading ScisummNet from: {path}")
+    try:
+        data = []
+        papers_path = os.path.join(path, 'top1000_complete')
+        logging.info(f"Scanning papers directory: {papers_path}")
+        logging.info(f"Directory exists: {os.path.exists(papers_path)}")
+        
+        paper_dirs = [d for d in os.listdir(papers_path) if os.path.isdir(os.path.join(papers_path, d))]
+        logging.info(f"Found {len(paper_dirs)} paper directories")
+        
+        for paper_dir in paper_dirs:
+            paper_path = os.path.join(papers_path, paper_dir)
+            try:
+                # Load abstract and summary from the paper directory
+                summary_path = os.path.join(paper_path, 'summary', 'summary.txt')
+                xml_path = os.path.join(paper_path, 'Documents_xml', f'{paper_dir}.xml')
+                
+                if not os.path.exists(summary_path) or not os.path.exists(xml_path):
+                    logging.warning(f"Missing files for paper {paper_dir}")
+                    continue
+                    
+                with open(summary_path, 'r', encoding='utf-8') as f:
+                    summary = f.read().strip()
+                    
+                with open(xml_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    abstract_start = content.find('<abstract>') + len('<abstract>')
+                    abstract_end = content.find('</abstract>')
+                    abstract = content[abstract_start:abstract_end].strip()
+                
+                data.append({
+                    'paper_id': paper_dir,
+                    'abstract': abstract,
+                    'summary': summary
+                })
+                
+            except Exception as e:
+                logging.warning(f"Failed to load paper {paper_dir}: {str(e)}")
+                continue
+        
+        if not data:
+            raise ValueError("No valid papers found in the dataset")
+            
+        logging.info(f"Successfully loaded {len(data)} papers from ScisummNet")
+        return {
+            'papers': data,
+            'metadata': {
+                'size': len(data),
+                'path': path
+            }
+        }
+        
+    except Exception as e:
+        raise Exception(f"Failed to load ScisummNet dataset: {str(e)}")
 
 if __name__ == "__main__":
     main() 
