@@ -13,7 +13,7 @@ from data_loader import DataLoader
 from data_preparation import DataPreparator
 from data_validator import DataValidator
 from utils.logging_config import setup_logging
-from embedding_generator import EnhancedEmbeddingGenerator
+from embedding_generator import EmbeddingGenerator
 from visualization.embedding_visualizer import EmbeddingVisualizer
 import numpy as np
 from preprocessor import TextPreprocessor, DomainAgnosticPreprocessor
@@ -33,7 +33,6 @@ from utils.style_selector import determine_cluster_style, get_style_parameters
 from summarization.enhanced_summarizer import EnhancedHybridSummarizer
 from summarization.adaptive_summarizer import AdaptiveSummarizer
 from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
-from embedding_generator import EmbeddingGenerator
 
 def get_device():
     """Get the best available device (GPU if available, else CPU)."""
@@ -176,7 +175,7 @@ def main():
                 all_metadata.extend(processed_scisummnet.to_dict('records'))
         
         # Initialize components with enhanced features
-        embedding_generator = EnhancedEmbeddingGenerator(
+        embedding_generator = EmbeddingGenerator(
             model_name=config['embedding']['model_name'],
             embedding_dim=config['embedding']['dimension']
         )
