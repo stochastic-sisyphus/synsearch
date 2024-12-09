@@ -1,12 +1,21 @@
 import os
 import sys
+import logging
+
+# Set up logging at the start of the script
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # Print to console
+        logging.FileHandler('pipeline.log')  # Save to file
+    ]
+)
 
 # Add the project root directory to the Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
-import logging
-from pathlib import Path
 import yaml
 import pandas as pd
 from data_loader import DataLoader
@@ -186,14 +195,20 @@ def load_datasets(config):
 def main():
     """Main pipeline execution."""
     try:
+        logging.info("Starting pipeline execution...")
+        
         # Load configuration with default path
         config = load_config()
+        logging.info("Loaded configuration")
         
         # Validate configuration and create directories
         validate_config(config)
+        logging.info("Validated configuration")
         
         # Load datasets
+        logging.info("Loading datasets...")
         datasets = load_datasets(config)
+        logging.info(f"Loaded {len(datasets)} datasets")
         
         # Check if any enabled datasets were loaded
         enabled_datasets = [d for d in config['data']['datasets'] if d.get('enabled', True)]
@@ -214,7 +229,7 @@ def main():
         # Continue with the rest of your pipeline...
         
     except Exception as e:
-        logging.error(f"Pipeline failed: {e}")
+        logging.error(f"Pipeline failed: {str(e)}")
         raise
     except ValueError as e:
         logging.error(f"Configuration error: {str(e)}")
