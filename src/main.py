@@ -37,6 +37,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from utils.style_selector import determine_cluster_style, get_style_parameters
 from summarization.adaptive_summarizer import AdaptiveSummarizer
 from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
+from datasets import load_dataset
 
 def get_device():
     """Get the best available device (GPU if available, else CPU)."""
@@ -78,58 +79,82 @@ def group_texts_by_similarity(texts: List[str], embeddings: np.ndarray) -> Dict[
     # ... existing clustering logic ...
     return {0: texts}  # Placeholder - implement your clustering logic
 
-def validate_config(config: dict) -> None:
-    """Validate the configuration before running the pipeline."""
-    validator = ConfigValidator()
+def validate_config(config):
+    """Validate configuration and create directories if they don't exist."""
+    # Create required directories
+    required_dirs = [
+        ('input_path', config['data']['input_path']),
+        ('output_path', config['data']['output_path']),
+        ('processed_path', config['data']['processed_path']),
+        ('visualization_output', config['visualization']['output_dir']),
+        ('checkpoints_dir', config['checkpoints']['dir'])
+    ]
     
+    for dir_key, dir_path in required_dirs:
+        os.makedirs(dir_path, exist_ok=True)
+        if not os.access(dir_path, os.W_OK):
+            raise ValueError(f"No write permission for path: {dir_path} ({dir_key})")
+    
+    # Validate ScisummNet dataset
+    scisummnet_path = config['data']['scisummnet_path']
+    if not os.path.exists(scisummnet_path):
+        logging.warning(f"ScisummNet dataset not found at: {scisummnet_path}")
+        logging.info("Please download ScisummNet dataset and place it in the correct directory")
+    
+    # Validate/Download XL-Sum dataset
     try:
-        validator.validate_config(config)
-    except ValueError as e:
-        raise ValueError(f"Configuration validation failed: {str(e)}")
+        logging.info("Checking XL-Sum dataset availability...")
+        load_dataset(config['data']['datasets'][1]['dataset_name'], split='train')
+        logging.info("XL-Sum dataset is available")
+    except Exception as e:
+        logging.warning(f"Error accessing XL-Sum dataset: {str(e)}")
+        logging.info("Will attempt to download when needed")
+
+def load_datasets(config):
+    """Load datasets based on configuration."""
+    datasets = []
     
-    # Additional validation for specific values
-    if config['embedding']['dimension'] <= 0:
-        raise ValueError("Embedding dimension must be positive")
+    # Load enabled datasets
+    for dataset_config in config['data']['datasets']:
+        if dataset_config['enabled']:
+            if dataset_config['name'] == 'scisummnet':
+                # Load ScisummNet dataset
+                if os.path.exists(dataset_config['path']):
+                    logging.info("Loading ScisummNet dataset...")
+                    # Add your ScisummNet loading logic here
+                    # datasets.append(load_scisummnet(dataset_config['path']))
+            
+            elif dataset_config['name'] == 'xlsum':
+                # Load XL-Sum dataset
+                logging.info("Loading XL-Sum dataset...")
+                try:
+                    xlsum_data = load_dataset(dataset_config['dataset_name'])
+                    datasets.append(xlsum_data)
+                except Exception as e:
+                    logging.error(f"Failed to load XL-Sum dataset: {str(e)}")
     
-    if config['embedding']['batch_size'] <= 0:
-        raise ValueError("Batch size must be positive")
-    
-    if config['embedding']['max_seq_length'] <= 0:
-        raise ValueError("Max sequence length must be positive")
-    
-    # Validate paths exist
-    data_paths = ['input_path', 'scisummnet_path']
-    for path_key in data_paths:
-        path = config['data'].get(path_key)
-        if path and not os.path.exists(path):
-            raise ValueError(f"Path does not exist: {path} ({path_key})")
+    return datasets
 
 def main():
+    """Main pipeline execution."""
+    # Load configuration
+    config = load_config()
+    
+    # Validate configuration and create directories
+    validate_config(config)
+    
+    # Load datasets
+    datasets = load_datasets(config)
+    if not datasets:
+        raise ValueError("No datasets were successfully loaded")
+    
+    # Continue with the rest of your pipeline...
+    
     # Setup logging
     setup_logging('logs/processing.log')
     logger = logging.getLogger(__name__)
     
     try:
-        # Load configuration
-        config = load_config('config/config.yaml')
-        
-        # Validate config
-        validate_config(config)
-        
-        # Validate required config parameters
-        required_params = {
-            'embedding': ['model_name', 'dimension'],
-            'clustering': ['n_clusters', 'min_cluster_size'],
-            'visualization': ['enabled', 'output_dir']
-        }
-        
-        for section, params in required_params.items():
-            if section not in config:
-                raise KeyError(f"Missing '{section}' section in config")
-            for param in params:
-                if param not in config[section]:
-                    raise KeyError(f"Missing '{param}' parameter in {section} config")
-        
         # Initialize checkpoint manager with metrics tracking
         checkpoint_manager = CheckpointManager(
             checkpoint_dir=config.get('checkpoints', {}).get('dir', 'outputs/checkpoints'),
