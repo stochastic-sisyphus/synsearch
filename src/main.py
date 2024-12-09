@@ -19,6 +19,17 @@ import json
 from src.utils.checkpoint_manager import CheckpointManager
 from dashboard.app import DashboardApp
 from datasets import load_dataset
+import torch
+import multiprocessing
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+
+def get_device():
+    """Get the best available device (GPU if available, else CPU)."""
+    return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+def get_optimal_workers():
+    """Get optimal number of worker processes."""
+    return multiprocessing.cpu_count()
 
 def main():
     # Setup logging

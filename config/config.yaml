@@ -17,7 +17,8 @@ embedding:
   model_name: "sentence-transformers/all-mpnet-base-v2"
   batch_size: 32
   max_seq_length: 128
-  device: null  # Will auto-detect GPU/CPU unless....look emoji
+  device: null  # Will use performance.device setting
+  num_workers: null  # Will use performance.num_workers setting
   output_dir: "outputs/embeddings"
 
 clustering:
@@ -25,6 +26,8 @@ clustering:
   params:
     min_cluster_size: 5
     min_samples: 5
+  device: null  # Will use performance.device setting
+  num_workers: null  # Will use performance.num_workers setting
   output_dir: "outputs/clusters"
 
 checkpoints:
@@ -62,6 +65,8 @@ summarization:
   max_length: 512
   min_length: 50
   batch_size: 8
+  device: null  # Will use performance.device setting
+  num_workers: null  # Will use performance.num_workers setting
   output_dir: "outputs/summaries"
 
 visualization:
@@ -80,3 +85,25 @@ evaluation:
     - "clustering"
     - "silhouette"
     - "davies_bouldin"
+
+performance:
+  device: null  # Will auto-detect GPU/CPU
+  num_workers: -1  # -1 means use all available CPU cores
+  batch_sizes:
+    embedding: 32
+    clustering: 1000
+    summarization: 8
+  use_mixed_precision: true  # For GPU optimization
+  parallel_processing:
+    enabled: true
+    chunk_size: 1000  # Documents per chunk for parallel processing
+
+datasets:
+  xlsum:
+    enabled: true
+    languages: ["en"]  # Can be expanded for multilingual support
+    max_samples: 10000
+  scisummnet:
+    enabled: true
+    path: "/Users/vanessa/Dropbox/synsearch/data/scisummnet_release1.1__20190413"
+    subset: "top1000_complete"

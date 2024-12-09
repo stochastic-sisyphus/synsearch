@@ -3,6 +3,8 @@ import torch.nn as nn
 from typing import List, Optional
 import numpy as np
 from sentence_transformers import SentenceTransformer
+import multiprocessing
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 class AttentionLayer(nn.Module):
     def __init__(self, embedding_dim):
@@ -31,14 +33,28 @@ class AttentionLayer(nn.Module):
         return refined_embeddings
 
 class EnhancedEmbeddingGenerator:
-    def __init__(self, model_name='all-mpnet-base-v2', device='cuda' if torch.cuda.is_available() else 'cpu'):
-        self.model = SentenceTransformer(model_name)
-        self.attention = AttentionLayer(self.model.get_sentence_embedding_dimension())
-        self.device = device
-        self.model.to(device)
-        self.attention.to(device)
+    def __init__(self, model_name, device=None, n_workers=None):
+        self.device = device or get_device()
+        self.n_workers = n_workers or get_optimal_workers()
+        self.model = SentenceTransformer(model_name).to(self.device)
         
     def generate_embeddings(self, texts, batch_size=32):
-        embeddings = self.model.encode(texts, batch_size=batch_size)
-        refined_embeddings = self.attention(embeddings)
-        return refined_embeddings.cpu().numpy()
+        """Generate embeddings using parallel processing and GPU acceleration."""
+        # Split texts into batches for parallel processing
+        batches = [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
+        
+        # Process batches in parallel
+        with ThreadPoolExecutor(max_workers=self.n_workers) as executor:
+            embeddings_list = list(executor.map(
+                lambda batch: self.model.encode(
+                    batch,
+                    device=self.device,
+                    show_progress_bar=True,
+                    convert_to_tensor=True
+                ),
+                batches
+            ))
+        
+        # Concatenate results
+        embeddings = torch.cat(embeddings_list, dim=0)
+        return embeddings.cpu().numpy()

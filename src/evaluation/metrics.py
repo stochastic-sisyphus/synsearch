@@ -113,3 +113,11 @@ class EvaluationMetrics:
     def calculate_comprehensive_metrics(self, summaries, references, embeddings=None):
         """Calculate both content and semantic metrics"""
         # ... implementation needed
+
+    def calculate_dataset_metrics(summaries, references):
+        """Calculate dataset-specific metrics"""
+        metrics = {
+            'xlsum': calculate_xlsum_metrics(summaries, references),
+            'scisummnet': calculate_scientific_metrics(summaries, references)
+        }
+        return metrics

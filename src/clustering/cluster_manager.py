@@ -1,148 +1,118 @@
-from typing import Dict, List, Optional, Tuple
+"""
+Manages dynamic clustering operations with adaptive algorithm selection
+"""
+from typing import Dict, List, Tuple, Optional, Union
 import numpy as np
 from sklearn.cluster import KMeans, DBSCAN
 import hdbscan
+from sklearn.metrics import silhouette_score, davies_bouldin_score
 import logging
+from datetime import datetime
 from pathlib import Path
 import json
-from datetime import datetime
-from sklearn.metrics import silhouette_score, davies_bouldin_score
-
-class DynamicClusterManager:
-    def __init__(self, config=None):
-        self.config = config or {
-            'thresholds': {
-                'density': 0.5,
-                'variance': 0.3,
-                'min_cluster_size': 5
-            }
-        }
-        self.available_algorithms = {
-            'hdbscan': hdbscan.HDBSCAN,
-            'kmeans': KMeans,
-            'dbscan': DBSCAN
-        }
-        
-    def select_algorithm(self, embeddings):
-        """Dynamically select clustering algorithm based on data characteristics"""
-        density = self._calculate_density(embeddings)
-        variance = np.var(embeddings)
-        
-        if density > self.config['thresholds']['density']:
-            return 'kmeans'
-        elif variance > self.config['thresholds']['variance']:
-            return 'dbscan'
-        else:
-            return 'hdbscan'
-            
-    def _calculate_density(self, embeddings):
-        """Calculate data density using average pairwise distances"""
-        sample = embeddings if len(embeddings) < 1000 else embeddings[np.random.choice(len(embeddings), 1000)]
-        distances = np.linalg.norm(sample[:, np.newaxis] - sample, axis=2)
-        return 1 / (np.mean(distances) + 1e-6)
-        
-    def fit_predict(self, embeddings):
-        algo_name = self.select_algorithm(embeddings)
-        
-        if algo_name == 'kmeans':
-            n_clusters = max(2, len(embeddings) // 50)  # Heuristic for number of clusters
-            clusterer = self.available_algorithms[algo_name](n_clusters=n_clusters)
-        elif algo_name == 'hdbscan':
-            clusterer = self.available_algorithms[algo_name](
-                min_cluster_size=self.config['thresholds']['min_cluster_size']
-            )
-        else:  # dbscan
-            clusterer = self.available_algorithms[algo_name](
-                eps=0.5,
-                min_samples=self.config['thresholds']['min_cluster_size']
-            )
-            
-        labels = clusterer.fit_predict(embeddings)
-        
-        # Calculate clustering metrics
-        metrics = {
-            'silhouette': silhouette_score(embeddings, labels) if len(np.unique(labels)) > 1 else 0,
-            'davies_bouldin': davies_bouldin_score(embeddings, labels) if len(np.unique(labels)) > 1 else 0,
-            'algorithm': algo_name
-        }
-        
-        return labels, metrics
+import torch
+import multiprocessing
+from joblib import parallel_backend, Parallel, delayed
 
 class ClusterManager:
-    def __init__(self, config: Dict):
-        """Initialize the cluster manager with configuration"""
+    def __init__(
+        self,
+        config: Dict,
+        device: Optional[str] = None,
+        n_jobs: Optional[int] = None
+    ):
+        """Initialize the cluster manager with parallel processing support"""
         self.logger = logging.getLogger(__name__)
         self.config = config
-        self.method = config['clustering']['method']
-        self.clusterer = self._initialize_clusterer()
         
+        # Set number of CPU cores to use
+        self.n_jobs = n_jobs if n_jobs is not None else max(1, multiprocessing.cpu_count() - 1)
+        self.logger.info(f"Using {self.n_jobs} CPU cores for parallel processing")
+        
+        # Set device for GPU operations
+        if device is None:
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        else:
+            self.device = device
+        self.logger.info(f"Using device: {self.device}")
+        
+        # Initialize clusterer with parallel processing
+        self._initialize_clusterer()
+    
     def _initialize_clusterer(self):
-        """Initialize the clustering algorithm based on config"""
-        params = self.config['clustering']['params']
+        """Initialize clustering algorithm with parallel processing support"""
+        params = self.config.get('clustering_params', {})
         
         if self.method == 'hdbscan':
-            return hdbscan.HDBSCAN(**params)
+            self.clusterer = hdbscan.HDBSCAN(
+                **params,
+                core_dist_n_jobs=self.n_jobs
+            )
         elif self.method == 'kmeans':
-            return KMeans(**params)
+            self.clusterer = KMeans(
+                **params,
+                n_jobs=self.n_jobs
+            )
         elif self.method == 'dbscan':
-            return DBSCAN(**params)
-        else:
-            raise ValueError(f"Unsupported clustering method: {self.method}")
-    
+            self.clusterer = DBSCAN(
+                **params,
+                n_jobs=self.n_jobs
+            )
+            
     def fit_predict(self, embeddings: np.ndarray) -> Tuple[np.ndarray, Dict]:
-        """Fit the clustering algorithm and return labels with metrics"""
-        self.logger.info(f"Clustering {len(embeddings)} documents using {self.method}")
+        """Fit and predict clusters using parallel processing"""
+        self.logger.info(f"Starting clustering with {self.method} on {len(embeddings)} documents")
         
-        # Perform clustering
-        labels = self.clusterer.fit_predict(embeddings)
+        # Move embeddings to GPU if available and algorithm supports it
+        if self.device == 'cuda' and self.method == 'kmeans':
+            embeddings_tensor = torch.tensor(embeddings, device=self.device)
+            self.labels_ = self._gpu_kmeans(embeddings_tensor)
+        else:
+            # Use parallel CPU processing
+            with parallel_backend('loky', n_jobs=self.n_jobs):
+                self.labels_ = self.clusterer.fit_predict(embeddings)
         
-        # Calculate metrics
-        metrics = self._calculate_metrics(embeddings, labels)
-        
-        return labels, metrics
+        metrics = self._calculate_metrics(embeddings)
+        return self.labels_, metrics
     
-    def _calculate_metrics(self, embeddings: np.ndarray, labels: np.ndarray) -> Dict:
-        """Calculate clustering quality metrics"""
+    def _gpu_kmeans(self, embeddings_tensor: torch.Tensor) -> np.ndarray:
+        """Perform K-means clustering on GPU"""
+        from kmeans_pytorch import kmeans
+        
+        cluster_ids_x, cluster_centers = kmeans(
+            X=embeddings_tensor,
+            num_clusters=self.config['clustering_params']['n_clusters'],
+            distance='euclidean',
+            device=torch.device(self.device)
+        )
+        
+        return cluster_ids_x.cpu().numpy()
+    
+    def _calculate_metrics(self, embeddings: np.ndarray) -> Dict:
+        """Calculate clustering metrics in parallel"""
         metrics = {}
         
-        # Skip metrics if all points are noise (-1)
-        if len(set(labels)) <= 1:
-            self.logger.warning("No clusters found, skipping metrics calculation")
-            return metrics
-        
         try:
-            metrics['silhouette_score'] = silhouette_score(embeddings, labels)
+            with parallel_backend('loky', n_jobs=self.n_jobs):
+                if len(np.unique(self.labels_)) > 1:
+                    metrics['silhouette'] = silhouette_score(
+                        embeddings,
+                        self.labels_[self.labels_ != -1]
+                    )
+                    metrics['davies_bouldin'] = davies_bouldin_score(
+                        embeddings[self.labels_ != -1],
+                        self.labels_[self.labels_ != -1]
+                    )
         except Exception as e:
-            self.logger.warning(f"Failed to calculate silhouette score: {e}")
-        
-        try:
-            metrics['davies_bouldin_score'] = davies_bouldin_score(embeddings, labels)
-        except Exception as e:
-            self.logger.warning(f"Failed to calculate Davies-Bouldin score: {e}")
-        
-        metrics['num_clusters'] = len(set(labels) - {-1})  # Exclude noise points
-        metrics['noise_points'] = sum(labels == -1)
+            self.logger.error(f"Metrics calculation failed: {str(e)}")
         
         return metrics
     
-    def get_cluster_documents(
-        self,
-        documents: List[Dict],
-        labels: np.ndarray
-    ) -> Dict[int, List[Dict]]:
-        """Group documents by cluster"""
-        clusters = {}
-        for doc, label in zip(documents, labels):
-            if label not in clusters:
-                clusters[label] = []
-            clusters[label].append(doc)
-        return clusters
-    
     def save_results(
         self,
-        clusters: Dict,
+        clusters: Dict[str, List[Dict]],
         metrics: Dict,
-        output_dir: Path
+        output_dir: Union[str, Path]
     ) -> None:
         """Save clustering results and metrics"""
         output_dir = Path(output_dir)

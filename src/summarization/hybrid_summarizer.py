@@ -8,9 +8,9 @@ from pathlib import Path
 import torch.nn.functional as F
 from sklearn.metrics.pairwise import cosine_similarity
 
-class HybridSummarizer:
+class EnhancedHybridSummarizer:
     """
-    HybridSummarizer: A flexible summarization module that combines extractive and abstractive approaches.
+    EnhancedHybridSummarizer: A flexible summarization module that combines extractive and abstractive approaches.
 
     Features:
     - Style-aware summarization (technical, concise, detailed)
@@ -20,7 +20,7 @@ class HybridSummarizer:
     - Checkpoint support
 
     Example:
-        summarizer = HybridSummarizer(
+        summarizer = EnhancedHybridSummarizer(
             model_name='facebook/bart-large-cnn',
             max_length=150,
             min_length=50
@@ -318,3 +318,39 @@ class HybridSummarizer:
         except Exception as e:
             self.logger.error(f"Error loading checkpoint: {e}")
             raise
+
+    def summarize_batch(self, texts, max_length=150):
+        """Summarize a batch of texts using GPU acceleration."""
+        inputs = self.tokenizer(
+            texts,
+            padding=True,
+            truncation=True,
+            return_tensors="pt"
+        ).to(self.device)
+        
+        with torch.no_grad():
+            outputs = self.model.generate(
+                inputs.input_ids,
+                max_length=max_length,
+                num_beams=4,
+                early_stopping=True
+            )
+            
+        summaries = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        return summaries
+        
+    def summarize_with_clusters(self, cluster_texts, cluster_features, batch_size=8):
+        """Process clusters in batches for better GPU utilization."""
+        summaries = {}
+        for cluster_id, texts in cluster_texts.items():
+            # Process texts in batches
+            batches = [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
+            cluster_summaries = []
+            
+            for batch in batches:
+                batch_summaries = self.summarize_batch(batch)
+                cluster_summaries.extend(batch_summaries)
+                
+            summaries[cluster_id] = cluster_summaries
+            
+        return summaries
