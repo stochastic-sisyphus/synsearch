@@ -218,68 +218,37 @@ def main():
         data_loader = DataLoader(config)
         preprocessor = DomainAgnosticPreprocessor(config['preprocessing'])
         
-        # Get optimal batch size based on available memory
-        optimal_batch_size = get_optimal_batch_size()
-        
-        # Initialize embedding generator with more conservative memory settings
-        embedding_generator = EnhancedEmbeddingGenerator(
-            model_name=config['embedding']['model_name'],
-            embedding_dim=config['embedding'].get('dimension', 768),
-            max_seq_length=config['embedding'].get('max_seq_length', 384),  # Reduced from 512
-            batch_size=min(config['embedding'].get('batch_size', 8), optimal_batch_size),
-            device='cuda' if torch.cuda.is_available() else 'cpu'
-        )
-        cluster_manager = DynamicClusterManager(config['clustering'])
-        summarizer = AdaptiveSummarizer(config['summarization'])
-        metrics_calc = EvaluationMetrics()
-        
-        # Load and preprocess datasets
+        # Load datasets
         datasets = data_loader.load_all_datasets()
-        processed_datasets = []
         
-        for dataset in datasets:
-            # Preprocess
-            processed_texts = preprocessor.preprocess_texts(dataset['text'].tolist())
+        # Process each dataset
+        processed_datasets = {}
+        for dataset_name, df in datasets.items():
+            logger.info(f"Processing dataset: {dataset_name}")
+            
+            # Preprocess texts
+            processed_texts = preprocessor.preprocess_texts(df['text'].tolist())
             
             # Generate embeddings
-            embeddings = embedding_generator.generate_embeddings(processed_texts)
-            
-            # Perform clustering
-            labels, cluster_metrics = cluster_manager.fit_predict(embeddings)
-            
-            # Generate summaries for each cluster
-            summaries = {}
-            for cluster_id in set(labels):
-                if cluster_id == -1:  # Skip noise points
-                    continue
-                    
-                cluster_mask = labels == cluster_id
-                cluster_texts = [t for i, t in enumerate(processed_texts) if cluster_mask[i]]
-                cluster_embeddings = embeddings[cluster_mask]
-                
-                summary_data = summarizer.summarize_cluster(
-                    texts=cluster_texts,
-                    embeddings=cluster_embeddings,
-                    cluster_id=cluster_id
-                )
-                summaries[cluster_id] = summary_data
-            
-            # Compute evaluation metrics
-            results = metrics_calc.calculate_comprehensive_metrics(
-                summaries=summaries,
-                references=dataset.get('summaries', None),
-                embeddings=embeddings
+            embedding_generator = EnhancedEmbeddingGenerator(
+                model_name=config['embedding']['model_name'],
+                embedding_dim=config['embedding'].get('dimension', 768),
+                max_seq_length=config['embedding'].get('max_seq_length', 384),
+                batch_size=config['embedding'].get('batch_size', 32),
+                device='cuda' if torch.cuda.is_available() else 'cpu'
             )
             
-            processed_datasets.append({
-                'name': dataset['name'],
-                'summaries': summaries,
-                'metrics': results,
-                'cluster_metrics': cluster_metrics
-            })
+            embeddings = embedding_generator.generate_embeddings(processed_texts)
+            
+            processed_datasets[dataset_name] = {
+                'texts': processed_texts,
+                'embeddings': embeddings,
+                'summaries': df['summary'].tolist(),
+                'ids': df['id'].tolist(),
+                'source': dataset_name
+            }
         
-        # Save results
-        save_results(processed_datasets, config['data']['output_path'])
+        # Continue with the rest of your pipeline...
         
         logger.info("Pipeline completed successfully!")
         
