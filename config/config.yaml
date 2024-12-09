@@ -10,6 +10,7 @@ data:
       source: "huggingface"
       enabled: true
       language: "english"
+      dataset_name: "GEM/xlsum"
     - name: "scisummnet"
       source: "local"
       enabled: true
