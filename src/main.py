@@ -239,7 +239,7 @@ def main():
         
         for dataset in datasets:
             # Preprocess
-            processed_texts = preprocessor.preprocess_texts(dataset['texts'])
+            processed_texts = preprocessor.preprocess_texts(dataset['text'].tolist())
             
             # Generate embeddings
             embeddings = embedding_generator.generate_embeddings(processed_texts)

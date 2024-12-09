@@ -189,69 +189,22 @@ class DomainAgnosticPreprocessor:
             self.logger.error(f"Failed to initialize tokenizer: {str(e)}")
             raise
 
-    def preprocess(self, text, domain=None):
-        """Domain-agnostic preprocessing"""
-        # Basic cleaning
-        text = self._clean_text(text)
-        
-        # Universal tokenization
-        tokens = self.tokenizer.encode(text).tokens
-        
-        # Handle different input formats
-        if domain == 'scientific':
-            return self._handle_scientific(tokens)
-        elif domain == 'news':
-            return self._handle_news(tokens)
-        else:
-            return self._handle_generic(tokens)
-
-    def process_dataset(self, dataset, text_column='text', summary_column='summary'):
-        """Process a dataset with text and summary columns.
-        
-        Args:
-            dataset: pandas DataFrame containing the dataset
-            text_column: name of the column containing the text to process
-            summary_column: name of the column containing the summary (if available)
-        
-        Returns:
-            pandas DataFrame with processed text and summaries
-        """
-        # Create a copy to avoid modifying the original
-        processed_df = dataset.copy()
-        
-        # Process the main text
-        processed_df['processed_text'] = processed_df[text_column].apply(self.preprocess_text)
-        
-        # Process the summary if it exists
-        if summary_column in processed_df.columns:
-            processed_df['processed_summary'] = processed_df[summary_column].apply(self.preprocess_text)
-        
-        return processed_df
+    def preprocess_texts(self, texts: List[str]) -> List[str]:
+        """Preprocess a list of texts."""
+        self.logger.info(f"Preprocessing {len(texts)} texts...")
+        return [self.preprocess_text(text) for text in texts]
 
     def preprocess_text(self, text: str) -> str:
-        """Preprocess a single text string in a domain-agnostic way.
-        
-        Args:
-            text: Input text to preprocess
-            
-        Returns:
-            Preprocessed text string
-        """
-        if not isinstance(text, str):
+        """Preprocess a single text."""
+        if not text:
             return ""
-        
-        # Convert to lowercase
-        text = text.lower()
         
         # Remove special characters and extra whitespace
         text = re.sub(r'[^\w\s]', ' ', text)
         text = re.sub(r'\s+', ' ', text)
         
-        # Remove numbers (optional - comment out if numbers are important)
-        # text = re.sub(r'\d+', '', text)
-        
-        # Strip whitespace
-        text = text.strip()
+        # Convert to lowercase
+        text = text.lower().strip()
         
         return text
 
