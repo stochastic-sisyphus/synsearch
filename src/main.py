@@ -110,7 +110,9 @@ def load_datasets(config):
             continue
             
         if dataset_config['name'] == 'scisummnet':
-            scisummnet_path = os.path.join(dataset_config['path'], 'top1000_complete')
+            # Convert to absolute path from project root
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            scisummnet_path = os.path.join(base_dir, dataset_config['path'], 'top1000_complete')
             if os.path.exists(scisummnet_path):
                 logging.info(f"Loading ScisummNet dataset from {scisummnet_path}")
                 try:
@@ -127,7 +129,7 @@ def load_datasets(config):
                     logging.error(f"Failed to load ScisummNet dataset: {str(e)}")
             else:
                 logging.warning(f"ScisummNet dataset path not found: {scisummnet_path}")
-                logging.info("Please ensure the dataset is in: /Users/vanessa/Dropbox/synsearch/data/scisummnet_release1.1__20190413/top1000_complete")
+                logging.info("Please ensure the dataset is in the correct location relative to the project root")
         
         elif dataset_config['name'] == 'xlsum':
             logging.info(f"Loading XL-Sum dataset for language: {dataset_config['language']}")
