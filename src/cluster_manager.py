@@ -3,6 +3,9 @@ import numpy as np
 from sklearn.metrics import silhouette_score
 
 class ClusterManager:
+    """
+    Manages dynamic clustering operations with adaptive algorithm selection.
+    """
     def __init__(self, config):
         self.config = config
         self.clusterer = None
