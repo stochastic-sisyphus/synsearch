@@ -1,22 +1,29 @@
+import os
+import sys
+
+# Add the project root directory to the Python path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+
 import logging
 from pathlib import Path
 import yaml
 import pandas as pd
-from src.data_loader import DataLoader
-from src.data_preparation import DataPreparator
-from src.data_validator import DataValidator
-from src.utils.logging_config import setup_logging
-from src.embedding_generator import EnhancedEmbeddingGenerator
-from src.visualization.embedding_visualizer import EmbeddingVisualizer
+from data_loader import DataLoader
+from data_preparation import DataPreparator
+from data_validator import DataValidator
+from utils.logging_config import setup_logging
+from embedding_generator import EnhancedEmbeddingGenerator
+from visualization.embedding_visualizer import EmbeddingVisualizer
 import numpy as np
-from src.preprocessor import TextPreprocessor, DomainAgnosticPreprocessor
-from src.clustering.dynamic_cluster_manager import DynamicClusterManager
+from preprocessor import TextPreprocessor, DomainAgnosticPreprocessor
+from clustering.dynamic_cluster_manager import DynamicClusterManager
 from typing import List, Dict, Any
 from datetime import datetime
-from src.summarization.hybrid_summarizer import HybridSummarizer
-from src.evaluation.metrics import EvaluationMetrics
+from summarization.hybrid_summarizer import HybridSummarizer
+from evaluation.metrics import EvaluationMetrics
 import json
-from src.utils.checkpoint_manager import CheckpointManager
+from utils.checkpoint_manager import CheckpointManager
 from dashboard.app import DashboardApp
 from datasets import load_dataset
 import torch
@@ -26,7 +33,7 @@ from utils.style_selector import determine_cluster_style, get_style_parameters
 from summarization.enhanced_summarizer import EnhancedHybridSummarizer
 from summarization.adaptive_summarizer import AdaptiveSummarizer
 from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
-from src.embedding_generator import EmbeddingGenerator
+from embedding_generator import EmbeddingGenerator
 
 def get_device():
     """Get the best available device (GPU if available, else CPU)."""
