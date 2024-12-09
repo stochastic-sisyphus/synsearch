@@ -103,9 +103,8 @@ def validate_config(config):
 def get_dataset_path(dataset_config):
     """Helper function to resolve dataset paths"""
     if dataset_config['name'] == 'scisummnet':
-        # Use the exact path structure shown in your directory tree
-        base_path = os.path.join('data', 'scisummnet_release1.1__20190413')
-        return os.path.join(base_path, 'top1000_complete')
+        # Use relative path from current working directory
+        return os.path.join('.', dataset_config['path'], dataset_config['top1000_dir'])
     return dataset_config['path']
 
 def load_datasets(config):
@@ -133,21 +132,23 @@ def load_datasets(config):
                 
         elif dataset_config['name'] == 'scisummnet':
             dataset_path = get_dataset_path(dataset_config)
-            full_path = os.path.join(os.getcwd(), dataset_path)
             
-            if not os.path.exists(full_path):
-                logging.warning(f"ScisummNet dataset path not found: {full_path}")
+            # Log the actual path being checked
+            logging.info(f"Checking ScisummNet path: {os.path.abspath(dataset_path)}")
+            
+            if not os.path.exists(dataset_path):
+                logging.warning(f"ScisummNet dataset path not found: {dataset_path}")
                 logging.warning("Expected path structure: ./data/scisummnet_release1.1__20190413/top1000_complete")
                 continue
             
             try:
                 scisummnet_data = {
                     'name': 'scisummnet',
-                    'path': full_path,
-                    'data': load_scisummnet(full_path)
+                    'path': dataset_path,
+                    'data': load_scisummnet(dataset_path)
                 }
                 datasets.append(scisummnet_data)
-                logging.info(f"Successfully loaded ScisummNet dataset from {full_path}")
+                logging.info(f"Successfully loaded ScisummNet dataset from {dataset_path}")
             except Exception as e:
                 logging.error(f"Failed to load ScisummNet dataset: {str(e)}")
                 continue
