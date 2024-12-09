@@ -52,7 +52,6 @@ from utils.style_selector import determine_cluster_style, get_style_parameters
 from summarization.adaptive_summarizer import AdaptiveSummarizer
 from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
 from datasets import load_dataset
-from utils.metrics_calculator import MetricsCalculator
 
 def get_device():
     """Get the best available device (GPU if available, else CPU)."""
