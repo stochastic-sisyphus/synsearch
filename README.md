@@ -1,6 +1,6 @@
 # Dynamic Summarization and Adaptive Clustering
 
-A framework for real-time research synthesis using dynamic clustering and abstractive summarization. This project combines attention-based embedding refinement, adaptive clustering algorithms, and cluster-aware summarization to provide comprehensive research synthesis capabilities.
+A framework for real-time research synthesis using dynamic clustering and abstractive summarization. This project combines attention-based embedding refinement, adaptive clustering algorithms, and style-aware summarization to provide comprehensive research synthesis capabilities.
 
 ## Requirements
 
@@ -11,16 +11,7 @@ A framework for real-time research synthesis using dynamic clustering and abstra
 - 2GB free disk space
 
 ### Dependencies
-```bash
-torch>=1.9.0
-transformers>=4.11.0
-sentence-transformers>=2.0.0
-scikit-learn>=0.24.0
-numpy>=1.19.0
-pandas>=1.3.0
-plotly>=5.0.0
-streamlit>=1.0.0
-```
+See `requirements.txt` for complete list of dependencies.
 
 ## Quick Start
 
@@ -29,35 +20,39 @@ streamlit>=1.0.0
 pip install -r requirements.txt
 ```
 
-2. **Run a simple example**
-```python
-from src.main import process_documents
+2. **Run the pipeline**
+```bash
+# Basic usage with default settings
+python -m src.main
 
-# Process a sample document
-result = process_documents(
-    input_files="examples/sample.txt",
-    output_dir="outputs"
-)
+# With custom config file
+python -m src.main --config path/to/custom_config.yaml
 
-# Expected output:
-# {
-#     'clusters': 3,
-#     'documents_processed': 10,
-#     'processing_time': '2.3s',
-#     'summaries': {
-#         'cluster_0': 'Summary of first cluster...',
-#         'cluster_1': 'Summary of second cluster...',
-#         'cluster_2': 'Summary of third cluster...'
-#     }
-# }
+# With specific input and output paths
+python -m src.main --input "data/documents/" --output "results/"
 ```
 
-3. **View results**
-```bash
-cat outputs/results/summaries.json
+3. **Expected Output Structure**
+```
+outputs/
+├── checkpoints/          # Processing checkpoints
+├── embeddings/          # Generated embeddings
+├── clusters/           # Clustering results
+├── summaries/         # Generated summaries
+└── figures/          # Visualizations
 ```
 
 ## Key Features
+
+### Adaptive Style Selection
+- Automatic style adaptation based on cluster characteristics
+- Support for technical, detailed, and concise summary styles
+- Real-time style optimization based on content complexity
+
+### Domain-Agnostic Processing
+- Universal preprocessing pipeline
+- Adaptive feature extraction
+- Cross-domain compatibility
 
 ### Embedding Generation
 - Attention-based embedding refinement for improved semantic representation

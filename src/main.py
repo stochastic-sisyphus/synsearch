@@ -22,7 +22,7 @@ from datasets import load_dataset
 import torch
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-from utils.style_selector import determine_cluster_style
+from utils.style_selector import determine_cluster_style, get_style_parameters
 from summarization.enhanced_summarizer import EnhancedHybridSummarizer
 from summarization.adaptive_summarizer import AdaptiveSummarizer
 from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
@@ -223,24 +223,33 @@ def main():
         raise
 
 def generate_summaries(cluster_texts: Dict[str, List[str]], config: Dict) -> Dict[str, Dict]:
-    """Generate and evaluate summaries for clustered texts"""
-    # Initialize adaptive summarizer instead of hybrid
+    """Generate and evaluate summaries for clustered texts with adaptive style selection."""
+    # Initialize adaptive summarizer
     summarizer = AdaptiveSummarizer(config)
     metrics_calculator = EvaluationMetrics()
     
     summaries = {}
     for cluster_id, texts in cluster_texts.items():
-        # Get texts and embeddings for this cluster
+        # Get cluster characteristics
         cluster_texts = [doc['processed_text'] for doc in texts]
+        cluster_embeddings = np.array([doc['embedding'] for doc in texts])
+        
+        # Determine appropriate style
+        style = determine_cluster_style(
+            embeddings=cluster_embeddings,
+            texts=cluster_texts,
+            config=config
+        )
+        style_params = get_style_parameters(style)
         
         # Generate summary with adaptive style
-        summary_data = summarizer.summarize_cluster(
-            texts=cluster_texts,
-            embeddings=None,  # You'll need to pass embeddings here
-            cluster_id=cluster_id
-        )
+        summary_data = summarizer.summarize(texts=texts, **style_params)
         
-        summaries[cluster_id] = summary_data
+        summaries[cluster_id] = {
+            'summary': summary_data['summary'],
+            'style': style,
+            'metrics': summary_data['metrics']
+        }
         
         # Calculate ROUGE if reference summaries available
         if any('reference_summary' in doc for doc in texts):

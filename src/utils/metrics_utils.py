@@ -6,26 +6,16 @@ from nltk.tokenize import word_tokenize, sent_tokenize
 nltk.download('punkt', quiet=True)
 
 def calculate_lexical_diversity(texts: List[str]) -> float:
-    """Calculate lexical diversity (TTR) across all texts."""
-    all_tokens = []
-    for text in texts:
-        tokens = word_tokenize(text.lower())
-        # Filter out punctuation and numbers
-        tokens = [t for t in tokens if t.isalpha()]
-        all_tokens.extend(tokens)
-    
-    if not all_tokens:
-        return 0.0
-        
+    """Calculate lexical diversity (unique tokens / total tokens)."""
+    # Combine all texts and split into tokens
+    all_tokens = ' '.join(texts).lower().split()
     unique_tokens = len(set(all_tokens))
     total_tokens = len(all_tokens)
-    return unique_tokens / total_tokens
+    return unique_tokens / total_tokens if total_tokens > 0 else 0.0
 
 def calculate_cluster_variance(embeddings: np.ndarray) -> float:
-    """Calculate the average variance of embeddings within a cluster."""
-    if len(embeddings) <= 1:
-        return 0.0
-    return float(np.mean(np.var(embeddings, axis=0)))
+    """Calculate the variance of embeddings within a cluster."""
+    return float(np.var(embeddings).mean())
 
 def calculate_text_complexity(text: str) -> Dict[str, float]:
     """Calculate various text complexity metrics."""
@@ -40,3 +30,11 @@ def calculate_text_complexity(text: str) -> Dict[str, float]:
         "avg_sentence_length": len(words) / len(sentences),
         "avg_word_length": sum(len(w) for w in words) / len(words)
     } 
+
+def calculate_cluster_metrics(embeddings: np.ndarray, texts: List[str]) -> Dict[str, float]:
+    """Calculate comprehensive metrics for a cluster."""
+    return {
+        'variance': calculate_cluster_variance(embeddings),
+        'lexical_diversity': calculate_lexical_diversity(texts),
+        'size': len(texts)
+    }

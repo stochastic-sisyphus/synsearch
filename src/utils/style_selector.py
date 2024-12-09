@@ -1,85 +1,91 @@
-from typing import List, Dict, Any
+from typing import Dict, List, Any
 import numpy as np
-from .metrics_utils import (
-    calculate_lexical_diversity,
-    calculate_cluster_variance,
-    calculate_text_complexity
-)
+from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
 
-class AdaptiveStyleSelector:
-    def __init__(self, config: Dict[str, Any]):
-        self.config = config
-        # Default thresholds can be overridden via config
-        self.style_thresholds = config.get('style_thresholds', {
-            'lexical_diversity': {'low': 0.3, 'high': 0.6},
-            'variance': {'low': 0.1, 'high': 0.3},
-            'complexity': {'low': 15, 'high': 25}
-        })
+def determine_cluster_style(embeddings: np.ndarray, texts: List[str], config: Dict[str, Any]) -> str:
+    """
+    Determine the appropriate summarization style based on cluster characteristics.
     
-    def determine_cluster_style(
-        self, 
-        embeddings: np.ndarray, 
-        texts: List[str]
-    ) -> Dict[str, Any]:
-        """
-        Determine appropriate summarization style based on cluster characteristics.
-        Uses multiple domain-agnostic metrics to make the decision.
-        """
-        # Calculate core metrics
-        metrics = {
-            'lexical_diversity': calculate_lexical_diversity(texts),
-            'variance': calculate_cluster_variance(embeddings),
-            'complexity_scores': [
-                calculate_text_complexity(text)["avg_sentence_length"] 
-                for text in texts
-            ]
-        }
+    Args:
+        embeddings: Cluster document embeddings
+        texts: List of preprocessed texts in the cluster
+        config: Configuration dictionary with thresholds
         
-        metrics['avg_complexity'] = np.mean(metrics['complexity_scores']) if metrics['complexity_scores'] else 0
-        
-        # Determine style based on combined metrics
-        style = self._select_style(
-            metrics['lexical_diversity'],
-            metrics['variance'],
-            metrics['avg_complexity']
-        )
-        
-        return {
-            'style': style,
-            'metrics': {
-                'lexical_diversity': metrics['lexical_diversity'],
-                'variance': metrics['variance'],
-                'avg_complexity': metrics['avg_complexity']
-            }
-        }
+    Returns:
+        str: Selected style ('technical', 'narrative', 'concise', or 'detailed')
+    """
+    # Calculate key metrics
+    variance = calculate_cluster_variance(embeddings)
+    lexical_diversity = calculate_lexical_diversity(texts)
+    cluster_metrics = calculate_cluster_metrics(embeddings, texts)
     
-    def _select_style(
-        self, 
-        lex_div: float, 
-        variance: float, 
-        complexity: float
-    ) -> str:
-        """
-        Select summarization style based on multiple metrics.
-        Returns: 'detailed', 'balanced', or 'concise'
-        """
-        th = self.style_thresholds
-        score = 0
-        
-        # Calculate style score based on all metrics
-        if lex_div > th['lexical_diversity']['high']: score += 1
-        elif lex_div < th['lexical_diversity']['low']: score -= 1
-        
-        if variance > th['variance']['high']: score += 1
-        elif variance < th['variance']['low']: score -= 1
-        
-        if complexity > th['complexity']['high']: score += 1
-        elif complexity < th['complexity']['low']: score -= 1
-        
-        # Convert score to style
-        if score >= 1:
+    # Get thresholds from config or use defaults
+    thresholds = config.get('style_selection', {}).get('thresholds', {
+        'high_variance': 0.7,
+        'high_lexical_diversity': 0.6,
+        'large_cluster': 10
+    })
+    
+    # Decision logic for style selection
+    if variance > thresholds['high_variance']:
+        if lexical_diversity > thresholds['high_lexical_diversity']:
+            # High variance and diversity suggests complex, varied content
+            # Use detailed style to capture nuances
             return 'detailed'
-        elif score <= -1:
+        else:
+            # High variance but lower diversity suggests technical content
+            # Use technical style for precision
+            return 'technical'
+    else:
+        if len(texts) > thresholds['large_cluster']:
+            # Large cluster with low variance suggests related content
+            # Use concise style to avoid redundancy
             return 'concise'
-        return 'balanced'
+        else:
+            # Small cluster with low variance suggests focused content
+            # Use narrative style for readability
+            return 'narrative'
+
+def get_style_parameters(style: str) -> Dict[str, Any]:
+    """
+    Get the summarization parameters for a given style.
+    
+    Args:
+        style: The selected summarization style
+        
+    Returns:
+        Dict containing style-specific parameters
+    """
+    style_params = {
+        'technical': {
+            'max_length': 150,
+            'min_length': 50,
+            'length_penalty': 2.0,
+            'num_beams': 4,
+            'preserve_keywords': True
+        },
+        'narrative': {
+            'max_length': 200,
+            'min_length': 100,
+            'length_penalty': 1.0,
+            'num_beams': 4,
+            'preserve_keywords': False
+        },
+        'concise': {
+            'max_length': 100,
+            'min_length': 30,
+            'length_penalty': 0.8,
+            'num_beams': 3,
+            'preserve_keywords': True
+        },
+        'detailed': {
+            'max_length': 250,
+            'min_length': 150,
+            'length_penalty': 1.5,
+            'num_beams': 5,
+            'preserve_keywords': True
+        }
+    }
+    
+    return style_params.get(style, style_params['narrative'])
  

@@ -7,7 +7,8 @@ from typing import List, Dict, Union, Optional, Any
 import re
 from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
-from transformers import ByteLevelBPETokenizer
+from tokenizers import ByteLevelBPETokenizer
+from transformers import AutoTokenizer
 
 class TextPreprocessor:
     def __init__(self, language: str = 'english'):
@@ -176,8 +177,8 @@ class TextPreprocessor:
         return processed
 
 class DomainAgnosticPreprocessor:
-    def __init__(self):
-        self.tokenizer = ByteLevelBPETokenizer()
+    def __init__(self, config):
+        self.tokenizer = AutoTokenizer.from_pretrained('gpt2')  # or any other model
         
     def preprocess(self, text, domain=None):
         """Domain-agnostic preprocessing"""

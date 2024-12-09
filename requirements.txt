@@ -26,6 +26,7 @@ nltk>=3.6.0
 spacy>=3.2.0
 rouge-score>=0.1.2
 bert-score>=0.3.11
+tokenizers>=0.13.0
 
 # Clustering
 hdbscan>=0.8.28
