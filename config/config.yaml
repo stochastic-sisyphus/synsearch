@@ -15,10 +15,10 @@ preprocessing:
 
 embedding:
   model_name: "all-mpnet-base-v2"
-  dimension: 768
+  embedding_dim: 768
+  max_seq_length: 512
   batch_size: 32
-  max_seq_length: 128
-  device: null  # Will use performance.device setting
+  device: "cuda"  # or 'cpu'
   num_workers: null  # Will use performance.num_workers setting
   output_dir: "outputs/embeddings"
 
@@ -156,3 +156,9 @@ datasets:
     enabled: true
     path: "/Users/vanessa/Dropbox/synsearch/data/scisummnet_release1.1__20190413"
     subset: "top1000_complete"
+  xl_sum:
+    path: "GEM/xlsum"
+    type: "huggingface"
+  scisummnet:
+    path: "/Users/vanessa/Dropbox/synsearch/data/scisummnet_release1.1__20190413"
+    type: "local"

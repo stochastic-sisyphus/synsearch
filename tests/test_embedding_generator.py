@@ -3,6 +3,8 @@ import numpy as np
 from src.embedding_generator import EmbeddingGenerator
 import tempfile
 from pathlib import Path
+import torch
+from src.embedding_generator import EnhancedEmbeddingGenerator
 
 @pytest.fixture
 def embedding_generator():
@@ -50,3 +52,22 @@ def test_batch_processing(embedding_generator):
     
     # Check shape
     assert embeddings.shape[0] == len(texts)
+
+def test_embedding_generator_initialization():
+    generator = EnhancedEmbeddingGenerator(
+        model_name='all-mpnet-base-v2',
+        embedding_dim=768,
+        max_seq_length=512
+    )
+    assert generator.model is not None
+    assert generator.attention_layer is not None
+    assert generator.embedding_dim == 768
+
+def test_embedding_generation():
+    generator = EnhancedEmbeddingGenerator()
+    texts = ["This is a test document.", "Another test document."]
+    embeddings = generator.generate_embeddings(texts)
+    
+    assert isinstance(embeddings, torch.Tensor)
+    assert embeddings.shape[0] == len(texts)
+    assert embeddings.shape[1] == generator.embedding_dim

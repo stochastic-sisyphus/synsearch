@@ -15,34 +15,25 @@ class AttentionLayer(nn.Module):
         return embeddings * attention_weights
 
 class EnhancedEmbeddingGenerator:
-    def __init__(
-        self, 
-        model_name: str = 'sentence-transformers/all-mpnet-base-v2',
-        device: Optional[torch.device] = None,
-        batch_size: int = 32,
-        embedding_dim: int = 768
-    ):
-        self.batch_size = batch_size
+    def __init__(self, model_name='all-mpnet-base-v2', embedding_dim=768, max_seq_length=512, device=None, **kwargs):
+        """Initialize the embedding generator with attention mechanism.
         
-        # Try GPU first, fallback to CPU if OOM
-        if device is None:
-            try:
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                    self.device = torch.device('cuda')
-                else:
-                    self.device = torch.device('cpu')
-            except RuntimeError as e:
-                if "out of memory" in str(e):
-                    print("WARNING: GPU out of memory, falling back to CPU")
-                    self.device = torch.device('cpu')
-                else:
-                    raise e
-        else:
-            self.device = device
-            
-        # Initialize model and attention layer
-        self.model = SentenceTransformer(model_name).to(self.device)
+        Args:
+            model_name: Name of the pretrained model to use
+            embedding_dim: Dimension of embeddings
+            max_seq_length: Maximum sequence length for tokenization
+            device: Device to use (cuda/cpu)
+            **kwargs: Additional arguments
+        """
+        super().__init__()
+        self.model_name = model_name
+        self.embedding_dim = embedding_dim
+        self.max_seq_length = max_seq_length
+        self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # Initialize the model and attention layer
+        self.model = SentenceTransformer(model_name)
+        self.model.to(self.device)
         self.attention_layer = AttentionLayer(embedding_dim).to(self.device)
         
     def generate_embeddings(
