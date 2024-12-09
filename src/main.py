@@ -113,8 +113,8 @@ def validate_config(config):
             if 'dataset_name' not in dataset_config:
                 raise ValueError("XL-Sum dataset requires 'dataset_name' specification in config")
         elif dataset_config['name'] == 'scisummnet' and dataset_config.get('enabled', False):
-            if 'path' not in dataset_config:
-                raise ValueError("ScisummNet dataset requires 'path' specification in config")
+            if not config['data'].get('scisummnet_path'):
+                raise ValueError("ScisummNet dataset requires 'scisummnet_path' in config['data']")
     
     # Validate summarization configuration
     if 'summarization' not in config:
@@ -203,13 +203,16 @@ def get_optimal_batch_size():
     return 16  # Default for CPU
 
 def main():
+    # Initialize logger first
+    logger = logging.getLogger(__name__)
+    
     try:
         # Load and validate configuration
         config = load_config()
         config = validate_config(config)
         
-        # Setup logging using config values
-        logger = setup_logging(config)
+        # Setup additional logging configuration
+        setup_logging(config)
         
         # Initialize pipeline components with their specific config sections
         data_loader = DataLoader(config)

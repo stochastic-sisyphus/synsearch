@@ -7,13 +7,13 @@ data:
   scisummnet_path: "/home/charhub/vb/synsearch/data/scisummnet_release1.1__20190413"
   datasets:
     - name: "xlsum"
-      enabled: true
       source: "huggingface"
       dataset_name: "GEM/xlsum"
       language: "english"
-    - name: "scisummnet"
       enabled: true
+    - name: "scisummnet"
       source: "local"
+      enabled: true
 
 # Preprocessing Configuration
 preprocessing:
