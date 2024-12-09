@@ -13,6 +13,11 @@ class DataLoader:
         self.config = config
         self.logger = logging.getLogger(__name__)
         self.batch_size = config.get('data', {}).get('batch_size', 32)
+        
+        # Convert relative paths to absolute using project root
+        project_root = Path(__file__).parent.parent
+        if 'scisummnet_path' in self.config['data']:
+            self.config['data']['scisummnet_path'] = str(project_root / self.config['data']['scisummnet_path'])
 
     def load_all_datasets(self) -> Dict[str, pd.DataFrame]:
         """Load all configured datasets."""
