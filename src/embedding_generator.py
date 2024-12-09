@@ -48,23 +48,28 @@ class EnhancedEmbeddingGenerator:
     def generate_embeddings(
         self, 
         texts: List[str], 
-        apply_attention: bool = True,
-        **kwargs
+        apply_attention: bool = False
     ) -> np.ndarray:
-        """Generate embeddings with optional attention refinement."""
+        """Generate embeddings in batches with optional attention mechanism.
+        
+        Args:
+            texts: List of input texts to embed
+            apply_attention: Whether to apply attention mechanism to embeddings
+            
+        Returns:
+            numpy.ndarray: Matrix of embeddings
+        """
         embeddings = []
         
         # Process in batches
         for i in range(0, len(texts), self.batch_size):
             batch_texts = texts[i:i + self.batch_size]
-            with torch.no_grad():
-                # Generate base embeddings
+            with torch.no_grad():  # Reduce memory usage during inference
                 batch_embeddings = self.model.encode(
                     batch_texts,
                     convert_to_tensor=True,
-                    show_progress_bar=True,
-                    **kwargs
-                )
+                    show_progress_bar=True
+                ).to(self.device)
                 
                 # Apply attention if requested
                 if apply_attention:
