@@ -1,106 +1,108 @@
 import dash
-from dash import html, dcc, callback, Input, Output, State
+from dash import html, dcc
 import plotly.express as px
-import pandas as pd
+from dash.dependencies import Input, Output, State
 import numpy as np
-from pathlib import Path
-import json
-import plotly.graph_objects as go
-from src.clustering.cluster_manager import ClusterManager
-from src.embedding_generator import EmbeddingGenerator
+from umap import UMAP
 
-# Initialize app
-app = dash.Dash(__name__)
-
-# Layout
-app.layout = html.Div([
-    # Header
-    html.H1("Research Synthesis Dashboard", className="header"),
-    
-    # Controls
-    html.Div([
-        html.Label("Clustering Method:"),
-        dcc.Dropdown(
-            id='clustering-method',
-            options=[
-                {'label': 'HDBSCAN', 'value': 'hdbscan'},
-                {'label': 'K-Means', 'value': 'kmeans'}
-            ],
-            value='hdbscan'
+class DashboardApp:
+    def __init__(self, embedding_generator, cluster_manager):
+        self.app = dash.Dash(__name__)
+        self.embedding_generator = embedding_generator
+        self.cluster_manager = cluster_manager
+        
+        self.app.layout = self._create_layout()
+        self._setup_callbacks()
+        
+    def _create_layout(self):
+        return html.Div([
+            html.H1("Research Synthesis Dashboard"),
+            
+            # Input section
+            html.Div([
+                dcc.Upload(
+                    id='upload-data',
+                    children=html.Div(['Drag and Drop or ', html.A('Select Files')]),
+                    multiple=False
+                ),
+                
+                # Clustering parameters
+                html.Div([
+                    html.Label('Min Cluster Size'),
+                    dcc.Slider(
+                        id='min-cluster-size',
+                        min=2, max=20, value=5, step=1,
+                        marks={i: str(i) for i in range(2, 21, 2)}
+                    )
+                ]),
+                
+                # Visualization parameters
+                html.Div([
+                    html.Label('UMAP Neighbors'),
+                    dcc.Slider(
+                        id='umap-neighbors',
+                        min=2, max=100, value=15, step=1
+                    )
+                ])
+            ]),
+            
+            # Results section
+            html.Div([
+                # Cluster visualization
+                dcc.Graph(id='cluster-plot'),
+                
+                # Metrics display
+                html.Div(id='metrics-display'),
+                
+                # Cluster summaries
+                html.Div(id='cluster-summaries')
+            ])
+        ])
+        
+    def _setup_callbacks(self):
+        @self.app.callback(
+            [Output('cluster-plot', 'figure'),
+             Output('metrics-display', 'children')],
+            [Input('upload-data', 'contents'),
+             Input('min-cluster-size', 'value'),
+             Input('umap-neighbors', 'value')]
         )
-    ], className="controls"),
-    
-    # Clustering parameters
-    html.Div([
-        html.Label("Min Cluster Size:"),
-        dcc.Slider(
-            id='min-cluster-size',
-            min=2,
-            max=20,
-            step=1,
-            value=5,
-            marks={i: str(i) for i in range(2, 21, 2)}
-        ),
-        html.Label("Min Samples:"),
-        dcc.Slider(
-            id='min-samples',
-            min=1,
-            max=10,
-            step=1,
-            value=3,
-            marks={i: str(i) for i in range(1, 11)}
-        )
-    ], className="parameter-controls"),
-    
-    # Metrics display
-    html.Div([
-        html.H3("Clustering Metrics"),
-        html.Div(id='metrics-display')
-    ], className="metrics-panel"),
-    
-    # Cluster details
-    html.Div([
-        html.H3("Cluster Details"),
-        html.Div(id='cluster-details')
-    ], className="cluster-details"),
-    
-    # Graph
-    dcc.Graph(id='clustering-graph')
-])
-
-# Callback
-@callback(
-    [Output('clustering-graph', 'figure'),
-     Output('metrics-display', 'children'),
-     Output('cluster-details', 'children')],
-    [Input('clustering-method', 'value'),
-     Input('min-cluster-size', 'value'),
-     Input('min-samples', 'value')]
-)
-def update_clustering(method, min_cluster_size, min_samples):
-    # Initialize clustering
-    cluster_manager = ClusterManager(
-        method=method,
-        min_cluster_size=min_cluster_size,
-        min_samples=min_samples
-    )
-    
-    # Get embeddings and perform clustering
-    embeddings = load_embeddings()  # Implement this function
-    labels = cluster_manager.fit_predict(embeddings)
-    metrics = cluster_manager.evaluate_clusters(embeddings, labels)
-    
-    # Create visualization
-    fig = create_cluster_visualization(embeddings, labels)
-    
-    # Create metrics display
-    metrics_display = create_metrics_display(metrics)
-    
-    # Create cluster details
-    cluster_details = create_cluster_details(labels, metrics)
-    
-    return fig, metrics_display, cluster_details
-
-# Run app
-if __name__ == '__main__':
-    app.run_server(debug=True) 
+        def update_output(contents, min_cluster_size, n_neighbors):
+            if contents is None:
+                return dash.no_update
+                
+            # Process uploaded data
+            data = self._parse_contents(contents)
+            
+            # Generate embeddings
+            embeddings = self.embedding_generator.generate_embeddings(data)
+            
+            # Update clustering parameters
+            self.cluster_manager.config['thresholds']['min_cluster_size'] = min_cluster_size
+            
+            # Perform clustering
+            labels, metrics = self.cluster_manager.fit_predict(embeddings)
+            
+            # Generate UMAP visualization
+            umap = UMAP(n_neighbors=n_neighbors)
+            embedding_2d = umap.fit_transform(embeddings)
+            
+            # Create figure
+            fig = px.scatter(
+                x=embedding_2d[:, 0], y=embedding_2d[:, 1],
+                color=labels,
+                title='Cluster Visualization'
+            )
+            
+            # Format metrics display
+            metrics_html = html.Div([
+                html.H3("Clustering Metrics"),
+                html.P(f"Silhouette Score: {metrics['silhouette']:.3f}"),
+                html.P(f"Davies-Bouldin Index: {metrics['davies_bouldin']:.3f}"),
+                html.P(f"Algorithm Selected: {metrics['algorithm']}")
+            ])
+            
+            return fig, metrics_html
+            
+    def run_server(self, debug=True, port=8050):
+        self.app.run_server(debug=debug, port=port)

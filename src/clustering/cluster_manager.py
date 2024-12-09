@@ -8,6 +8,66 @@ import json
 from datetime import datetime
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 
+class DynamicClusterManager:
+    def __init__(self, config=None):
+        self.config = config or {
+            'thresholds': {
+                'density': 0.5,
+                'variance': 0.3,
+                'min_cluster_size': 5
+            }
+        }
+        self.available_algorithms = {
+            'hdbscan': hdbscan.HDBSCAN,
+            'kmeans': KMeans,
+            'dbscan': DBSCAN
+        }
+        
+    def select_algorithm(self, embeddings):
+        """Dynamically select clustering algorithm based on data characteristics"""
+        density = self._calculate_density(embeddings)
+        variance = np.var(embeddings)
+        
+        if density > self.config['thresholds']['density']:
+            return 'kmeans'
+        elif variance > self.config['thresholds']['variance']:
+            return 'dbscan'
+        else:
+            return 'hdbscan'
+            
+    def _calculate_density(self, embeddings):
+        """Calculate data density using average pairwise distances"""
+        sample = embeddings if len(embeddings) < 1000 else embeddings[np.random.choice(len(embeddings), 1000)]
+        distances = np.linalg.norm(sample[:, np.newaxis] - sample, axis=2)
+        return 1 / (np.mean(distances) + 1e-6)
+        
+    def fit_predict(self, embeddings):
+        algo_name = self.select_algorithm(embeddings)
+        
+        if algo_name == 'kmeans':
+            n_clusters = max(2, len(embeddings) // 50)  # Heuristic for number of clusters
+            clusterer = self.available_algorithms[algo_name](n_clusters=n_clusters)
+        elif algo_name == 'hdbscan':
+            clusterer = self.available_algorithms[algo_name](
+                min_cluster_size=self.config['thresholds']['min_cluster_size']
+            )
+        else:  # dbscan
+            clusterer = self.available_algorithms[algo_name](
+                eps=0.5,
+                min_samples=self.config['thresholds']['min_cluster_size']
+            )
+            
+        labels = clusterer.fit_predict(embeddings)
+        
+        # Calculate clustering metrics
+        metrics = {
+            'silhouette': silhouette_score(embeddings, labels) if len(np.unique(labels)) > 1 else 0,
+            'davies_bouldin': davies_bouldin_score(embeddings, labels) if len(np.unique(labels)) > 1 else 0,
+            'algorithm': algo_name
+        }
+        
+        return labels, metrics
+
 class ClusterManager:
     def __init__(self, config: Dict):
         """Initialize the cluster manager with configuration"""

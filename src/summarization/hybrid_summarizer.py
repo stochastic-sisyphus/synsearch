@@ -1,10 +1,12 @@
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 import logging
 from pathlib import Path
+import torch.nn.functional as F
+from sklearn.metrics.pairwise import cosine_similarity
 
 class HybridSummarizer:
     """
@@ -57,12 +59,27 @@ class HybridSummarizer:
             self.logger.error(f"Failed to load model {model_name}: {e}")
             raise
             
-        # Add style-specific prompts and parameters
+        # Enhanced style configurations with domain-specific parameters
         self.style_config = {
             'technical': {
                 'prompt': "Provide a technical summary focusing on methodology and results:",
                 'top_k': 3,
-                'length_multiplier': 1.2
+                'length_multiplier': 1.2,
+                'domain_weights': {
+                    'methodology': 0.4,
+                    'results': 0.4,
+                    'background': 0.2
+                }
+            },
+            'academic': {
+                'prompt': "Summarize the academic research findings and implications:",
+                'top_k': 4,
+                'length_multiplier': 1.3,
+                'domain_weights': {
+                    'findings': 0.5,
+                    'implications': 0.3,
+                    'methods': 0.2
+                }
             },
             'concise': {
                 'prompt': "Summarize the key points briefly:",
@@ -81,86 +98,223 @@ class HybridSummarizer:
             }
         }
 
-    def _extract_key_sentences(self, texts: List[str], top_k: int = 3) -> List[str]:
-        """Extract most important sentences using TF-IDF scores"""
+    def _extract_key_sentences(self, texts: List[str], top_k: int = 3, style: str = 'balanced') -> Tuple[List[str], Dict]:
+        """Enhanced extraction with style-aware sentence selection"""
         try:
             # Calculate TF-IDF matrix
             tfidf_matrix = self.tfidf.fit_transform(texts)
             
-            # Get average TF-IDF scores for each document
-            avg_scores = np.mean(tfidf_matrix.toarray(), axis=1)
+            # Get domain-specific weights if available
+            domain_weights = self.style_config.get(style, {}).get('domain_weights', None)
             
-            # Select top-k documents based on scores
-            top_indices = np.argsort(avg_scores)[-top_k:]
-            return [texts[i] for i in top_indices]
+            if domain_weights:
+                # Apply domain-specific weighting to TF-IDF scores
+                weighted_scores = np.zeros(len(texts))
+                for domain, weight in domain_weights.items():
+                    domain_terms = self._get_domain_terms(domain)
+                    domain_mask = self.tfidf.get_feature_names_out() in domain_terms
+                    domain_scores = np.mean(tfidf_matrix[:, domain_mask].toarray(), axis=1)
+                    weighted_scores += weight * domain_scores
+            else:
+                weighted_scores = np.mean(tfidf_matrix.toarray(), axis=1)
+            
+            # Select top-k documents based on weighted scores
+            top_indices = np.argsort(weighted_scores)[-top_k:]
+            
+            return [texts[i] for i in top_indices], {
+                'scores': weighted_scores[top_indices].tolist(),
+                'style': style
+            }
             
         except Exception as e:
             self.logger.error(f"Error in extractive summarization: {e}")
             raise
+
+    def _get_domain_terms(self, domain: str) -> List[str]:
+        """Get domain-specific terms for weighted extraction"""
+        domain_terms = {
+            'methodology': ['method', 'approach', 'technique', 'algorithm', 'procedure'],
+            'results': ['results', 'findings', 'outcome', 'performance', 'accuracy'],
+            'implications': ['implications', 'impact', 'significance', 'importance'],
+            'findings': ['discovered', 'observed', 'found', 'demonstrated'],
+            'background': ['background', 'context', 'previous', 'existing']
+        }
+        return domain_terms.get(domain, [])
+
+    def _get_representative_texts(self, texts: List[Dict], n_samples=3) -> List[str]:
+        """Select most representative texts from cluster using embedding similarity"""
+        embeddings = [text['embedding'] for text in texts]
+        similarities = cosine_similarity(embeddings)
+        centrality_scores = similarities.mean(axis=0)
+        top_indices = np.argsort(centrality_scores)[-n_samples:]
+        return [texts[i]['processed_text'] for i in top_indices]
+        
+    def summarize_all_clusters(self, cluster_texts: Dict[str, List[Dict]], style='balanced') -> Dict[str, Dict]:
+        """Generate summaries for all clusters with specified style"""
+        summaries = {}
+        
+        for cluster_id, texts in cluster_texts.items():
+            # Select representative texts
+            rep_texts = self._get_representative_texts(texts)
             
-    def summarize_cluster(
-        self,
-        texts: List[str],
-        style: str = 'balanced'
-    ) -> Dict[str, str]:
-        """Generate style-aware hybrid summary for a cluster of texts"""
-        try:
-            # Get style-specific parameters
-            style_params = self.style_config.get(style, self.style_config['balanced'])
-            
-            # Extract key sentences with style-specific top_k
-            key_texts = self._extract_key_sentences(
-                texts,
-                top_k=style_params['top_k']
-            )
-            
-            # Combine key texts with style prompt
-            combined_text = style_params['prompt'] + " " + " ".join(key_texts)
-            
-            # Adjust length based on style
-            style_max_length = int(self.max_length * style_params['length_multiplier'])
-            style_min_length = int(self.min_length * style_params['length_multiplier'])
-            
-            # Tokenize
-            inputs = self.tokenizer(
-                combined_text,
-                max_length=1024,
-                truncation=True,
-                padding=True,
-                return_tensors="pt"
-            ).to(self.device)
+            # Prepare prompt based on style
+            if style == 'technical':
+                prompt = f"Summarize the following research texts technically:\n{' '.join(rep_texts)}"
+            elif style == 'simple':
+                prompt = f"Summarize the following in simple terms:\n{' '.join(rep_texts)}"
+            else:  # balanced
+                prompt = f"Provide a balanced summary of:\n{' '.join(rep_texts)}"
             
             # Generate summary
-            summary_ids = self.model.generate(
-                inputs["input_ids"],
-                max_length=style_max_length,
-                min_length=style_min_length,
+            inputs = self.tokenizer(prompt, return_tensors='pt', truncation=True, max_length=1024)
+            inputs = inputs.to(self.device)
+            
+            outputs = self.model.generate(
+                **inputs,
+                max_length=self.max_length,
+                min_length=self.min_length,
                 num_beams=4,
                 length_penalty=2.0,
                 early_stopping=True
             )
             
-            summary = self.tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+            summary = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             
-            return {
+            summaries[cluster_id] = {
                 'summary': summary,
-                'key_texts': key_texts,
-                'style': style
+                'style': style,
+                'num_docs': len(texts)
             }
             
+        return summaries
+
+    def _preprocess_cluster_texts(self, texts: List[str], style: str) -> List[str]:
+        """Preprocess texts based on style requirements"""
+        try:
+            # Apply basic preprocessing
+            processed_texts = [
+                text.strip()
+                for text in texts
+                if text and len(text.strip()) > 0
+            ]
+            
+            # Apply style-specific preprocessing
+            if style == 'technical':
+                # Preserve technical terms and numbers
+                return processed_texts
+            elif style == 'concise':
+                # Limit to first few sentences for conciseness
+                return [' '.join(text.split('.')[:3]) + '.' for text in processed_texts]
+            else:
+                return processed_texts
+            
         except Exception as e:
-            self.logger.error(f"Error generating hybrid summary: {e}")
+            self.logger.error(f"Error in text preprocessing: {e}")
             raise
-            
-    def summarize_all_clusters(
+
+    def _batch_summarize(
         self,
-        cluster_texts: Dict[str, List[str]],
-        style: str = 'balanced'
-    ) -> Dict[str, Dict[str, str]]:
-        """Generate summaries for all clusters"""
-        summaries = {}
-        
-        for cluster_id, texts in cluster_texts.items():
-            summaries[cluster_id] = self.summarize_cluster(texts, style)
+        texts: List[str],
+        max_length: int,
+        min_length: int
+    ) -> List[str]:
+        """Generate summaries in batches for efficiency"""
+        try:
+            summaries = []
+            for i in range(0, len(texts), self.batch_size):
+                batch = texts[i:i + self.batch_size]
+                
+                # Tokenize batch
+                inputs = self.tokenizer(
+                    batch,
+                    max_length=1024,
+                    truncation=True,
+                    padding=True,
+                    return_tensors="pt"
+                ).to(self.device)
+                
+                # Generate summaries
+                summary_ids = self.model.generate(
+                    inputs["input_ids"],
+                    max_length=max_length,
+                    min_length=min_length,
+                    num_beams=4,
+                    length_penalty=2.0,
+                    early_stopping=True
+                )
+                
+                # Decode summaries
+                batch_summaries = [
+                    self.tokenizer.decode(ids, skip_special_tokens=True)
+                    for ids in summary_ids
+                ]
+                summaries.extend(batch_summaries)
+                
+            return summaries
             
-        return summaries 
+        except Exception as e:
+            self.logger.error(f"Error in batch summarization: {e}")
+            raise
+
+    def _combine_summaries(
+        self,
+        summaries: List[str],
+        style: str
+    ) -> str:
+        """Combine multiple summaries based on style"""
+        try:
+            if style == 'technical':
+                # Preserve technical details in combination
+                return " Furthermore, ".join(summaries)
+            elif style == 'concise':
+                # Take key points only
+                return " In summary, " + ". ".join(summaries)
+            else:
+                # Default combination
+                return " Moreover, ".join(summaries)
+            
+        except Exception as e:
+            self.logger.error(f"Error combining summaries: {e}")
+            raise
+
+    def save_checkpoint(self, path: Path) -> None:
+        """Save model checkpoint and configuration"""
+        try:
+            checkpoint = {
+                'model_state': self.model.state_dict(),
+                'tokenizer_state': self.tokenizer.save_pretrained(path / 'tokenizer'),
+                'config': {
+                    'max_length': self.max_length,
+                    'min_length': self.min_length,
+                    'batch_size': self.batch_size,
+                    'device': self.device,
+                    'style_config': self.style_config
+                }
+            }
+            torch.save(checkpoint, path / 'summarizer_checkpoint.pt')
+            self.logger.info(f"Saved checkpoint to {path}")
+            
+        except Exception as e:
+            self.logger.error(f"Error saving checkpoint: {e}")
+            raise
+
+    def load_checkpoint(self, path: Path) -> None:
+        """Load model checkpoint and configuration"""
+        try:
+            checkpoint = torch.load(path / 'summarizer_checkpoint.pt')
+            self.model.load_state_dict(checkpoint['model_state'])
+            self.tokenizer = AutoTokenizer.from_pretrained(path / 'tokenizer')
+            
+            # Update configuration
+            config = checkpoint['config']
+            self.max_length = config['max_length']
+            self.min_length = config['min_length']
+            self.batch_size = config['batch_size']
+            self.device = config['device']
+            self.style_config = config['style_config']
+            
+            self.logger.info(f"Loaded checkpoint from {path}")
+            
+        except Exception as e:
+            self.logger.error(f"Error loading checkpoint: {e}")
+            raise

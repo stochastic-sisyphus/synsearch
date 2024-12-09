@@ -7,6 +7,7 @@ from typing import List, Dict, Union, Optional, Any
 import re
 from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
+from transformers import ByteLevelBPETokenizer
 
 class TextPreprocessor:
     def __init__(self, language: str = 'english'):
@@ -173,6 +174,26 @@ class TextPreprocessor:
             processed['cleaned_summary'] = self.clean_scientific_text(doc['summary'])
         
         return processed
+
+class DomainAgnosticPreprocessor:
+    def __init__(self):
+        self.tokenizer = ByteLevelBPETokenizer()
+        
+    def preprocess(self, text, domain=None):
+        """Domain-agnostic preprocessing"""
+        # Basic cleaning
+        text = self._clean_text(text)
+        
+        # Universal tokenization
+        tokens = self.tokenizer.encode(text).tokens
+        
+        # Handle different input formats
+        if domain == 'scientific':
+            return self._handle_scientific(tokens)
+        elif domain == 'news':
+            return self._handle_news(tokens)
+        else:
+            return self._handle_generic(tokens)
 
 # Example usage
 if __name__ == "__main__":

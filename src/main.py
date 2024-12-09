@@ -9,7 +9,7 @@ from src.utils.logging_config import setup_logging
 from src.embedding_generator import EnhancedEmbeddingGenerator
 from src.visualization.embedding_visualizer import EmbeddingVisualizer
 import numpy as np
-from src.preprocessor import TextPreprocessor
+from src.preprocessor import TextPreprocessor, DomainAgnosticPreprocessor
 from src.clustering.dynamic_cluster_manager import DynamicClusterManager
 from typing import List, Dict
 from datetime import datetime
@@ -17,6 +17,7 @@ from src.summarization.hybrid_summarizer import HybridSummarizer
 from src.evaluation.metrics import EvaluationMetrics
 import json
 from src.utils.checkpoint_manager import CheckpointManager
+from dashboard.app import DashboardApp
 
 def main():
     # Setup logging
@@ -39,7 +40,7 @@ def main():
             start_time = datetime.now()
             # Initialize components
             loader = DataLoader(config['data']['scisummnet_path'])
-            preprocessor = TextPreprocessor()
+            preprocessor = DomainAgnosticPreprocessor(config['preprocessing'])
             
             # Load and process XL-Sum
             xlsum = loader.load_xlsum()
@@ -88,7 +89,7 @@ def main():
             
             # Initialize components
             loader = DataLoader(config['data']['scisummnet_path'])
-            preprocessor = TextPreprocessor()
+            preprocessor = DomainAgnosticPreprocessor(config['preprocessing'])
             
             # Load and process XL-Sum
             xlsum = loader.load_xlsum()

@@ -109,3 +109,7 @@ class EvaluationMetrics:
             'preprocessing_time': metrics.get('preprocessing_time', 0)
         }
         return baseline_metrics 
+
+    def calculate_comprehensive_metrics(self, summaries, references, embeddings=None):
+        """Calculate both content and semantic metrics"""
+        # ... implementation needed
