@@ -103,17 +103,23 @@ def validate_config(config):
 def get_dataset_path(dataset_config):
     """Helper function to resolve dataset paths"""
     if dataset_config['name'] == 'scisummnet':
-        # Get absolute path of the script's directory
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        # Go up one level to project root
-        project_root = os.path.dirname(current_dir)
-        # Construct the full path
-        full_path = os.path.join(project_root, dataset_config['path'], dataset_config['top1000_dir'])
-        # Log the path construction
-        logging.info(f"Current directory: {current_dir}")
-        logging.info(f"Project root: {project_root}")
-        logging.info(f"Constructed path: {full_path}")
-        return full_path
+        # Get the absolute path of where the script is being run from
+        current_dir = os.getcwd()
+        
+        # Construct path directly to scisummnet directory
+        dataset_path = os.path.join(current_dir, 'data', 'scisummnet_release1.1__20190413')
+        
+        # Log paths and directory contents
+        logging.info(f"Looking for dataset at: {dataset_path}")
+        
+        if os.path.exists(dataset_path):
+            logging.info(f"Found dataset directory. Contents: {os.listdir(dataset_path)}")
+            return dataset_path
+        else:
+            logging.warning(f"Dataset directory not found at: {dataset_path}")
+            logging.warning("Expected path: ./data/scisummnet_release1.1__20190413")
+            
+        return dataset_path
     return dataset_config['path']
 
 def load_datasets(config):
@@ -145,12 +151,10 @@ def load_datasets(config):
             # Log the actual path and check if it exists
             abs_path = os.path.abspath(dataset_path)
             logging.info(f"Checking ScisummNet path: {abs_path}")
-            logging.info(f"Path exists: {os.path.exists(abs_path)}")
-            logging.info(f"Directory contents: {os.listdir(os.path.dirname(abs_path)) if os.path.exists(os.path.dirname(abs_path)) else 'Directory not found'}")
             
             if not os.path.exists(dataset_path):
                 logging.warning(f"ScisummNet dataset path not found: {dataset_path}")
-                logging.warning("Expected path structure: ./data/scisummnet_release1.1__20190413/top1000_complete")
+                logging.warning("Expected path structure: ./data/scisummnet_release1.1__20190413")
                 continue
             
             try:
