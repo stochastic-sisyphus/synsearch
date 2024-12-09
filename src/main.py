@@ -2,6 +2,21 @@ import os
 import sys
 import logging
 from pathlib import Path
+import yaml
+import pandas as pd
+from data_loader import DataLoader
+from data_preparation import DataPreparator
+from data_validator import DataValidator, ConfigValidator
+from utils.logging_config import setup_logging
+from embedding_generator import EnhancedEmbeddingGenerator
+from visualization.embedding_visualizer import EmbeddingVisualizer
+import numpy as np
+from preprocessor import TextPreprocessor, DomainAgnosticPreprocessor
+from clustering.dynamic_cluster_manager import DynamicClusterManager
+from typing import List, Dict, Any
+from datetime import datetime
+from summarization.hybrid_summarizer import HybridSummarizer
+from evaluation.metrics import EvaluationMetrics
 
 # Set up logging with absolute paths
 log_dir = Path(__file__).parent.parent / "logs"
@@ -21,30 +36,6 @@ logging.basicConfig(
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
-import yaml
-import pandas as pd
-from data_loader import DataLoader
-from data_preparation import DataPreparator
-from data_validator import DataValidator, ConfigValidator
-from utils.logging_config import setup_logging
-from embedding_generator import EnhancedEmbeddingGenerator
-from visualization.embedding_visualizer import EmbeddingVisualizer
-import numpy as np
-from preprocessor import TextPreprocessor, DomainAgnosticPreprocessor
-from clustering.dynamic_cluster_manager import DynamicClusterManager
-from typing import List, Dict, Any
-from datetime import datetime
-from summarization.hybrid_summarizer import HybridSummarizer
-from evaluation.metrics import EvaluationMetrics
-import json
-from utils.checkpoint_manager import CheckpointManager
-try:
-    from dashboard.app import DashboardApp
-except ImportError as e:
-    print(f"Warning: Dashboard functionality not available - {str(e)}")
-    print("To enable dashboard, install required packages: pip install dash plotly umap-learn")
-    DashboardApp = None
-
 import torch
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
@@ -52,6 +43,9 @@ from utils.style_selector import determine_cluster_style, get_style_parameters
 from summarization.adaptive_summarizer import AdaptiveSummarizer
 from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
 from datasets import load_dataset
+from utils.metrics_calculator import MetricsCalculator
+from models.adaptive_summarizer import AdaptiveSummarizer
+from models.dynamic_cluster_manager import DynamicClusterManager
 
 def get_device():
     """Get the best available device (GPU if available, else CPU)."""
@@ -83,11 +77,6 @@ def process_texts(texts: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
     
     return results
 
-def group_texts_by_similarity(texts: List[str], embeddings: np.ndarray) -> Dict[int, List[str]]:
-    """Group texts into clusters based on embedding similarity."""
-    # ... existing clustering logic ...
-    return {0: texts}  # Placeholder - implement your clustering logic
-
 def validate_config(config):
     """Validate configuration and create directories."""
     required_dirs = [
@@ -113,96 +102,6 @@ def validate_config(config):
         elif dataset_config['name'] == 'scisummnet' and dataset_config.get('enabled', False):
             if 'path' not in dataset_config:
                 raise ValueError("ScisummNet dataset requires 'path' specification in config")
-
-def get_dataset_path(dataset_config):
-    """Helper function to resolve dataset paths"""
-    if dataset_config['name'] == 'scisummnet':
-        # Get the absolute path of where the script is being run from
-        current_dir = os.getcwd()
-        logging.info(f"Current working directory: {current_dir}")
-        
-        # Construct path directly to scisummnet directory
-        dataset_path = os.path.join(current_dir, 'data', 'scisummnet_release1.1__20190413')
-        
-        # Log paths and directory contents
-        logging.info(f"Looking for dataset at: {dataset_path}")
-        
-        # Check if data directory exists
-        data_dir = os.path.join(current_dir, 'data')
-        if not os.path.exists(data_dir):
-            logging.error(f"Data directory not found at: {data_dir}")
-            logging.error("Please create the data directory and copy the dataset:")
-            logging.error("1. mkdir -p data")
-            logging.error("2. Copy scisummnet_release1.1__20190413 to the data directory")
-            return dataset_path
-            
-        # Check if dataset exists
-        if os.path.exists(dataset_path):
-            logging.info(f"Found dataset directory. Contents: {os.listdir(dataset_path)}")
-            return dataset_path
-        else:
-            logging.error(f"Dataset directory not found at: {dataset_path}")
-            logging.error("Please copy the dataset from your local machine:")
-            logging.error("scp -r /Users/vanessa/Dropbox/synsearch/data/scisummnet_release1.1__20190413 charhub@charhub-inference-0:~/vb/synsearch/data/")
-            
-        return dataset_path
-    return dataset_config['path']
-
-def load_datasets(config):
-    """Load and prepare datasets based on configuration"""
-    datasets = []
-    
-    for dataset_config in config['data']['datasets']:
-        if not dataset_config.get('enabled', True):
-            continue
-            
-        if dataset_config['name'] == 'xlsum':
-            try:
-                dataset = load_dataset(
-                    dataset_config['dataset_name'],
-                    dataset_config['language']
-                )
-                datasets.append({
-                    'name': 'xlsum',
-                    'data': dataset
-                })
-                logging.info(f"Successfully loaded XL-Sum dataset for {dataset_config['language']}")
-            except Exception as e:
-                logging.error(f"Failed to load XL-Sum dataset: {str(e)}")
-                continue
-                
-        elif dataset_config['name'] == 'scisummnet':
-            dataset_path = get_dataset_path(dataset_config)
-            
-            # Log the actual path and check if it exists
-            abs_path = os.path.abspath(dataset_path)
-            logging.info(f"Checking ScisummNet path: {abs_path}")
-            
-            if not os.path.exists(dataset_path):
-                logging.warning(f"ScisummNet dataset path not found: {dataset_path}")
-                logging.warning("Expected path structure: ./data/scisummnet_release1.1__20190413")
-                continue
-            
-            try:
-                scisummnet_data = {
-                    'name': 'scisummnet',
-                    'path': dataset_path,
-                    'data': load_scisummnet(dataset_path)
-                }
-                datasets.append(scisummnet_data)
-                logging.info(f"Successfully loaded ScisummNet dataset from {dataset_path}")
-            except Exception as e:
-                logging.error(f"Failed to load ScisummNet dataset: {str(e)}")
-                continue
-    
-    return datasets
-
-def setup_logging(config: Dict[str, Any]) -> None:
-    """Setup logging configuration."""
-    logging.basicConfig(
-        level=config['logging']['level'],
-        format=config['logging']['format']
-    )
 
 def process_dataset(
     dataset: Dict[str, Any],
@@ -270,35 +169,49 @@ def main():
     setup_logging(config)
     logger = logging.getLogger(__name__)
     
-    # Initialize components
-    cluster_manager = DynamicClusterManager(config)
-    summarizer = AdaptiveSummarizer(config)
-    evaluator = EvaluationMetrics()
-    
-    # Process each enabled dataset
-    results = {}
+    # Initialize components with config
+    cluster_manager = DynamicClusterManager(config['clustering'])
+    summarizer = AdaptiveSummarizer(config['summarization'])
+    metrics_calc = MetricsCalculator()
+
+    # Process each dataset
     for dataset_config in config['data']['datasets']:
         if not dataset_config['enabled']:
             continue
-            
-        logger.info(f"Processing dataset: {dataset_config['name']}")
+
+        logging.info(f"Processing dataset: {dataset_config['name']}")
         
-        try:
-            dataset = load_dataset(dataset_config['path'])
-            results[dataset_config['name']] = process_dataset(
-                dataset=dataset,
-                cluster_manager=cluster_manager,
-                summarizer=summarizer,
-                evaluator=evaluator,
-                config=config
-            )
-            
-        except Exception as e:
-            logger.error(f"Error processing dataset {dataset_config['name']}: {e}")
-            continue
-    
-    logger.info("Pipeline execution completed")
-    return results
+        # Load and validate dataset
+        dataset = load_dataset(dataset_config)
+        validate_dataset(dataset, config['preprocessing'])
+
+        # Generate embeddings with attention refinement
+        embeddings = generate_embeddings(
+            texts=dataset['texts'],
+            config=config['embedding']
+        )
+
+        # Dynamic clustering with hybrid approach
+        clusters = cluster_manager.fit_predict(
+            embeddings=embeddings,
+            texts=dataset['texts']
+        )
+
+        # Generate adaptive summaries
+        summaries = summarizer.summarize_clusters(
+            clusters=clusters,
+            texts=dataset['texts']
+        )
+
+        # Calculate metrics
+        results = metrics_calc.compute_all_metrics(
+            embeddings=embeddings,
+            clusters=clusters,
+            summaries=summaries
+        )
+
+        # Save results
+        save_results(results, summaries, config['data']['output_path'])
 
 if __name__ == "__main__":
     main() 
