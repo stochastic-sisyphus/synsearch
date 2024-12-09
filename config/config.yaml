@@ -7,8 +7,9 @@ data:
   datasets:
     - name: "scisummnet"
       enabled: true
-      path: "data/scisummnet_release1.1__20190413"
+      path: "./data/scisummnet_release1.1__20190413"
       top1000_dir: "top1000_complete"
+      papers: []
     - name: "xlsum"
       enabled: true
       source: "huggingface"

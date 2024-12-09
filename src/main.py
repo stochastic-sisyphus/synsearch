@@ -332,17 +332,15 @@ def load_scisummnet(path: str) -> Dict:
     try:
         data = []
         papers_path = os.path.join(path, 'top1000_complete')
-        logging.info(f"Scanning papers directory: {papers_path}")
-        logging.info(f"Directory exists: {os.path.exists(papers_path)}")
         
-        paper_dirs = [d for d in os.listdir(papers_path) if os.path.isdir(os.path.join(papers_path, d))]
-        logging.info(f"Found {len(paper_dirs)} paper directories")
-        
-        for paper_dir in paper_dirs:
+        for paper_dir in os.listdir(papers_path):
             paper_path = os.path.join(papers_path, paper_dir)
+            if not os.path.isdir(paper_path):
+                continue
+                
             try:
-                # Load abstract and summary from the paper directory
-                summary_path = os.path.join(paper_path, 'summary', 'summary.txt')
+                # Updated paths to match actual file structure
+                summary_path = os.path.join(paper_path, 'summary', f'{paper_dir}.gold.txt')
                 xml_path = os.path.join(paper_path, 'Documents_xml', f'{paper_dir}.xml')
                 
                 if not os.path.exists(summary_path) or not os.path.exists(xml_path):
@@ -382,6 +380,39 @@ def load_scisummnet(path: str) -> Dict:
         
     except Exception as e:
         raise Exception(f"Failed to load ScisummNet dataset: {str(e)}")
+
+def load_scisummnet_dataset(config):
+    dataset_path = config['datasets']['scisummnet']['path']
+    papers = config['datasets']['scisummnet'].get('papers', [])
+    
+    if not os.path.exists(dataset_path):
+        logger.warning(f"Dataset directory not found at: {dataset_path}")
+        logger.warning(f"Expected path: ./data/scisummnet_release1.1__20190413")
+        return None
+
+    papers_path = os.path.join(dataset_path, 'top1000_complete')
+    
+    # If papers list is empty, load all valid papers
+    if not papers:
+        papers = [d for d in os.listdir(papers_path) 
+                 if os.path.isdir(os.path.join(papers_path, d))]
+        logging.info(f"Loading all {len(papers)} papers from dataset")
+    
+    valid_papers = []
+    for paper_id in papers:
+        paper_path = os.path.join(papers_path, paper_id)
+        summary_path = os.path.join(paper_path, 'summary', f'{paper_id}.gold.txt')
+        xml_path = os.path.join(paper_path, 'Documents_xml', f'{paper_id}.xml')
+        
+        if os.path.exists(summary_path) and os.path.exists(xml_path):
+            valid_papers.append(paper_id)
+        else:
+            logger.debug(f"Skipping {paper_id}: missing required files")
+
+    if not valid_papers:
+        raise ValueError("No valid papers found in the dataset")
+        
+    return valid_papers
 
 if __name__ == "__main__":
     main() 
