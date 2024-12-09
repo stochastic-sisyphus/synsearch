@@ -196,6 +196,29 @@ class DomainAgnosticPreprocessor:
         else:
             return self._handle_generic(tokens)
 
+    def process_dataset(self, dataset, text_column='text', summary_column='summary'):
+        """Process a dataset with text and summary columns.
+        
+        Args:
+            dataset: pandas DataFrame containing the dataset
+            text_column: name of the column containing the text to process
+            summary_column: name of the column containing the summary (if available)
+        
+        Returns:
+            pandas DataFrame with processed text and summaries
+        """
+        # Create a copy to avoid modifying the original
+        processed_df = dataset.copy()
+        
+        # Process the main text
+        processed_df['processed_text'] = processed_df[text_column].apply(self.preprocess_text)
+        
+        # Process the summary if it exists
+        if summary_column in processed_df.columns:
+            processed_df['processed_summary'] = processed_df[summary_column].apply(self.preprocess_text)
+        
+        return processed_df
+
 # Example usage
 if __name__ == "__main__":
     from data_loader import DataLoader
