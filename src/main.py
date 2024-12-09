@@ -100,65 +100,41 @@ def validate_config(config):
             if 'path' not in dataset_config:
                 raise ValueError("ScisummNet dataset requires 'path' specification in config")
 
+def get_dataset_path(dataset_config):
+    """Helper function to resolve dataset paths"""
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if dataset_config['name'] == 'scisummnet':
+        return os.path.join(base_dir, dataset_config['path'], 'top1000_complete')
+    return dataset_config['path']
+
 def load_datasets(config):
-    """Load and prepare datasets."""
+    """Load and prepare datasets based on configuration"""
     datasets = []
-    loaded_count = 0
     
     for dataset_config in config['data']['datasets']:
-        if not dataset_config.get('enabled', False):
+        if not dataset_config.get('enabled', True):
             continue
             
         if dataset_config['name'] == 'scisummnet':
-            # Convert to absolute path from project root
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            scisummnet_path = os.path.join(base_dir, dataset_config['path'], 'top1000_complete')
-            if os.path.exists(scisummnet_path):
-                logging.info(f"Loading ScisummNet dataset from {scisummnet_path}")
-                try:
-                    scisummnet_data = {
-                        'name': 'scisummnet',
-                        'path': scisummnet_path,
-                        'data': [],  # Will be populated with documents
-                        'batch_size': config['data']['batch_size']
-                    }
-                    datasets.append(scisummnet_data)
-                    loaded_count += 1
-                    logging.info("Successfully loaded ScisummNet dataset")
-                except Exception as e:
-                    logging.error(f"Failed to load ScisummNet dataset: {str(e)}")
-            else:
-                logging.warning(f"ScisummNet dataset path not found: {scisummnet_path}")
-                logging.info("Please download the ScisummNet dataset and place it in:")
-                logging.info(f"  {os.path.dirname(scisummnet_path)}")
-                logging.info("You can download it from: https://cs.stanford.edu/~myasu/projects/scisumm_net/")
-                # Continue with other datasets even if this one fails
+            dataset_path = get_dataset_path(dataset_config)
+            if not os.path.exists(dataset_path):
+                logging.warning(f"ScisummNet dataset path not found: {dataset_path}")
+                logging.info("Please ensure the dataset is downloaded and placed in the correct location:")
+                logging.info(f"  {os.path.dirname(dataset_path)}")
+                logging.info("Download from: https://cs.stanford.edu/~myasu/projects/scisumm_net/")
                 continue
-        
-        elif dataset_config['name'] == 'xlsum':
-            logging.info(f"Loading XL-Sum dataset for language: {dataset_config['language']}")
+                
             try:
-                xlsum_data = load_dataset(
-                    dataset_config['dataset_name'],
-                    dataset_config['language'],
-                    split='train'
-                )
-                datasets.append({
-                    'name': 'xlsum',
-                    'data': xlsum_data,
-                    'batch_size': config['data']['batch_size']
-                })
-                loaded_count += 1
-                logging.info(f"Successfully loaded XL-Sum dataset ({dataset_config['language']})")
+                scisummnet_data = {
+                    'name': 'scisummnet',
+                    'path': dataset_path,
+                    'data': load_scisummnet(dataset_path)  # Implement this function based on your needs
+                }
+                datasets.append(scisummnet_data)
+                logging.info(f"Successfully loaded ScisummNet dataset from {dataset_path}")
             except Exception as e:
-                logging.error(f"Failed to load XL-Sum dataset: {str(e)}")
-    
-    if loaded_count == 0:
-        logging.warning("No datasets were successfully loaded")
-        if any(d['enabled'] for d in config['data']['datasets']):
-            logging.info("Please check your dataset configurations and paths")
-    
-    return datasets
+                logging.error(f"Failed to load ScisummNet dataset: {str(e)}")
+                continue
 
 def main():
     """Main pipeline execution."""
