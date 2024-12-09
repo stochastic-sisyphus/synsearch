@@ -11,6 +11,16 @@ from tokenizers import ByteLevelBPETokenizer
 from transformers import AutoTokenizer
 
 class TextPreprocessor:
+    """
+    TextPreprocessor class to handle text preprocessing tasks.
+
+    Attributes:
+        language (str): Language for stopwords and lemmatization.
+        logger (logging.Logger): Logger for logging information and errors.
+        nlp (spacy.lang): SpaCy language model.
+        stopwords (set): Set of stopwords for the specified language.
+        lemmatizer (nltk.WordNetLemmatizer): Lemmatizer for word normalization.
+    """
     def __init__(self, language: str = 'english'):
         """Initialize the preprocessor with specified language."""
         self.logger = logging.getLogger(__name__)
@@ -177,6 +187,14 @@ class TextPreprocessor:
         return processed
 
 class DomainAgnosticPreprocessor:
+    """
+    DomainAgnosticPreprocessor class to handle domain-agnostic text preprocessing tasks.
+
+    Attributes:
+        config (Dict[str, Any]): Configuration dictionary for preprocessing.
+        logger (logging.Logger): Logger for logging information and errors.
+        tokenizer (transformers.AutoTokenizer): Tokenizer for text tokenization.
+    """
     def __init__(self, config: Dict[str, Any]):
         """Initialize with configuration."""
         self.config = config
