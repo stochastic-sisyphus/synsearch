@@ -168,6 +168,20 @@ def process_dataset(
     
     return results
 
+def get_optimal_batch_size():
+    """Determine optimal batch size based on available CUDA memory."""
+    if torch.cuda.is_available():
+        # Get available GPU memory
+        gpu_memory = torch.cuda.get_device_properties(0).total_memory
+        # Use smaller batch size for GPUs with less memory
+        if gpu_memory < 6e9:  # Less than 6GB
+            return 8
+        elif gpu_memory < 8e9:  # Less than 8GB
+            return 16
+        else:
+            return 32
+    return 32  # Default for CPU
+
 def main():
     try:
         # Load configuration first
@@ -179,12 +193,17 @@ def main():
         # Initialize pipeline components with their specific config sections
         data_loader = DataLoader(config)
         preprocessor = DomainAgnosticPreprocessor(config['preprocessing'])
+        
+        # Get optimal batch size based on available memory
+        optimal_batch_size = get_optimal_batch_size()
+        
+        # Initialize embedding generator with memory-aware settings
         embedding_generator = EnhancedEmbeddingGenerator(
             model_name=config['embedding']['model_name'],
             embedding_dim=config['embedding'].get('dimension', 768),
             max_seq_length=config['embedding'].get('max_seq_length', 512),
-            batch_size=config['embedding'].get('batch_size', 32),
-            device=config['embedding'].get('device', None)
+            batch_size=min(config['embedding'].get('batch_size', 32), optimal_batch_size),
+            device='cuda' if torch.cuda.is_available() else 'cpu'
         )
         cluster_manager = DynamicClusterManager(config['clustering'])
         summarizer = AdaptiveSummarizer(config['summarization'])
