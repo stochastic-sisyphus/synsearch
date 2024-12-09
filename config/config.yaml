@@ -1,6 +1,6 @@
 data:
   xlsum_dataset: "GEM/xlsum"
-  scisummnet_path: "/Users/vanessa/Dropbox/synsearch/data/scisummnet_release1.1__20190413"
+  scisummnet_path: "data/scisummnet_release1.1__20190413"
   processed_path: "outputs/processed"
 
 preprocessing:
@@ -14,7 +14,8 @@ preprocessing:
     max_text_length: 1000
 
 embedding:
-  model_name: "sentence-transformers/all-mpnet-base-v2"
+  model_name: "all-mpnet-base-v2"
+  dimension: 768
   batch_size: 32
   max_seq_length: 128
   device: null  # Will use performance.device setting
@@ -29,6 +30,10 @@ clustering:
   device: null  # Will use performance.device setting
   num_workers: null  # Will use performance.num_workers setting
   output_dir: "outputs/clusters"
+  hybrid_mode: true
+  params:
+    n_clusters: 5
+    min_cluster_size: 10
 
 checkpoints:
   dir: "outputs/checkpoints"
@@ -47,6 +52,7 @@ checkpoints:
     summarization:
       enabled: true
       save_intermediate: true
+  save_frequency: 100
 
 personalization:
   enabled: true
@@ -65,9 +71,46 @@ summarization:
   max_length: 512
   min_length: 50
   batch_size: 8
+  enabled: true
+  style_params:
+    detailed:
+      max_length: 512
+      min_length: 150
+      num_beams: 4
+    balanced:
+      max_length: 384
+      min_length: 100
+      num_beams: 3
+    concise:
+      max_length: 256
+      min_length: 50
+      num_beams: 2
+  thresholds:
+    lexical_diversity:
+      low: 0.3
+      high: 0.6
+    variance:
+      low: 0.1
+      high: 0.3
+    complexity:
+      low: 10
+      high: 25
   device: null  # Will use performance.device setting
   num_workers: null  # Will use performance.num_workers setting
   output_dir: "outputs/summaries"
+  style_thresholds:
+    high_variance: 0.8
+    high_lexical_div: 0.7
+  styles:
+    technical:
+      max_length: 200
+      focus: "terminology"
+    detailed:
+      max_length: 300
+      focus: "comprehensive"
+    balanced:
+      max_length: 150
+      focus: "general"
 
 visualization:
   enabled: true
@@ -77,14 +120,20 @@ visualization:
     min_dist: 0.1
     metric: "cosine"
     random_state: 42
+  plot_types:
+    - "umap"
+    - "tsne"
+    - "wordcloud"
 
 evaluation:
   output_dir: "outputs/evaluation"
   metrics:
     - "rouge"
-    - "clustering"
-    - "silhouette"
-    - "davies_bouldin"
+    - "bleu"
+    - "bertscore"
+  thresholds:
+    rouge_l: 0.4
+    bleu: 0.3
 
 performance:
   device: null  # Will auto-detect GPU/CPU

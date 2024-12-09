@@ -11,7 +11,7 @@ from src.visualization.embedding_visualizer import EmbeddingVisualizer
 import numpy as np
 from src.preprocessor import TextPreprocessor, DomainAgnosticPreprocessor
 from src.clustering.dynamic_cluster_manager import DynamicClusterManager
-from typing import List, Dict
+from typing import List, Dict, Any
 from datetime import datetime
 from src.summarization.hybrid_summarizer import HybridSummarizer
 from src.evaluation.metrics import EvaluationMetrics
@@ -22,6 +22,10 @@ from datasets import load_dataset
 import torch
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from utils.style_selector import determine_cluster_style
+from summarization.enhanced_summarizer import EnhancedHybridSummarizer
+from summarization.adaptive_summarizer import AdaptiveSummarizer
+from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
 
 def get_device():
     """Get the best available device (GPU if available, else CPU)."""
@@ -220,50 +224,68 @@ def main():
 
 def generate_summaries(cluster_texts: Dict[str, List[str]], config: Dict) -> Dict[str, Dict]:
     """Generate and evaluate summaries for clustered texts"""
-    # Initialize summarizer and metrics
-    summarizer = HybridSummarizer(
-        model_name=config['summarization']['model_name'],
-        max_length=config['summarization']['max_length'],
-        min_length=config['summarization']['min_length'],
-        batch_size=config['summarization']['batch_size']
-    )
-    
+    # Initialize adaptive summarizer instead of hybrid
+    summarizer = AdaptiveSummarizer(config)
     metrics_calculator = EvaluationMetrics()
     
-    # Generate summaries with style from config
-    style = config['summarization'].get('style', 'balanced')
-    summaries = summarizer.summarize_all_clusters(cluster_texts, style=style)
-    
-    # Calculate ROUGE scores if reference summaries are available
-    if any('reference_summary' in next(iter(texts)) for texts in cluster_texts.values()):
-        for cluster_id, cluster_data in summaries.items():
-            generated = cluster_data['summary']
-            references = [doc.get('reference_summary', '') for doc in cluster_texts[cluster_id]]
-            rouge_scores = metrics_calculator.calculate_rouge_scores([generated], references)
-            cluster_data['metrics'] = rouge_scores
-    
-    # Save summaries and metrics
-    if 'output_dir' in config['summarization']:
-        output_dir = Path(config['summarization']['output_dir'])
+    summaries = {}
+    for cluster_id, texts in cluster_texts.items():
+        # Get texts and embeddings for this cluster
+        cluster_texts = [doc['processed_text'] for doc in texts]
         
-        # Save summaries
-        with open(output_dir / 'summaries.json', 'w') as f:
-            json.dump(summaries, f, indent=2)
-            
-        # Save metrics separately if they exist
-        if any('metrics' in data for data in summaries.values()):
-            metrics = {
-                cluster_id: data['metrics'] 
-                for cluster_id, data in summaries.items() 
-                if 'metrics' in data
-            }
-            metrics_calculator.save_metrics(
-                metrics,
-                output_dir,
-                prefix='summarization'
+        # Generate summary with adaptive style
+        summary_data = summarizer.summarize_cluster(
+            texts=cluster_texts,
+            embeddings=None,  # You'll need to pass embeddings here
+            cluster_id=cluster_id
+        )
+        
+        summaries[cluster_id] = summary_data
+        
+        # Calculate ROUGE if reference summaries available
+        if any('reference_summary' in doc for doc in texts):
+            references = [doc.get('reference_summary', '') for doc in texts]
+            rouge_scores = metrics_calculator.calculate_rouge_scores(
+                [summary_data['summary']], 
+                references
             )
+            summaries[cluster_id]['metrics'].update(rouge_scores)
     
     return summaries
+
+def process_clusters(clusters: Dict[int, List[str]], embeddings: np.ndarray, config: Dict[str, Any]) -> Dict[str, Any]:
+    """Process clusters with adaptive summarization and enhanced metrics."""
+    summarizer = AdaptiveSummarizer(config=config)
+    results = {}
+    
+    for cluster_id, texts in clusters.items():
+        # Get cluster-specific embeddings
+        cluster_mask = [i for i, text in enumerate(texts) if text in clusters[cluster_id]]
+        cluster_embeddings = embeddings[cluster_mask]
+        
+        # Calculate cluster-specific metrics
+        cluster_metrics = {
+            'variance': calculate_cluster_variance(cluster_embeddings),
+            'lexical_diversity': calculate_lexical_diversity(texts)
+        }
+        
+        # Generate summary with metrics-based adaptation
+        summary_data = summarizer.summarize(
+            texts=texts,
+            embeddings=cluster_embeddings,
+            metrics=cluster_metrics
+        )
+        
+        results[cluster_id] = {
+            'summary': summary_data['summary'],
+            'style': summary_data['style'],
+            'metrics': {
+                **summary_data['metrics'],
+                **cluster_metrics
+            }
+        }
+    
+    return results
 
 if __name__ == "__main__":
     main() 

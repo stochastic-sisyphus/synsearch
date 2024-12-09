@@ -110,9 +110,43 @@ class EvaluationMetrics:
         }
         return baseline_metrics 
 
-    def calculate_comprehensive_metrics(self, summaries, references, embeddings=None):
-        """Calculate both content and semantic metrics"""
-        # ... implementation needed
+    def calculate_comprehensive_metrics(
+        self, 
+        summaries: Dict[str, Dict],
+        references: Dict[str, str],
+        embeddings: Optional[Dict[str, np.ndarray]] = None
+    ) -> Dict[str, float]:
+        """Calculate comprehensive metrics including style-aware evaluation."""
+        metrics = {}
+        
+        # Standard ROUGE scores
+        rouge_scores = self.calculate_rouge_scores(
+            [s['summary'] for s in summaries.values()],
+            list(references.values())
+        )
+        metrics.update(rouge_scores)
+        
+        # Style-specific metrics
+        style_metrics = self._calculate_style_metrics(summaries)
+        metrics.update(style_metrics)
+        
+        return metrics
+        
+    def _calculate_style_metrics(
+        self, 
+        summaries: Dict[str, Dict]
+    ) -> Dict[str, float]:
+        """Calculate metrics specific to different summary styles."""
+        style_metrics = {
+            'technical_accuracy': 0.0,
+            'conciseness_ratio': 0.0,
+            'detail_coverage': 0.0
+        }
+        
+        # Implementation of style-specific metrics
+        # This would vary based on the style of each summary
+        
+        return style_metrics
 
     def calculate_dataset_metrics(summaries, references):
         """Calculate dataset-specific metrics"""

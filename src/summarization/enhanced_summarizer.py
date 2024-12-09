@@ -1,17 +1,41 @@
 from transformers import T5ForConditionalGeneration, T5Tokenizer
 import torch
+from typing import Dict, List, Tuple
+import numpy as np
+from .adaptive_style import AdaptiveStyleSelector
 
-class EnhancedSummarizer:
-    def __init__(self, model_name='t5-base'):
-        self.tokenizer = T5Tokenizer.from_pretrained(model_name)
-        self.model = T5ForConditionalGeneration.from_pretrained(model_name)
+class EnhancedHybridSummarizer:
+    def __init__(self, config: Dict):
+        self.config = config
+        self.style_selector = AdaptiveStyleSelector(config)
         
-    def enhance_summary_with_cluster_insights(self, texts, cluster_info):
-        """Generate enhanced summaries using cluster information."""
-        cluster_context = f"Cluster size: {len(texts)}, Key themes: {cluster_info['themes']}"
-        input_text = f"summarize: {cluster_context} {' '.join(texts)}"
+    def summarize_all_clusters(
+        self, 
+        cluster_texts: Dict[str, List[Dict]], 
+        embeddings: Dict[str, np.ndarray]
+    ) -> Dict[str, Dict]:
+        """Summarize all clusters with adaptive style selection."""
+        summaries = {}
         
-        inputs = self.tokenizer(input_text, return_tensors="pt", max_length=512, truncation=True)
-        summary_ids = self.model.generate(inputs.input_ids, max_length=150, min_length=40)
-        
-        return self.tokenizer.decode(summary_ids[0], skip_special_tokens=True) 
+        for cluster_id, texts in cluster_texts.items():
+            cluster_embeddings = embeddings[cluster_id]
+            cluster_text_content = [doc['text'] for doc in texts]
+            
+            # Determine style adaptively
+            style = self.style_selector.determine_style(
+                cluster_embeddings,
+                cluster_text_content
+            )
+            
+            # Generate summary with selected style
+            summary = self._batch_summarize(
+                texts=cluster_text_content,
+                style=style
+            )
+            
+            summaries[cluster_id] = {
+                'summary': summary,
+                'style': style
+            }
+            
+        return summaries
