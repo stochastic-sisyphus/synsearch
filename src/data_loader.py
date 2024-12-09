@@ -8,10 +8,11 @@ import xml.etree.ElementTree as ET
 from sentence_transformers import SentenceTransformer
 
 class DataLoader:
-    def __init__(self, config: Dict):
+    def __init__(self, config: Dict[str, Any]):
         """Initialize DataLoader with configuration"""
-        self.logger = logging.getLogger(__name__)
         self.config = config
+        self.logger = logging.getLogger(__name__)
+        self.batch_size = config.get('data', {}).get('batch_size', 32)
         self.supported_formats = {
             '.md': self._load_markdown,
             '.txt': self._load_text,
@@ -98,16 +99,19 @@ class DataLoader:
             self.logger.error(f"Error loading ScisummNet dataset: {e}")
             return None
 
-    def load_data(self, source: Union[str, Path, List[str]]) -> List[Dict]:
-        """Universal data loading method"""
-        if isinstance(source, (str, Path)):
-            ext = Path(source).suffix.lower()
-            if ext in self.supported_formats:
-                return self.supported_formats[ext](source)
-            elif source.startswith(('http://', 'https://')):
-                return self.supported_formats['url'](source)
-        elif isinstance(source, list):
-            return self._batch_process(source)
+    def load_data(self, source: Union[str, Path, List[str]]) -> Dict[str, Any]:
+        """Universal data loading method with proper error handling."""
+        try:
+            if isinstance(source, (str, Path)):
+                path = Path(source)
+                if path.suffix.lower() in self.supported_formats:
+                    return self.supported_formats[path.suffix.lower()](source)
+            elif isinstance(source, list):
+                return self._batch_process(source)
+            raise ValueError(f"Unsupported data source: {source}")
+        except Exception as e:
+            self.logger.error(f"Error loading data: {str(e)}")
+            raise
     
     def _load_markdown(self, source: str) -> List[Dict]:
         """Load markdown data from the given source"""

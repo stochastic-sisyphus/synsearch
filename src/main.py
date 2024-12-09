@@ -12,11 +12,13 @@ from embedding_generator import EnhancedEmbeddingGenerator
 from visualization.embedding_visualizer import EmbeddingVisualizer
 import numpy as np
 from preprocessor import TextPreprocessor, DomainAgnosticPreprocessor
-from clustering.dynamic_cluster_manager import DynamicClusterManager
 from typing import List, Dict, Any
 from datetime import datetime
 from summarization.hybrid_summarizer import HybridSummarizer
 from evaluation.metrics import EvaluationMetrics
+from src.clustering.dynamic_cluster_manager import DynamicClusterManager
+from src.summarization.adaptive_summarizer import AdaptiveSummarizer
+from src.utils.metrics_utils import calculate_cluster_metrics
 
 # Set up logging with absolute paths
 log_dir = Path(__file__).parent.parent / "logs"
@@ -55,8 +57,8 @@ def get_optimal_workers():
     """Get optimal number of worker processes."""
     return multiprocessing.cpu_count()
 
-def load_config(config_path: str = "config/config.yaml") -> dict:
-    """Load configuration from YAML file."""
+def load_config():
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
 
@@ -157,61 +159,42 @@ def process_dataset(
 
 def main():
     """Main pipeline execution."""
-    # Load configuration
-    config_path = Path("config/config.yaml")
-    if not config_path.exists():
-        raise FileNotFoundError(f"Configuration file not found at {config_path}")
-    
-    with open(config_path) as f:
-        config = yaml.safe_load(f)
-    
-    # Setup logging
-    setup_logging(config)
-    logger = logging.getLogger(__name__)
-    
-    # Initialize components with config
-    cluster_manager = DynamicClusterManager(config['clustering'])
-    summarizer = AdaptiveSummarizer(config['summarization'])
-    metrics_calc = MetricsCalculator()
-
-    # Process each dataset
-    for dataset_config in config['data']['datasets']:
-        if not dataset_config['enabled']:
-            continue
-
-        logging.info(f"Processing dataset: {dataset_config['name']}")
+    try:
+        # Setup logging
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger(__name__)
         
-        # Load and validate dataset
-        dataset = load_dataset(dataset_config)
-        validate_dataset(dataset, config['preprocessing'])
-
-        # Generate embeddings with attention refinement
-        embeddings = generate_embeddings(
-            texts=dataset['texts'],
-            config=config['embedding']
+        # Load configuration
+        config_path = Path(__file__).parent.parent / 'config' / 'config.yaml'
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
+        
+        # Initialize components
+        data_loader = DataLoader(config)
+        preprocessor = DomainAgnosticPreprocessor(config)
+        embedding_generator = EnhancedEmbeddingGenerator(
+            model_name=config['embedding']['model_name'],
+            embedding_dim=config['embedding']['dimension'],
+            max_seq_length=config['embedding']['max_length']
         )
-
-        # Dynamic clustering with hybrid approach
-        clusters = cluster_manager.fit_predict(
-            embeddings=embeddings,
-            texts=dataset['texts']
-        )
-
-        # Generate adaptive summaries
-        summaries = summarizer.summarize_clusters(
-            clusters=clusters,
-            texts=dataset['texts']
-        )
-
-        # Calculate metrics
-        results = metrics_calc.compute_all_metrics(
-            embeddings=embeddings,
-            clusters=clusters,
-            summaries=summaries
-        )
-
-        # Save results
-        save_results(results, summaries, config['data']['output_path'])
+        cluster_manager = DynamicClusterManager(config)
+        summarizer = AdaptiveSummarizer(config)
+        evaluator = EvaluationMetrics()
+        
+        # Process pipeline
+        dataset = data_loader.load_data(config['data']['source'])
+        processed_data = preprocessor.process_dataset(dataset)
+        embeddings = embedding_generator.generate_embeddings(processed_data['processed_text'])
+        clusters = cluster_manager.cluster_documents(embeddings)
+        summaries = summarizer.summarize_clusters(clusters, processed_data)
+        metrics = evaluator.evaluate(summaries, processed_data)
+        
+        logger.info("Pipeline completed successfully")
+        return metrics
+        
+    except Exception as e:
+        logger.error(f"An error occurred: {e}")
+        return None
 
 if __name__ == "__main__":
     main()

@@ -177,9 +177,18 @@ class TextPreprocessor:
         return processed
 
 class DomainAgnosticPreprocessor:
-    def __init__(self, config):
-        self.tokenizer = AutoTokenizer.from_pretrained('gpt2')  # or any other model
-        
+    def __init__(self, config: Dict[str, Any]):
+        """Initialize with configuration."""
+        self.config = config
+        self.logger = logging.getLogger(__name__)
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                config.get('preprocessing', {}).get('tokenizer_model', 'gpt2')
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to initialize tokenizer: {str(e)}")
+            raise
+
     def preprocess(self, text, domain=None):
         """Domain-agnostic preprocessing"""
         # Basic cleaning

@@ -15,7 +15,15 @@ class AttentionLayer(nn.Module):
         return embeddings * attention_weights
 
 class EnhancedEmbeddingGenerator:
-    def __init__(self, model_name='all-mpnet-base-v2', embedding_dim=768, max_seq_length=512, device=None, **kwargs):
+    def __init__(
+        self, 
+        model_name: str = 'all-mpnet-base-v2',
+        embedding_dim: int = 768,
+        max_seq_length: int = 512,
+        batch_size: int = 32,
+        device: Optional[str] = None,
+        **kwargs
+    ):
         """Initialize the embedding generator with attention mechanism.
         
         Args:
@@ -30,6 +38,7 @@ class EnhancedEmbeddingGenerator:
         self.embedding_dim = embedding_dim
         self.max_seq_length = max_seq_length
         self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
+        self.batch_size = batch_size
         
         # Initialize the model and attention layer
         self.model = SentenceTransformer(model_name)
@@ -37,48 +46,50 @@ class EnhancedEmbeddingGenerator:
         self.attention_layer = AttentionLayer(embedding_dim).to(self.device)
         
     def generate_embeddings(
-        self, 
-        texts: List[str], 
+        self,
+        texts: List[str],
         apply_attention: bool = True
-    ) -> torch.Tensor:
-        """Generate embeddings with optional attention mechanism.
-        
-        Args:
-            texts: List of input texts to embed
-            apply_attention: Whether to apply attention mechanism
+    ) -> np.ndarray:
+        """Generate embeddings with proper error handling."""
+        try:
+            embeddings_list = []
             
-        Returns:
-            torch.Tensor: Generated embeddings with shape (n_texts, embedding_dim)
-        """
-        embeddings_list = []
-        
-        # Process in batches to manage memory
-        for i in range(0, len(texts), self.batch_size):
-            batch_texts = texts[i:i + self.batch_size]
-            
-            # Generate base embeddings
-            with torch.no_grad():
-                batch_embeddings = self.model.encode(
-                    batch_texts,
-                    convert_to_tensor=True,
-                    show_progress_bar=False
-                ).to(self.device)
+            # Process in batches to manage memory
+            for i in range(0, len(texts), self.batch_size):
+                batch_texts = texts[i:i + self.batch_size]
                 
-                # Apply attention if requested
-                if apply_attention:
-                    batch_embeddings = self.attention_layer(batch_embeddings)
+                # Generate base embeddings
+                with torch.no_grad():
+                    batch_embeddings = self.model.encode(
+                        batch_texts,
+                        convert_to_tensor=True,
+                        show_progress_bar=False
+                    ).to(self.device)
                     
-                embeddings_list.append(batch_embeddings)
-        
-        # Concatenate all batches
-        all_embeddings = torch.cat(embeddings_list, dim=0)
-        
-        # Calculate intra-cluster similarity for monitoring
-        if len(all_embeddings) > 1:
-            similarity = self.calculate_similarity(all_embeddings[0], all_embeddings[1])
-            print(f"Sample embedding similarity: {similarity:.4f}")
+                    # Apply attention if requested
+                    if apply_attention:
+                        batch_embeddings = self.attention_layer(batch_embeddings)
+                        
+                    embeddings_list.append(batch_embeddings)
             
-        return all_embeddings
+            # Concatenate all batches
+            all_embeddings = torch.cat(embeddings_list, dim=0)
+            
+            # Calculate intra-cluster similarity for monitoring
+            if len(all_embeddings) > 1:
+                similarity = self.calculate_similarity(all_embeddings[0], all_embeddings[1])
+                print(f"Sample embedding similarity: {similarity:.4f}")
+                
+            return all_embeddings.cpu().numpy()
+        except RuntimeError as e:
+            if "out of memory" in str(e):
+                self.logger.error("CUDA out of memory, trying with smaller batch")
+                self.batch_size = self.batch_size // 2
+                return self.generate_embeddings(texts, apply_attention)
+            raise
+        except Exception as e:
+            self.logger.error(f"Error generating embeddings: {str(e)}")
+            raise
     
     def calculate_similarity(self, emb1: torch.Tensor, emb2: torch.Tensor) -> float:
         """Calculate cosine similarity between two embeddings."""
