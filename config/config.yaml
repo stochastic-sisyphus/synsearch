@@ -14,6 +14,12 @@ data:
     - name: "scisummnet"
       source: "local"
       enabled: true
+      file_patterns:
+        xml: "{paper_id}.xml"
+        summary: "{paper_id}.gold.txt"
+      subdirs:
+        documents: "Documents_xml"
+        summaries: "summary"
 
 # Preprocessing Configuration
 preprocessing:

@@ -226,8 +226,16 @@ def main():
         for dataset_name, df in datasets.items():
             logger.info(f"Processing dataset: {dataset_name}")
             
+            # Handle different dataset structures
+            if dataset_name == 'scisummnet':
+                texts = df['summary'].tolist()  # Use summaries for ScisummNet
+                ids = df['paper_id'].tolist()  # Use paper_id as ID
+            else:
+                texts = df['text'].tolist()
+                ids = df.get('id', range(len(df))).tolist()  # Fallback to index if no ID
+            
             # Preprocess texts
-            processed_texts = preprocessor.preprocess_texts(df['text'].tolist())
+            processed_texts = preprocessor.preprocess_texts(texts)
             
             # Generate embeddings
             embedding_generator = EnhancedEmbeddingGenerator(
@@ -243,8 +251,8 @@ def main():
             processed_datasets[dataset_name] = {
                 'texts': processed_texts,
                 'embeddings': embeddings,
-                'summaries': df['summary'].tolist(),
-                'ids': df['id'].tolist(),
+                'summaries': df['summary'].tolist() if 'summary' in df else None,
+                'ids': ids,
                 'source': dataset_name
             }
         

@@ -126,3 +126,56 @@ class DataLoader:
         except Exception as e:
             self.logger.error(f"Error loading ScisummNet dataset: {e}")
             return None
+
+    def load_scisummnet_dataset(self) -> pd.DataFrame:
+        """Load ScisummNet dataset."""
+        try:
+            self.logger.info(f"Loading ScisummNet dataset from {self.config['data']['scisummnet_path']}...")
+            
+            # Get path to top1000_complete directory
+            top1000_dir = Path(self.config['data']['scisummnet_path']) / 'top1000_complete'
+            if not top1000_dir.exists():
+                self.logger.warning(f"ScisummNet top1000_complete directory not found at {top1000_dir}")
+                return None
+
+            data = []
+            # Each subdirectory is a paper ID (e.g., W05-0904)
+            for paper_dir in top1000_dir.iterdir():
+                if not paper_dir.is_dir():
+                    continue
+                    
+                paper_id = paper_dir.name
+                xml_path = paper_dir / 'Documents_xml' / f'{paper_id}.xml'
+                summary_path = paper_dir / 'summary' / f'{paper_id}.gold.txt'  # Changed from .txt to .gold.txt
+                
+                if not xml_path.exists() or not summary_path.exists():
+                    self.logger.warning(f"Missing files for paper {paper_id}")
+                    continue
+                    
+                try:
+                    with open(summary_path, 'r', encoding='utf-8') as f:
+                        summary = f.read().strip()
+                        
+                    # Process XML and add to data
+                    data.append({
+                        'paper_id': paper_id,
+                        'summary': summary,
+                        'xml_path': str(xml_path),
+                        'summary_path': str(summary_path)
+                    })
+                        
+                except Exception as e:
+                    self.logger.warning(f"Error processing paper {paper_id}: {e}")
+                    continue
+
+            if not data:
+                self.logger.warning("No valid documents found in ScisummNet dataset")
+                return None
+            
+            df = pd.DataFrame(data)
+            self.logger.info(f"Successfully loaded {len(df)} documents from ScisummNet")
+            return df
+            
+        except Exception as e:
+            self.logger.error(f"Error loading ScisummNet dataset: {e}")
+            return None
