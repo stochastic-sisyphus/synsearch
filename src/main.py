@@ -22,6 +22,7 @@ from src.utils.metrics_utils import calculate_cluster_metrics
 from src.clustering.clustering_utils import process_clusters  # Update import path
 import json  # Add json import
 import multiprocessing
+from tqdm import tqdm  # Add tqdm import
 
 # Set up logging with absolute paths
 log_dir = Path(__file__).parent.parent / "logs"
@@ -157,17 +158,27 @@ def process_dataset(
             max_seq_length=config['embedding'].get('max_seq_length', 512)
         )
 
+        # Split texts into manageable chunks (e.g., 1000 documents per chunk)
+        chunk_size = config.get('processing', {}).get('chunk_size', 1000)
+        text_chunks = [dataset['texts'][i:i + chunk_size] 
+                      for i in range(0, len(dataset['texts']), chunk_size)]
+        
+        all_embeddings = []
+        for chunk in tqdm(text_chunks, desc="Processing chunks"):
+            chunk_embeddings = embedding_generator.generate_embeddings(
+                chunk,
+                cache_dir=Path(config['checkpoints']['dir']) / dataset['name'] / 'embeddings' 
+                if config['checkpoints']['enabled'] else None
+            )
+            all_embeddings.append(chunk_embeddings)
+        
+        # Combine all embeddings
+        embeddings = np.concatenate(all_embeddings, axis=0)
+        
         # Validate dataset
         validation_results = DataValidator().validate_dataset(dataset)
         if not validation_results['is_valid']:
             raise ValueError(f"Dataset validation failed: {validation_results['checks']}")
-        
-        # Generate or load embeddings
-        embedding_cache = Path(config['checkpoints']['dir']) / dataset['name'] / 'embeddings'
-        embeddings = embedding_generator.generate_embeddings(
-            dataset['texts'],
-            cache_dir=embedding_cache if config['checkpoints']['enabled'] else None
-        )
         
         # Perform clustering with metrics
         labels, clustering_metrics = cluster_manager.fit_predict(embeddings)

@@ -101,3 +101,9 @@ metrics:
   track_embedding_quality: true
   track_cluster_stability: true
   track_summarization_quality: true
+
+# Processing Configuration
+processing:
+  chunk_size: 1000  # Number of documents to process at once
+  max_batch_size: 32  # Maximum batch size for embedding generation
+  enable_checkpointing: true  # Whether to save intermediate results

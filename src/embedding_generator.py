@@ -94,33 +94,48 @@ class EnhancedEmbeddingGenerator:
             if batch_size is None:
                 batch_size = self._get_optimal_batch_size()
             else:
-                batch_size = int(batch_size)  # Ensure integer batch size
-                
-            all_embeddings = []
-            num_batches = (len(texts) + batch_size - 1) // batch_size
+                batch_size = int(batch_size)
             
-            for i in tqdm(range(0, len(texts), batch_size), total=num_batches, desc="Generating embeddings"):
-                batch_texts = texts[i:i + batch_size]
+            # Reduce batch size if we get OOM error
+            while batch_size > 1:
+                try:
+                    all_embeddings = []
+                    num_batches = (len(texts) + batch_size - 1) // batch_size
+                    
+                    for i in tqdm(range(0, len(texts), batch_size), total=num_batches, desc="Generating embeddings"):
+                        if self.device == 'cuda':
+                            torch.cuda.empty_cache()
+                            
+                        batch_texts = texts[i:i + batch_size]
+                        with torch.no_grad():
+                            batch_embeddings = self.model.encode(
+                                batch_texts,
+                                batch_size=batch_size,
+                                show_progress_bar=False,
+                                convert_to_tensor=True
+                            )
+                            
+                            if apply_attention:
+                                batch_embeddings = self.attention_layer(batch_embeddings)
+                            
+                            batch_embeddings = batch_embeddings.cpu().numpy()
+                            all_embeddings.append(batch_embeddings)
+                            
+                    embeddings = np.concatenate(all_embeddings, axis=0)
+                    break
+                    
+                except RuntimeError as e:
+                    if 'out of memory' in str(e):
+                        # Reduce batch size and try again
+                        batch_size = batch_size // 2
+                        self.logger.warning(f"Reduced batch size to {batch_size} due to OOM")
+                        torch.cuda.empty_cache()
+                        continue
+                    raise
+                    
+            if batch_size < 1:
+                raise RuntimeError("Unable to process even with minimum batch size")
                 
-                if self.device == 'cuda':
-                    torch.cuda.empty_cache()
-                    
-                with torch.no_grad():
-                    batch_embeddings = self.model.encode(
-                        batch_texts,
-                        batch_size=batch_size,
-                        show_progress_bar=False,
-                        convert_to_tensor=True
-                    )
-                    
-                    if apply_attention:
-                        batch_embeddings = self.attention_layer(batch_embeddings)
-                    
-                    batch_embeddings = batch_embeddings.cpu().numpy()
-                    all_embeddings.append(batch_embeddings)
-                    
-            embeddings = np.concatenate(all_embeddings, axis=0)
-            
             if cache_dir:
                 self.save_embeddings(embeddings, cache_file)
                 
