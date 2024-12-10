@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+env/
 build/
 develop-eggs/
 dist/
@@ -20,31 +21,38 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# Project specific
+info.md
+plan.md
 .env
-.venv
-env/
-venv/
-ENV/
+.env.*
 
-# IDE
+# IDEs and editors
 .idea/
 .vscode/
 *.swp
 *.swo
+*.swn
+.DS_Store
+.vs/
+*.sublime-workspace
+*.sublime-project
 
-# Logs and databases
-*.log
-*.sqlite
-logs/
-
-# Project-specific
-outputs/
-models/
-data/
+# Virtual environment
+venv/
+ENV/
+.env/
+.venv/
 
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# macOS
-.DS_Store 
+# Distribution
+dist/
+build/
+
+# Local development
+*.log
+.coverage
+coverage.xml
+htmlcov/
