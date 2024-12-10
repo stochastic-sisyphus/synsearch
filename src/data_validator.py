@@ -9,41 +9,65 @@ class DataValidator:
         self.logger = logging.getLogger(__name__)
 
     def validate_dataset(self, df: pd.DataFrame) -> Dict[str, bool]:
-        """
-        Validate processed dataset against quality criteria.
-
-        Args:
-            df (pd.DataFrame): DataFrame containing the dataset to validate.
-
-        Returns:
-            Dict[str, bool]: Dictionary with validation results and statistics.
-        """
+        """Comprehensive dataset validation"""
         try:
             validation_results = {
-                'missing_values': self._check_missing_values(df),
-                'text_length': self._check_text_length(df),
-                'language': self._check_language(df),
-                'duplicates': self._check_duplicates(df)
+                'is_empty': self._check_empty(df),
+                'has_required_columns': self._check_required_columns(df),
+                'has_valid_types': self._check_data_types(df),
+                'has_missing_values': self._check_missing_values(df),
+                'has_valid_lengths': self._check_text_lengths(df),
+                'is_valid': False  # Will be set based on all checks
             }
-
-            # Log validation results
-            self.logger.info(f"Dataset validation results: {validation_results}")
-
-            # Overall validation status
-            is_valid = all(validation_results.values())
-
-            if not is_valid:
-                self.logger.warning("Dataset failed validation checks")
-
-            return {
-                'is_valid': is_valid,
-                'checks': validation_results,
-                'stats': self.get_detailed_stats(df)
-            }
-
+            
+            # Set overall validity
+            validation_results['is_valid'] = all([
+                not validation_results['is_empty'],
+                validation_results['has_required_columns'],
+                validation_results['has_valid_types'],
+                not validation_results['has_missing_values'],
+                validation_results['has_valid_lengths']
+            ])
+            
+            return validation_results
+            
         except Exception as e:
             self.logger.error(f"Error during dataset validation: {e}")
-            raise
+            return {'is_valid': False, 'error': str(e)}
+
+    def _check_empty(self, df: pd.DataFrame) -> bool:
+        """Check if dataset is empty"""
+        return df.empty
+
+    def _check_required_columns(self, df: pd.DataFrame) -> bool:
+        """Check for presence of required columns"""
+        required = ['text']
+        return all(col in df.columns for col in required)
+
+    def _check_data_types(self, df: pd.DataFrame) -> bool:
+        """Validate data types of important columns"""
+        try:
+            if 'text' in df:
+                if not df['text'].dtype == object:
+                    return False
+            if 'summary' in df:
+                if not df['summary'].dtype == object:
+                    return False
+            return True
+        except Exception:
+            return False
+
+    def _check_missing_values(self, df: pd.DataFrame) -> bool:
+        """Check for missing values in required columns"""
+        required = ['text']
+        return df[required].isnull().any().any()
+
+    def _check_text_lengths(self, df: pd.DataFrame) -> bool:
+        """Validate text lengths"""
+        if 'text' not in df:
+            return False
+        min_length = 10  # Minimum characters
+        return (df['text'].str.len() >= min_length).all()
 
     def _check_missing_values(self, df: pd.DataFrame) -> bool:
         """

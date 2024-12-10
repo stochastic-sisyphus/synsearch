@@ -4,27 +4,24 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from typing import List, Optional, Union, Dict, Any
 import logging
-import gc  # Add garbage collector
+import gc
 from pathlib import Path
 from datetime import datetime
-from tqdm import tqdm  # Add tqdm import
+from tqdm import tqdm
 from torch.utils.data import DataLoader, Dataset
 
 class AttentionLayer(nn.Module):
     """Attention layer for refining embeddings."""
-    
     def __init__(self, embedding_dim: int):
         super().__init__()
         self.attention = nn.Linear(embedding_dim, 1)
-    
-    def forward(self, embeddings: torch.Tensor) -> torch.Tensor:
-        """Apply attention mechanism to embeddings."""
-        attention_weights = torch.softmax(self.attention(embeddings), dim=0)
-        return embeddings * attention_weights
+        
+    def forward(self, x):
+        weights = torch.softmax(self.attention(x), dim=0)
+        return torch.sum(weights * x, dim=0)
 
 class EmbeddingDataset(Dataset):
-    """Custom Dataset for embeddings."""
-    
+    """Custom Dataset for text data."""
     def __init__(self, texts: List[str]):
         self.texts = texts
         
@@ -44,66 +41,41 @@ class EnhancedEmbeddingGenerator:
         max_seq_length: int = 512,
         batch_size: int = 32,
         device: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None  # Add config parameter
+        config: Optional[Dict[str, Any]] = None
     ):
-        """Initialize the embedding generator with memory management."""
-        self.config = config  # Initialize config attribute
+        """Initialize embedding generator with configuration."""
         self.logger = logging.getLogger(__name__)
         
-        # Determine device with fallback options
-        if device is None:
-            if torch.cuda.is_available():
-                try:
-                    torch.cuda.empty_cache()
-                    # Try allocating a small tensor to verify memory
-                    torch.zeros((1, embedding_dim), device='cuda')
-                except Exception:
-                    self.logger.warning("GPU memory issue detected, falling back to CPU")
-                    device = 'cpu'
-            else:
-                device = 'cpu'
+        self.config = config or {}
+        self.embedding_dim = embedding_dim
+        self.max_seq_length = max_seq_length
+        self.batch_size = batch_size
         
-        self.device = device
+        # Handle device setup
+        if device is None:
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        else:
+            self.device = device
+            
         self.logger.info(f"Using device: {self.device}")
         
-        # Clear any existing cached memory
-        if self.device == 'cuda':
-            torch.cuda.empty_cache()
-            gc.collect()
-        
         try:
+            # Initialize model first
             self.model = SentenceTransformer(model_name)
             self.model.to(self.device)
             
             # Initialize attention layer
             self.attention_layer = AttentionLayer(embedding_dim).to(self.device)
             
-            self.batch_size = batch_size
-            self.max_seq_length = max_seq_length
-            
-        except RuntimeError as e:
-            self.logger.error(f"Error initializing model: {e}")
-            self.logger.info("Falling back to CPU")
-            self.device = 'cpu'
-            try:
-                self.model = SentenceTransformer(model_name)
-                self.model.to(self.device)
-                self.attention_layer = AttentionLayer(embedding_dim).to(self.device)
-            except Exception as e:
-                self.logger.error(f"Critical error initializing model: {e}")
-                raise
-
-    def __init__(self, **kwargs):
-        self.config = kwargs.get('config')
-        self.logger = logging.getLogger(__name__)
-        
-        try:
-            self.device = kwargs.get('device') or ('cuda' if torch.cuda.is_available() else 'cpu')
-            self.model = self.model.to(self.device)
+            # Clear GPU memory if needed
+            if self.device == 'cuda':
+                torch.cuda.empty_cache()
+                gc.collect()
+                
         except Exception as e:
-            self.logger.error(f"Error initializing model: {e}")
-            raise RuntimeError("Failed to initialize embedding model")
-    
+            self.logger.error(f"Error initializing model: {str(e)}")
+            raise RuntimeError(f"Failed to initialize embedding model: {str(e)}")
+
     def generate_embeddings(
         self,
         texts: List[str],

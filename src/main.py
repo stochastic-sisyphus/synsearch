@@ -14,6 +14,8 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import random
 from datasets import load_dataset
+from dataclasses import dataclass, asdict
+from typing import Optional, Union, Type
 
 # Add project root to PYTHONPATH when running directly
 if __name__ == "__main__":
@@ -39,6 +41,11 @@ if __name__ == "__main__":
     from src.utils.metrics_calculator import MetricsCalculator
     from src.summarization.adaptive_summarizer import AdaptiveSummarizer
     from src.clustering.clustering_utils import process_clusters
+    from src.utils.checkpoint_manager import CheckpointManager
+    from src.data_validator import DataValidator
+    from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+    import signal
+    import sys
 else:
     # Use relative imports when imported as module
     from .data_loader import DataLoader
@@ -59,6 +66,11 @@ else:
     from .utils.metrics_calculator import MetricsCalculator
     from .summarization.adaptive_summarizer import AdaptiveSummarizer
     from .clustering.clustering_utils import process_clusters
+    from .utils.checkpoint_manager import CheckpointManager
+    from .data_validator import DataValidator
+    from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+    import signal
+    import sys
 
 # Set up logging with absolute paths
 log_dir = Path(__file__).parent.parent / "logs"
@@ -323,16 +335,285 @@ def setup_environment():
     
     return device
 
+def signal_handler(signum, frame):
+    """Handle interrupt signals gracefully"""
+    logger.info("Received interrupt signal. Cleaning up...")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+
+class PipelineManager:
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.logger = logging.getLogger(__name__)
+        self.checkpoint_manager = CheckpointManager(
+            checkpoint_dir=config['checkpoints']['dir']
+        )
+        self.data_validator = DataValidator()
+
+    def validate_dataset(self, df: pd.DataFrame) -> bool:
+        """Validate dataset structure and content"""
+        try:
+            # Check for empty dataset
+            if df.empty:
+                raise ValueError("Empty dataset provided")
+                
+            # Check for required columns
+            required_columns = ['text', 'summary'] if 'summary' in df else ['text']
+            missing_cols = [col for col in required_columns if col not in df.columns]
+            if missing_cols:
+                raise ValueError(f"Missing required columns: {missing_cols}")
+                
+            # Check for all-null columns
+            null_columns = df.columns[df.isnull().all()].tolist()
+            if null_columns:
+                raise ValueError(f"Columns contain all null values: {null_columns}")
+                
+            # Validate data types
+            text_col = 'text' if 'text' in df else df.columns[0]
+            if not df[text_col].dtype == object:
+                raise TypeError(f"Text column '{text_col}' must be string type")
+                
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Dataset validation failed: {e}")
+            return False
+
+    def process_dataset_with_checkpoints(
+        self,
+        dataset: Dict[str, Any],
+        cluster_manager: DynamicClusterManager,
+        summarizer: AdaptiveSummarizer,
+        evaluator: EvaluationMetrics,
+    ) -> Optional[Dict[str, Any]]:
+        """Process dataset with checkpointing and error handling"""
+        try:
+            # Validate dataset
+            if not self.validate_dataset(pd.DataFrame(dataset)):
+                return None
+                
+            # Check for existing checkpoint
+            checkpoint = self.checkpoint_manager.get_stage_data(dataset['name'])
+            if checkpoint:
+                self.logger.info(f"Resuming from checkpoint for {dataset['name']}")
+                return self._resume_from_checkpoint(checkpoint, dataset)
+                
+            # Process in batches with checkpointing
+            batch_size = min(
+                self.config['processing'].get('batch_size', 1000),
+                5000
+            )
+            
+            results = self._process_batches(
+                dataset, 
+                cluster_manager,
+                summarizer,
+                evaluator,
+                batch_size
+            )
+            
+            # Save final results
+            self.checkpoint_manager.save_stage(dataset['name'], results)
+            return results
+            
+        except Exception as e:
+            self.logger.error(f"Error processing dataset {dataset.get('name', 'unknown')}: {e}")
+            raise
+
+    def _process_batches(
+        self,
+        dataset: Dict[str, Any],
+        cluster_manager: DynamicClusterManager,
+        summarizer: AdaptiveSummarizer,
+        evaluator: EvaluationMetrics,
+        batch_size: int
+    ) -> Dict[str, Any]:
+        """Process dataset in batches with progress tracking"""
+        texts = dataset['texts']
+        total_batches = (len(texts) + batch_size - 1) // batch_size
+        
+        results = {
+            'embeddings': [],
+            'clusters': [],
+            'summaries': {}
+        }
+        
+        with tqdm(total=total_batches, desc=f"Processing {dataset['name']}") as pbar:
+            for i in range(0, len(texts), batch_size):
+                batch_texts = texts[i:i + batch_size]
+                
+                # Process batch
+                batch_results = self._process_single_batch(
+                    batch_texts,
+                    cluster_manager,
+                    summarizer,
+                    evaluator
+                )
+                
+                # Update results
+                results['embeddings'].extend(batch_results['embeddings'])
+                results['clusters'].extend(batch_results['clusters'])
+                results['summaries'].update(batch_results['summaries'])
+                
+                # Save checkpoint
+                self.checkpoint_manager.save_stage(
+                    f"{dataset['name']}_batch_{i//batch_size}",
+                    batch_results
+                )
+                
+                pbar.update(1)
+                
+        return results
+
+@dataclass
+class PipelineConfig:
+    """Strongly typed configuration for validation"""
+    batch_size: int = 32
+    max_seq_length: int = 512
+    cache_dir: Optional[str] = None
+    device: str = 'auto'
+    debug_mode: bool = False
+    
+class EnhancedPipelineManager(PipelineManager):
+    """Enhanced pipeline manager with better error handling and environment flexibility"""
+    
+    def __init__(self, config: Union[Dict[str, Any], PipelineConfig]):
+        if isinstance(config, dict):
+            # Convert dict to typed config
+            config = PipelineConfig(**config)
+            
+        super().__init__(asdict(config))
+        self.early_stopping = False
+        self._setup_environment()
+        
+    def _setup_environment(self):
+        """Validate environment and dependencies"""
+        try:
+            # Check Python version
+            min_python = (3, 8)
+            if sys.version_info < min_python:
+                raise EnvironmentError(f"Python {'.'.join(map(str, min_python))} or higher required")
+                
+            # Verify critical dependencies
+            self._verify_dependencies()
+            
+            # Setup device
+            if self.config.device == 'auto':
+                self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            else:
+                self.device = torch.device(self.config.device)
+                
+            self.logger.info(f"Environment setup complete. Using device: {self.device}")
+            
+        except Exception as e:
+            self.logger.error(f"Environment setup failed: {e}")
+            raise
+            
+    def _verify_dependencies(self):
+        """Verify all required dependencies are available"""
+        required = {
+            'torch': 'Deep learning',
+            'transformers': 'Language models',
+            'numpy': 'Numerical operations',
+            'pandas': 'Data processing',
+            'tqdm': 'Progress tracking'
+        }
+        
+        missing = []
+        for pkg, purpose in required.items():
+            try:
+                __import__(pkg)
+            except ImportError:
+                missing.append(f"{pkg} ({purpose})")
+                
+        if missing:
+            raise ImportError(f"Missing required dependencies: {', '.join(missing)}")
+            
+    def process_with_checkpoints(
+        self, 
+        dataset: pd.DataFrame,
+        batch_size: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Process dataset with enhanced error handling and checkpointing"""
+        try:
+            if self.config.debug_mode:
+                # Sample dataset for debugging
+                dataset = dataset.sample(min(len(dataset), 1000))
+                
+            # Validate dataset structure
+            self._validate_dataset_structure(dataset)
+            
+            # Process in batches with checkpointing
+            results = []
+            batch_size = batch_size or self.config.batch_size
+            
+            for i in range(0, len(dataset), batch_size):
+                if self.early_stopping:
+                    self.logger.info("Early stopping requested")
+                    break
+                    
+                batch = dataset.iloc[i:i + batch_size]
+                try:
+                    batch_results = self._process_batch(batch)
+                    results.append(batch_results)
+                    
+                    # Save checkpoint after each batch
+                    self._save_checkpoint(i // batch_size, batch_results)
+                    
+                except Exception as e:
+                    self.logger.error(f"Error processing batch {i // batch_size}: {e}")
+                    continue
+                    
+            return self._combine_results(results)
+            
+        except KeyboardInterrupt:
+            self.logger.info("Processing interrupted by user. Saving progress...")
+            self._handle_interrupt()
+            raise
+            
+        except Exception as e:
+            self.logger.error(f"Processing failed: {e}")
+            raise
+
+    def _validate_dataset_structure(self, df: pd.DataFrame) -> None:
+        """Validate dataset structure with detailed error messages"""
+        if df.empty:
+            raise ValueError("Empty dataset provided")
+            
+        required_cols = {'text'}
+        missing = required_cols - set(df.columns)
+        if missing:
+            raise ValueError(f"Missing required columns: {missing}")
+            
+        # Check for null values in critical columns
+        null_counts = df[list(required_cols)].isnull().sum()
+        if null_counts.any():
+            raise ValueError(f"Found null values in columns: {null_counts[null_counts > 0].to_dict()}")
+
 def main():
-    """Enhanced main entry point with better error handling and logging."""
+    """Enhanced main entry point with better error handling"""
     try:
         # Initialize environment
         device = setup_environment()
         
         # Load and validate configuration
         config = load_config()
-        validate_config(config)
+        config = validate_config(config)
         
+        # Initialize pipeline manager
+        pipeline = PipelineManager(config)
+        
+        # Initialize embedding generator with proper config
+        embedding_generator = EnhancedEmbeddingGenerator(
+            model_name=config['embedding']['model_name'],
+            embedding_dim=config['embedding'].get('dimension', 768),
+            max_seq_length=config['embedding'].get('max_seq_length', 512),
+            batch_size=config['embedding'].get('batch_size', 32),
+            device=device,
+            config=config['embedding']
+        )
+
         # Initialize components with dependency injection
         data_loader = DataLoader(config)
         preprocessor = DomainAgnosticPreprocessor(config['preprocessing'])
@@ -350,7 +631,7 @@ def main():
             logger.info(f"Processing dataset: {dataset_name}")
             
             # Handle different dataset structures
-            if dataset_name == 'scisummnet':
+            if (dataset_name == 'scisummnet'):
                 texts = df['summary'].tolist()  # Use summaries for ScisummNet
                 ids = df['paper_id'].tolist()  # Use paper_id as ID
             else:
@@ -403,9 +684,12 @@ def main():
         
         logger.info("Pipeline completed successfully!")
         
+    except KeyboardInterrupt:
+        logger.info("Pipeline interrupted by user")
+        sys.exit(0)
     except Exception as e:
         logger.error(f"Critical error in pipeline: {str(e)}", exc_info=True)
-        raise SystemExit(1)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

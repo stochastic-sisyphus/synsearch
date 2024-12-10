@@ -6,10 +6,6 @@ data:
   batch_size: 32
   scisummnet_path: "data/scisummnet"
   datasets:
-    - name: "xlsum"
-      enabled: true
-      language: "english"
-      dataset_name: "GEM/xlsum"
     - name: "scisummnet"
       enabled: true
 
@@ -25,11 +21,12 @@ preprocessing:
 
 # Embedding Configuration
 embedding:
-  model_name: "all-mpnet-base-v2"
+  model_name: "sentence-transformers/all-mpnet-base-v2"
   dimension: 768
   batch_size: 32
   max_seq_length: 512
-  device: "cuda"
+  device: "auto"
+  cache_dir: "cache/embeddings"
 
 # Clustering Configuration
 clustering:
