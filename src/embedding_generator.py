@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from typing import List, Optional, Union, Dict
+from typing import List, Optional, Union, Dict, Any
 import logging
 import gc  # Add garbage collector
 from pathlib import Path
@@ -25,23 +25,22 @@ class EnhancedEmbeddingGenerator:
         embedding_dim: int = 768,
         max_seq_length: int = 512,
         batch_size: int = 32,
-        device: Optional[str] = None
+        device: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None  # Add config parameter
     ):
         """Initialize the embedding generator with memory management."""
+        self.config = config  # Initialize config attribute
         self.logger = logging.getLogger(__name__)
         
         # Determine device with fallback options
         if device is None:
             if torch.cuda.is_available():
                 try:
-                    # Try to get GPU memory info
-                    free_memory, total_memory = torch.cuda.mem_get_info()
-                    if free_memory > 2 * 1024 * 1024 * 1024:  # Check if > 2GB free
-                        device = 'cuda'
-                    else:
-                        self.logger.warning("Insufficient GPU memory, falling back to CPU")
-                        device = 'cpu'
-                except:
+                    torch.cuda.empty_cache()
+                    # Try allocating a small tensor to verify memory
+                    torch.zeros((1, embedding_dim), device='cuda')
+                except Exception:
+                    self.logger.warning("GPU memory issue detected, falling back to CPU")
                     device = 'cpu'
             else:
                 device = 'cpu'
@@ -84,62 +83,43 @@ class EnhancedEmbeddingGenerator:
         cache_dir: Optional[Path] = None
     ) -> np.ndarray:
         """Generate embeddings with optimized batch processing and caching."""
-        if cache_dir:
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            cache_file = cache_dir / 'embeddings.pt'
-            if cache_file.exists():
-                return self.load_embeddings(cache_file)
-        
-        try:
-            if batch_size is None:
-                batch_size = self._get_optimal_batch_size()
-            else:
-                batch_size = int(batch_size)
+        if not texts:
+            raise ValueError("Empty text list provided")
             
-            # Reduce batch size if we get OOM error
-            while batch_size > 1:
-                try:
-                    all_embeddings = []
-                    num_batches = (len(texts) + batch_size - 1) // batch_size
-                    
-                    for i in tqdm(range(0, len(texts), batch_size), total=num_batches, desc="Generating embeddings"):
-                        if self.device == 'cuda':
-                            torch.cuda.empty_cache()
-                            
-                        batch_texts = texts[i:i + batch_size]
-                        with torch.no_grad():
-                            batch_embeddings = self.model.encode(
-                                batch_texts,
-                                batch_size=batch_size,
-                                show_progress_bar=False,
-                                convert_to_tensor=True
-                            )
-                            
-                            if apply_attention:
-                                batch_embeddings = self.attention_layer(batch_embeddings)
-                            
-                            batch_embeddings = batch_embeddings.cpu().numpy()
-                            all_embeddings.append(batch_embeddings)
-                            
-                    embeddings = np.concatenate(all_embeddings, axis=0)
-                    break
-                    
-                except RuntimeError as e:
-                    if 'out of memory' in str(e):
-                        # Reduce batch size and try again
-                        batch_size = batch_size // 2
-                        self.logger.warning(f"Reduced batch size to {batch_size} due to OOM")
-                        torch.cuda.empty_cache()
-                        continue
-                    raise
-                    
-            if batch_size < 1:
-                raise RuntimeError("Unable to process even with minimum batch size")
-                
+        try:
             if cache_dir:
-                self.save_embeddings(embeddings, cache_file)
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                cache_file = cache_dir / 'embeddings.npy'
+                if cache_file.exists():
+                    return np.load(cache_file)
+            
+            # Use smaller batch size if memory is limited
+            if batch_size is None:
+                batch_size = min(self.batch_size, len(texts))
+            
+            all_embeddings = []
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i:i + batch_size]
+                # Clear GPU cache between batches if using CUDA
+                if self.device == 'cuda':
+                    torch.cuda.empty_cache()
+                    
+                with torch.no_grad():
+                    embeddings = self.model.encode(
+                        batch,
+                        show_progress_bar=False,
+                        convert_to_tensor=True,
+                        device=self.device
+                    )
+                    embeddings = embeddings.cpu().numpy()
+                    all_embeddings.append(embeddings)
+            
+            final_embeddings = np.concatenate(all_embeddings, axis=0)
+            
+            if cache_dir:
+                np.save(cache_file, final_embeddings)
                 
-            return embeddings
+            return final_embeddings
             
         except Exception as e:
             self.logger.error(f"Error generating embeddings: {e}")

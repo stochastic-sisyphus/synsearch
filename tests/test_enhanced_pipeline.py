@@ -8,7 +8,7 @@ from src.data_loader import DataLoader
 import numpy as np
 
 def test_embedding_refinement():
-    generator = EnhancedEmbeddingGenerator()
+    generator = EnhancedEmbeddingGenerator(config={})
     test_texts = ["This is a test document", "Another test document"]
     embeddings = generator.generate_embeddings(test_texts)
     
@@ -69,7 +69,7 @@ def test_entity_extraction():
     assert 'California' in entities['GPE']
 
 def test_embedding_generation():
-    generator = EnhancedEmbeddingGenerator(model_name='all-mpnet-base-v2')
+    generator = EnhancedEmbeddingGenerator(model_name='all-mpnet-base-v2', config={})
     test_texts = ["This is a test document.", "Another test document."]
     embeddings = generator.generate_embeddings(test_texts)
     
@@ -94,7 +94,7 @@ def test_style_aware_summarization():
 def test_pipeline_integration():
     # Test full pipeline integration
     preprocessor = DomainAgnosticPreprocessor()
-    generator = EnhancedEmbeddingGenerator()
+    generator = EnhancedEmbeddingGenerator(config={})
     summarizer = HybridSummarizer()
     
     # Process sample text

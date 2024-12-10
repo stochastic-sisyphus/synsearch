@@ -151,11 +151,16 @@ def process_dataset(
     start_time = datetime.now()
     
     try:
-        # Initialize embedding generator
+        # Initialize embedding generator with memory-aware settings
         embedding_generator = EnhancedEmbeddingGenerator(
             model_name=config['embedding']['model_name'],
-            batch_size=config['embedding'].get('batch_size', 32),
-            max_seq_length=config['embedding'].get('max_seq_length', 512)
+            batch_size=min(
+                config['embedding'].get('batch_size', 32),
+                get_optimal_batch_size()
+            ),
+            max_seq_length=config['embedding'].get('max_seq_length', 512),
+            config=config,
+            device=None  # Let the class handle device selection
         )
 
         # Get dataset name, fallback to 'unnamed' if not provided
@@ -165,8 +170,11 @@ def process_dataset(
         cache_dir = Path(config['checkpoints']['dir']) / dataset_name / 'embeddings' \
             if config['checkpoints'].get('enabled', False) else None
 
-        # Split texts into manageable chunks (e.g., 1000 documents per chunk)
-        chunk_size = config.get('processing', {}).get('chunk_size', 1000)
+        # Process in smaller chunks to handle memory better
+        chunk_size = min(
+            config.get('processing', {}).get('chunk_size', 1000),
+            5000  # Set a reasonable maximum chunk size
+        )
         text_chunks = [dataset['texts'][i:i + chunk_size] 
                       for i in range(0, len(dataset['texts']), chunk_size)]
         
