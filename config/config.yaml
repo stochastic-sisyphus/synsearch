@@ -7,7 +7,12 @@ data:
   scisummnet_path: "data/scisummnet"
   datasets:
     - name: "scisummnet"
+      enabled: false
+      path: "data/scisummnet"
+    - name: "xlsum"
       enabled: true
+      language: "english"
+      dataset_name: "GEM/xlsum"
 
 # Preprocessing Configuration
 preprocessing:
