@@ -92,12 +92,11 @@ def test_style_aware_summarization():
     assert len(concise_summary['summary']) < len(tech_summary['summary'])
 
 def test_pipeline_integration():
-    # Test full pipeline integration
+    """Test full pipeline integration."""
     preprocessor = DomainAgnosticPreprocessor()
     generator = EnhancedEmbeddingGenerator(config={})
     summarizer = HybridSummarizer()
     
-    # Process sample text
     text = "This is a test document for pipeline integration."
     processed_text = preprocessor.preprocess_text(text)
     embeddings = generator.generate_embeddings([processed_text])

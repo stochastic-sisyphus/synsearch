@@ -29,6 +29,12 @@ def test_preprocessing_empty_input(preprocessor):
     assert isinstance(result, list)
     assert len(result) == 0
 
+def test_large_batch(preprocessor):
+    """Test processing of large text batches."""
+    large_texts = ["test" for _ in range(10000)]
+    results = preprocessor.preprocess_texts(large_texts)
+    assert len(results) == len(large_texts)
+
 import pytest
 from src.embedding_generator import EnhancedEmbeddingGenerator
 from src.clustering.dynamic_cluster_manager import DynamicClusterManager

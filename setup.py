@@ -13,7 +13,15 @@ setup(
         "hdbscan>=0.8.29",
         "plotly>=5.3.0",
         "streamlit>=1.2.0",
-        "pytest>=6.0.0"
+        "pytest>=6.0.0",
+        "dash>=2.0.0",
+        "dash-bootstrap-components>=1.0.0",
+        "dash-core-components>=2.0.0",
+        "dash-html-components>=2.0.0",
+        "dash-table>=5.0.0",
+        "jupyter-dash>=0.4.0",
+        "cachetools>=5.0.0",
+        "joblib>=1.1.0"
     ],
     python_requires=">=3.8",
     author="Your Name",

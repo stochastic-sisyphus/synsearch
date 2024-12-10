@@ -117,3 +117,23 @@ processing:
   chunk_size: 1000  # Number of documents to process at once
   max_batch_size: 32  # Maximum batch size for embedding generation
   enable_checkpointing: true  # Whether to save intermediate results
+
+# Dashboard Configuration
+dashboard:
+  framework: "dash"  # or "streamlit"
+  port: 8050
+  host: "0.0.0.0"
+  debug: true
+  theme:
+    primary_color: "#007bff"
+    secondary_color: "#6c757d"
+    font_family: "Arial, sans-serif"
+  cache:
+    enabled: true
+    directory: "cache"
+    ttl: 3600  # Cache TTL in seconds
+  features:
+    cluster_visualization: true
+    interactive_filtering: true
+    export_results: true
+    realtime_updates: false

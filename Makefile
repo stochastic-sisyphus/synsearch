@@ -1,5 +1,4 @@
-
-.PHONY: install test lint format clean docker-build docker-run
+.PHONY: install test lint format clean docker-build docker-run dashboard-dash dashboard-streamlit
 
 install:
 	pip install -r requirements.txt
@@ -30,3 +29,9 @@ docker-run:
 .PHONY: docs
 docs:
 	sphinx-build -b html docs/source docs/build
+
+dashboard-dash:
+	python -m src.dashboard.app --framework dash
+
+dashboard-streamlit:
+	streamlit run src/dashboard/app.py

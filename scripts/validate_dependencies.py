@@ -15,7 +15,17 @@ def check_dependencies():
         ('plotly', 'Visualization'),
         ('networkx', 'Graph operations'),
         ('community', 'Community detection'),
-        ('python-louvain', 'Alternative community detection')
+        ('python-louvain', 'Alternative community detection'),
+        ('dash', 'Dashboard framework'),
+        ('dash_bootstrap_components', 'Dashboard components'),
+        ('plotly', 'Interactive visualization'),
+        ('streamlit', 'Alternative dashboard framework'),
+        ('dash_core_components', 'Core dash components'),
+        ('dash_html_components', 'HTML components for dash'),
+        ('dash_table', 'Table components for dash'),
+        ('jupyter_dash', 'Jupyter integration for dash'),
+        ('cachetools', 'Caching utilities'),
+        ('joblib', 'Performance optimization')
     ]
     
     missing = []
