@@ -1,20 +1,17 @@
-"""
-Dynamic Summarization and Adaptive Clustering Framework
-"""
-
-__version__ = "0.1.0"
-__author__ = "Your Name"
+"""Dynamic Summarization and Adaptive Clustering Framework"""
 
 from .data_loader import DataLoader
-from .data_preparation import DataPreparator
-from .data_validator import DataValidator
-from .preprocessor import TextPreprocessor
-from .summarization.adaptive_summarizer import AdaptiveSummarizer
+from .embedding_generator import EnhancedEmbeddingGenerator
+from .clustering.dynamic_cluster_manager import DynamicClusterManager
+from .summarization.hybrid_summarizer import HybridSummarizer
+from .preprocessor import DomainAgnosticPreprocessor
+from .evaluation.metrics import EvaluationMetrics
 
 __all__ = [
     'DataLoader',
-    'DataPreparator',
-    'DataValidator',
-    'TextPreprocessor',
-    'AdaptiveSummarizer'
+    'EnhancedEmbeddingGenerator', 
+    'DynamicClusterManager',
+    'HybridSummarizer',
+    'DomainAgnosticPreprocessor',
+    'EvaluationMetrics'
 ]
