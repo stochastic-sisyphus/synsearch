@@ -85,7 +85,6 @@ lxml>=4.9.0  # Optional but recommended parser for bs4
 spacy>=3.5.0
 
 # Add missing dependencies
-concurrent-futures>=3.0.5
 
 # Dashboard & Visualization
 dash>=2.0.0
