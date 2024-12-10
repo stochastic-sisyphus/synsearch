@@ -2,6 +2,19 @@ import re
 import spacy
 from typing import List, Dict, Optional
 import logging
+from torch.utils.data import DataLoader, Dataset
+
+class TextDataset(Dataset):
+    """Custom Dataset for text data."""
+    
+    def __init__(self, texts: list):
+        self.texts = texts
+        
+    def __len__(self):
+        return len(self.texts)
+    
+    def __getitem__(self, idx):
+        return self.texts[idx]
 
 class DomainAgnosticPreprocessor:
     def __init__(self):
@@ -33,6 +46,18 @@ class DomainAgnosticPreprocessor:
         except Exception as e:
             self.logger.error(f"Error in preprocessing: {e}")
             raise
+
+    def preprocess_texts(self, texts: List[str], batch_size: int = 32) -> List[str]:
+        """Preprocess a list of texts using batch processing."""
+        dataset = TextDataset(texts)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+        
+        processed_texts = []
+        for batch in dataloader:
+            for text in batch:
+                processed_texts.append(self.preprocess_text(text))
+        
+        return processed_texts
 
     def _clean_general_text(self, text: str) -> str:
         """Clean text using domain-agnostic rules."""

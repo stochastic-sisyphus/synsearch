@@ -3,13 +3,24 @@ import numpy as np
 from .dynamic_cluster_manager import DynamicClusterManager
 from ..utils.metrics_utils import calculate_cluster_metrics
 import logging
+from multiprocessing import Pool, cpu_count
 
 def process_clusters(
     texts: List[str],
     embeddings: np.ndarray,
     config: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Enhanced cluster processing with new features."""
+    """
+    Enhanced cluster processing with new features.
+
+    Args:
+        texts (List[str]): List of input texts.
+        embeddings (np.ndarray): Array of embeddings.
+        config (Dict[str, Any]): Configuration dictionary.
+
+    Returns:
+        Dict[str, Any]: Processed clusters and metrics.
+    """
     logger = logging.getLogger(__name__)
     
     try:

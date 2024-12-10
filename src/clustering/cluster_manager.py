@@ -13,15 +13,39 @@ import json
 import torch
 import multiprocessing
 from joblib import parallel_backend, Parallel, delayed
+from torch.utils.data import DataLoader, Dataset
+
+class EmbeddingDataset(Dataset):
+    """Custom Dataset for embeddings."""
+    
+    def __init__(self, embeddings: np.ndarray):
+        self.embeddings = embeddings
+        
+    def __len__(self):
+        return len(self.embeddings)
+    
+    def __getitem__(self, idx):
+        return self.embeddings[idx]
 
 class ClusterManager:
+    """
+    Manages dynamic clustering operations with adaptive algorithm selection.
+    """
+    
     def __init__(
         self,
         config: Dict,
         device: Optional[str] = None,
         n_jobs: Optional[int] = None
     ):
-        """Initialize the cluster manager with parallel processing support"""
+        """
+        Initialize the cluster manager with parallel processing support.
+
+        Args:
+            config (Dict): Configuration dictionary.
+            device (Optional[str], optional): Device to use for computation. Defaults to None.
+            n_jobs (Optional[int], optional): Number of CPU cores to use. Defaults to None.
+        """
         self.logger = logging.getLogger(__name__)
         self.config = config
         
@@ -40,7 +64,9 @@ class ClusterManager:
         self._initialize_clusterer()
     
     def _initialize_clusterer(self):
-        """Initialize clustering algorithm with parallel processing support"""
+        """
+        Initialize clustering algorithm with parallel processing support.
+        """
         params = self.config.get('clustering_params', {})
         
         if self.method == 'hdbscan':
@@ -59,8 +85,17 @@ class ClusterManager:
                 n_jobs=self.n_jobs
             )
             
-    def fit_predict(self, embeddings: np.ndarray) -> Tuple[np.ndarray, Dict]:
-        """Fit and predict clusters using parallel processing"""
+    def fit_predict(self, embeddings: np.ndarray, batch_size: int = 32) -> Tuple[np.ndarray, Dict]:
+        """
+        Fit and predict clusters using parallel processing.
+
+        Args:
+            embeddings (np.ndarray): Array of embeddings.
+            batch_size (int, optional): Batch size for processing. Defaults to 32.
+
+        Returns:
+            Tuple[np.ndarray, Dict]: Cluster labels and metrics.
+        """
         self.logger.info(f"Starting clustering with {self.method} on {len(embeddings)} documents")
         
         # Move embeddings to GPU if available and algorithm supports it
@@ -69,14 +104,30 @@ class ClusterManager:
             self.labels_ = self._gpu_kmeans(embeddings_tensor)
         else:
             # Use parallel CPU processing
-            with parallel_backend('loky', n_jobs=self.n_jobs):
-                self.labels_ = self.clusterer.fit_predict(embeddings)
+            dataset = EmbeddingDataset(embeddings)
+            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+            
+            all_labels = []
+            for batch in dataloader:
+                with parallel_backend('loky', n_jobs=self.n_jobs):
+                    labels = self.clusterer.fit_predict(batch)
+                    all_labels.append(labels)
+            
+            self.labels_ = np.concatenate(all_labels)
         
         metrics = self._calculate_metrics(embeddings)
         return self.labels_, metrics
     
     def _gpu_kmeans(self, embeddings_tensor: torch.Tensor) -> np.ndarray:
-        """Perform K-means clustering on GPU"""
+        """
+        Perform K-means clustering on GPU.
+
+        Args:
+            embeddings_tensor (torch.Tensor): Tensor of embeddings.
+
+        Returns:
+            np.ndarray: Cluster labels.
+        """
         from kmeans_pytorch import kmeans
         
         cluster_ids_x, cluster_centers = kmeans(
@@ -89,7 +140,15 @@ class ClusterManager:
         return cluster_ids_x.cpu().numpy()
     
     def _calculate_metrics(self, embeddings: np.ndarray) -> Dict:
-        """Calculate clustering metrics in parallel"""
+        """
+        Calculate clustering metrics in parallel.
+
+        Args:
+            embeddings (np.ndarray): Array of embeddings.
+
+        Returns:
+            Dict: Calculated metrics.
+        """
         metrics = {}
         
         try:
@@ -114,7 +173,14 @@ class ClusterManager:
         metrics: Dict,
         output_dir: Union[str, Path]
     ) -> None:
-        """Save clustering results and metrics"""
+        """
+        Save clustering results and metrics.
+
+        Args:
+            clusters (Dict[str, List[Dict]]): Cluster assignments.
+            metrics (Dict): Clustering metrics.
+            output_dir (Union[str, Path]): Directory to save results.
+        """
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         
