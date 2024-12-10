@@ -92,6 +92,17 @@ class EnhancedEmbeddingGenerator:
             except Exception as e:
                 self.logger.error(f"Critical error initializing model: {e}")
                 raise
+
+    def __init__(self, **kwargs):
+        self.config = kwargs.get('config')
+        self.logger = logging.getLogger(__name__)
+        
+        try:
+            self.device = kwargs.get('device') or ('cuda' if torch.cuda.is_available() else 'cpu')
+            self.model = self.model.to(self.device)
+        except Exception as e:
+            self.logger.error(f"Error initializing model: {e}")
+            raise RuntimeError("Failed to initialize embedding model")
     
     def generate_embeddings(
         self,

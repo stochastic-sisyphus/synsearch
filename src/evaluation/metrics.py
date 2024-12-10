@@ -24,7 +24,7 @@ class EmbeddingDataset(Dataset):
         return self.embeddings[idx]
 
 class EvaluationMetrics:
-    """Class for calculating various evaluation metrics for clustering and summarization."""
+    """Enhanced metrics calculation with additional scores."""
     
     def __init__(self):
         """Initialize the evaluation metrics calculator."""
@@ -175,42 +175,34 @@ class EvaluationMetrics:
         return baseline_metrics 
 
     def calculate_comprehensive_metrics(
-        self, 
+        self,
         summaries: Dict[str, Dict],
-        references: Dict[str, Dict[str, str]], 
+        references: Dict[str, Dict[str, str]],
         embeddings: Optional[np.ndarray] = None,
         batch_size: int = 32
     ) -> Dict[str, Dict[str, float]]:
-        """
-        Calculate comprehensive evaluation metrics.
-
-        Args:
-            summaries (Dict[str, Dict]): Dictionary of generated summaries.
-            references (Dict[str, Dict[str, str]]): Dictionary of reference summaries.
-            embeddings (Optional[np.ndarray], optional): Array of embeddings. Defaults to None.
-            batch_size (int, optional): Batch size for processing. Defaults to 32.
-
-        Returns:
-            Dict[str, Dict[str, float]]: Dictionary of comprehensive metrics.
-        """
+        """Calculate comprehensive evaluation metrics."""
         try:
             metrics = {
                 'summarization': {
-                    'rouge': self.calculate_rouge_scores(summaries, references),
-                    'bert_score': self.calculate_bert_scores(summaries, references),
-                    'style': self._calculate_style_metrics(summaries)
+                    'rouge': self.calculate_rouge_scores(
+                        [s['summary'] for s in summaries.values()],
+                        [r['summary'] for r in references.values()]
+                    ),
+                    'bert_score': self.calculate_bert_scores(
+                        [s['summary'] for s in summaries.values()],
+                        [r['summary'] for r in references.values()]
+                    ),
+                    'style_consistency': self._calculate_style_consistency(summaries)
                 }
             }
             
             if embeddings is not None:
-                metrics['embedding'] = {
-                    'quality': self._calculate_embedding_quality(embeddings, batch_size),
-                    'stability': self._calculate_embedding_stability(embeddings)
+                metrics['clustering'] = {
+                    'silhouette': self.calculate_clustering_metrics(embeddings),
+                    'cohesion': self._calculate_cluster_cohesion(embeddings)
                 }
                 
-            metrics['runtime'] = self._calculate_runtime_metrics()
-            metrics['timestamp'] = datetime.now().isoformat()
-            
             return metrics
             
         except Exception as e:

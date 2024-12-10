@@ -268,10 +268,24 @@ def get_optimal_batch_size() -> int:
     if not torch.cuda.is_available():
         return 32  # Default CPU batch size
         
-    total_memory = torch.cuda.get_device_properties(0).total_memory
-    reserved_memory = 2 * 1024 * 1024 * 1024  # 2GB reserved
-    available_memory = total_memory - reserved_memory
-    return max(1, available_memory // (768 * 4))  # Based on embedding dimension
+    try:
+        torch.cuda.reset_peak_memory_stats()
+        total_memory = torch.cuda.get_device_properties(0).total_memory
+        reserved_memory = torch.cuda.memory_reserved(0)
+        allocated_memory = torch.cuda.memory_allocated(0)
+        free_memory = total_memory - reserved_memory - allocated_memory
+        
+        # Leave some buffer memory
+        usable_memory = free_memory * 0.8
+        
+        # Estimate memory per sample (embedding dimension * 4 bytes for float32)
+        memory_per_sample = 768 * 4  # Assuming 768 dimension embeddings
+        
+        optimal_batch_size = int(usable_memory / memory_per_sample)
+        return max(1, min(optimal_batch_size, 64))  # Cap at reasonable size
+        
+    except Exception:
+        return 32  # Fallback to default
 
 def set_random_seeds(seed: int = 42):
     """Set random seeds for reproducibility."""

@@ -13,6 +13,7 @@ from multiprocessing import Pool
 from functools import partial
 from tqdm import tqdm
 from torch.utils.data import DataLoader, Dataset
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 class TextDataset(Dataset):
     """Custom Dataset for text data."""
@@ -185,36 +186,107 @@ class TextPreprocessor:
         return processed
 
 class DomainAgnosticPreprocessor:
-    def __init__(self, config: Dict[str, Any]):
-        """Initialize with configuration."""
-        self.config = config
+    """Enhanced preprocessor for handling various text domains."""
+    
+    def __init__(self, config: Optional[Dict] = None):
+        self.config = config or {}
         self.logger = logging.getLogger(__name__)
         try:
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                config.get('preprocessing', {}).get('tokenizer_model', 'gpt2')
-            )
+            self.nlp = spacy.load('en_core_web_sm')
+        except OSError:
+            self.logger.warning("Downloading spaCy model...")
+            import subprocess
+            subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
+            self.nlp = spacy.load('en_core_web_sm')
+            
+    def preprocess_text(
+        self, 
+        text: str, 
+        domain: str = 'general'
+    ) -> str:
+        """Preprocess single text with domain-specific settings."""
+        try:
+            # Basic cleaning
+            text = text.strip()
+            text = re.sub(r'\s+', ' ', text)
+            
+            # Domain-specific processing
+            if domain == 'scientific':
+                text = self._process_scientific(text)
+            elif domain == 'legal':
+                text = self._process_legal(text)
+                
+            # Extract key information using spaCy
+            doc = self.nlp(text)
+            
+            # Keep only relevant tokens
+            tokens = [
+                token.text for token in doc
+                if not token.is_stop and not token.is_punct
+                and len(token.text.strip()) > 1
+            ]
+            
+            return ' '.join(tokens)
+            
         except Exception as e:
-            self.logger.error(f"Failed to initialize tokenizer: {str(e)}")
+            self.logger.error(f"Error preprocessing text: {e}")
             raise
 
-    def preprocess_texts(self, texts: List[str]) -> List[str]:
-        """Preprocess a list of texts."""
-        self.logger.info(f"Preprocessing {len(texts)} texts...")
-        return [self.preprocess_text(text) for text in texts]
+    def preprocess_texts(
+        self,
+        texts: List[str],
+        domain: str = 'general',
+        batch_size: int = 32
+    ) -> List[str]:
+        """Preprocess multiple texts in parallel."""
+        try:
+            with ThreadPoolExecutor() as executor:
+                processed_texts = list(
+                    tqdm(
+                        executor.map(
+                            lambda x: self.preprocess_text(x, domain),
+                            texts
+                        ),
+                        total=len(texts),
+                        desc="Preprocessing texts"
+                    )
+                )
+            return processed_texts
+            
+        except Exception as e:
+            self.logger.error(f"Error in batch preprocessing: {e}")
+            raise
 
-    def preprocess_text(self, text: str) -> str:
-        """Preprocess a single text."""
-        if not text:
-            return ""
+    def _process_scientific(self, text: str) -> str:
+        """Process scientific text with special handling for technical terms."""
+        # Replace numerical expressions with placeholders
+        text = re.sub(r'\d+\.\d+', '[NUM]', text)
+        text = re.sub(r'\d+%', '[PERCENT]', text)
         
-        # Remove special characters and extra whitespace
-        text = re.sub(r'[^\w\s]', ' ', text)
-        text = re.sub(r'\s+', ' ', text)
-        
-        # Convert to lowercase
-        text = text.lower().strip()
+        # Preserve equations and formulas
+        text = re.sub(r'\$.*?\$', '[EQUATION]', text)
         
         return text
+
+    def _process_legal(self, text: str) -> str:
+        """Process legal text with special handling for citations and references."""
+        # Replace legal citations
+        text = re.sub(r'(\d+\s+U\.S\.C\.\s+§\s+\d+)', '[LEGAL_REF]', text)
+        
+        # Replace section numbers
+        text = re.sub(r'Section\s+\d+', '[SECTION]', text)
+        
+        return text
+
+    def extract_entities(self, text: str) -> Dict[str, List[str]]:
+        """Extract named entities from text."""
+        doc = self.nlp(text)
+        entities = {}
+        for ent in doc.ents:
+            if ent.label_ not in entities:
+                entities[ent.label_] = []
+            entities[ent.label_].append(ent.text)
+        return entities
 
 # Example usage
 if __name__ == "__main__":

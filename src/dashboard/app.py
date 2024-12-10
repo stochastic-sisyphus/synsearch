@@ -112,4 +112,95 @@ class DashboardApp:
             return fig, metrics_html
             
     def run_server(self, debug=True, port=8050):
-        self.app.run_server(debug=debug, port=port)
+        self.app.run_server(debug=debug, port=8050)
+
+import streamlit as st
+import plotly.express as px
+from pathlib import Path
+import json
+from typing import Dict, Any
+import pandas as pd
+from src.visualization.embedding_visualizer import EmbeddingVisualizer
+from src.utils.metrics_calculator import MetricsCalculator
+
+class Dashboard:
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.visualizer = EmbeddingVisualizer(config)
+        self.metrics = MetricsCalculator()
+        
+    def run(self):
+        st.title("Dynamic Summarization Dashboard")
+        
+        # Sidebar controls
+        st.sidebar.header("Controls")
+        dataset = st.sidebar.selectbox(
+            "Select Dataset",
+            ["xlsum", "scisummnet"]
+        )
+        
+        # Load results
+        results = self._load_results(dataset)
+        if not results:
+            st.error("No results found for selected dataset")
+            return
+            
+        # Display metrics
+        self._show_metrics(results)
+        
+        # Show visualizations
+        self._show_visualizations(results)
+        
+        # Display summaries
+        self._show_summaries(results)
+    
+    def _load_results(self, dataset: str) -> Dict:
+        results_path = Path(self.config['data']['output_path']) / f"{dataset}_results.json"
+        if not results_path.exists():
+            return None
+        with open(results_path) as f:
+            return json.load(f)
+    
+    def _show_metrics(self, results: Dict):
+        st.header("Evaluation Metrics")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("Clustering Quality")
+            metrics = results['metrics']['clustering']
+            st.metric("Silhouette Score", f"{metrics['silhouette_score']:.3f}")
+            st.metric("Davies-Bouldin Index", f"{metrics['davies_bouldin_score']:.3f}")
+            
+        with col2:
+            st.subheader("Summarization Quality")
+            rouge = results['metrics']['summarization']['rouge']['rougeL']
+            st.metric("ROUGE-L F1", f"{rouge['fmeasure']:.3f}")
+            st.metric("ROUGE-L Precision", f"{rouge['precision']:.3f}")
+            
+    def _show_visualizations(self, results: Dict):
+        st.header("Visualizations")
+        
+        # UMAP plot of embeddings
+        fig = self.visualizer.plot_embeddings(
+            results['embeddings'],
+            results['clustering']['labels']
+        )
+        st.plotly_chart(fig)
+        
+    def _show_summaries(self, results: Dict):
+        st.header("Generated Summaries")
+        
+        for cluster_id, summary in results['summaries'].items():
+            with st.expander(f"Cluster {cluster_id}"):
+                st.markdown(summary['summary'])
+                st.caption(f"Style: {summary['style']}")
+
+if __name__ == "__main__":
+    import yaml
+    
+    with open("config/config.yaml") as f:
+        config = yaml.safe_load(f)
+        
+    dashboard = Dashboard(config)
+    dashboard.run()

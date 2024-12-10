@@ -32,7 +32,7 @@ streamlit>=1.2.0
 flask>=2.0.0
 
 # Utilities
-tqdm>=4.62.0
+tqdm>=4.65.0
 click>=8.0.0
 pytest>=7.0.0
 python-dotenv>=0.19.0
@@ -80,4 +80,7 @@ scipy>=1.8.0  # Required by networkx
 # Add these lines to requirements.txt
 beautifulsoup4>=4.9.3
 lxml>=4.9.0  # Optional but recommended parser for bs4
-spacy>=3.0.0
+spacy>=3.5.0
+
+# Add missing dependencies
+concurrent-futures>=3.0.5
