@@ -4,22 +4,12 @@ data:
   output_path: "data/output"
   processed_path: "data/processed"
   batch_size: 32
-  scisummnet_path: "data/scisummnet_release1.1__20190413"
+  scisummnet_path: "data/scisummnet"
   datasets:
     - name: "xlsum"
-      source: "huggingface"
       enabled: true
       language: "english"
-      dataset_name: "GEM/xlsum"
-    - name: "scisummnet"
-      source: "local"
-      enabled: true
-      file_patterns:
-        xml: "{paper_id}.xml"
-        summary: "{paper_id}.gold.txt"
-      subdirs:
-        documents: "Documents_xml"
-        summaries: "summary"
+      dataset_name: "xlsum"
 
 # Preprocessing Configuration
 preprocessing:
@@ -47,7 +37,7 @@ clustering:
   metric: "euclidean"
   params:
     min_cluster_size: 5
-    min_samples: 5
+    min_samples: 3
     metric: "euclidean"
   output_dir: "outputs/clusters"
   
@@ -58,7 +48,7 @@ clustering:
     resolution: 1.0
     
   streaming:
-    enabled: true
+    enabled: false
     buffer_size: 100
     update_interval: 60  # seconds
     

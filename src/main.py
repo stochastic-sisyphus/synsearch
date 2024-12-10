@@ -1,6 +1,38 @@
 import os
 import sys
 from pathlib import Path
+
+# Add project root to PYTHONPATH when running directly
+if __name__ == "__main__":
+    project_root = Path(__file__).parent.parent
+    sys.path.append(str(project_root))
+    
+    # Update imports to absolute paths when running as script
+    from src.data_loader import DataLoader
+    from src.data_validator import DataValidator, ConfigValidator
+    from src.embedding_generator import EnhancedEmbeddingGenerator
+    from src.visualization.embedding_visualizer import EmbeddingVisualizer
+    from src.preprocessor import DomainAgnosticPreprocessor
+    from src.summarization.hybrid_summarizer import HybridSummarizer
+    from src.evaluation.metrics import EvaluationMetrics
+    from src.clustering.dynamic_cluster_manager import DynamicClusterManager
+    from src.utils.metrics_utils import calculate_cluster_metrics
+    from src.utils.style_selector import determine_cluster_style
+    from src.utils.logging_config import setup_logging
+else:
+    # Use relative imports when imported as module
+    from .data_loader import DataLoader
+    from .data_validator import DataValidator, ConfigValidator
+    from .embedding_generator import EnhancedEmbeddingGenerator
+    from .visualization.embedding_visualizer import EmbeddingVisualizer
+    from .preprocessor import DomainAgnosticPreprocessor
+    from .summarization.hybrid_summarizer import HybridSummarizer
+    from .evaluation.metrics import EvaluationMetrics
+    from .clustering.dynamic_cluster_manager import DynamicClusterManager
+    from .utils.metrics_utils import calculate_cluster_metrics
+    from .utils.style_selector import determine_cluster_style
+    from .utils.logging_config import setup_logging
+
 import yaml
 import pandas as pd
 import logging
@@ -8,25 +40,13 @@ import torch
 import numpy as np
 from tqdm import tqdm
 
-from .data_loader import DataLoader
-from .data_validator import DataValidator, ConfigValidator
-from .embedding_generator import EnhancedEmbeddingGenerator
-from .visualization.embedding_visualizer import EmbeddingVisualizer
-from .preprocessor import DomainAgnosticPreprocessor
-from .summarization.hybrid_summarizer import HybridSummarizer
-from .evaluation.metrics import EvaluationMetrics
-from .clustering.dynamic_cluster_manager import DynamicClusterManager
-from .utils.metrics_utils import calculate_cluster_metrics
-from .utils.style_selector import determine_cluster_style
-from .utils.logging_config import setup_logging
-
 import json  # Add json import
 import multiprocessing
 from typing import List, Dict, Any
 from datetime import datetime
-from src.summarization.adaptive_summarizer import AdaptiveSummarizer
-from src.utils.metrics_utils import calculate_cluster_metrics
-from src.clustering.clustering_utils import process_clusters  # Update import path
+from .summarization.adaptive_summarizer import AdaptiveSummarizer
+from .utils.metrics_utils import calculate_cluster_metrics
+from .clustering.clustering_utils import process_clusters  # Update import path
 
 # Set up logging with absolute paths
 log_dir = Path(__file__).parent.parent / "logs"
@@ -53,8 +73,8 @@ from utils.style_selector import determine_cluster_style, get_style_parameters
 from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
 from datasets import load_dataset
 from utils.metrics_calculator import MetricsCalculator
-from src.summarization.adaptive_summarizer import AdaptiveSummarizer
-from src.clustering.dynamic_cluster_manager import DynamicClusterManager
+from .summarization.adaptive_summarizer import AdaptiveSummarizer
+from .clustering.dynamic_cluster_manager import DynamicClusterManager
 import random
 import numpy as np
 
