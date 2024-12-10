@@ -11,6 +11,18 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from multiprocessing import Pool, cpu_count
 
+class TextDataset(Dataset):
+    """Custom Dataset for text data."""
+    
+    def __init__(self, texts: list):
+        self.texts = texts
+        
+    def __len__(self):
+        return len(self.texts)
+    
+    def __getitem__(self, idx):
+        return self.texts[idx]
+
 class DataLoader:
     def __init__(self, config: Dict[str, Any]):
         """Initialize DataLoader with configuration"""
@@ -140,6 +152,7 @@ class DataLoader:
 
 class EnhancedDataLoader:
     def __init__(self, config: Dict[str, Any]):
+        """Initialize EnhancedDataLoader with configuration"""
         self.batch_size = config.get('batch_size', 32)
         self.num_workers = config.get('num_workers', 4)
         self.logger = logging.getLogger(__name__)

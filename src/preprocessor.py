@@ -12,6 +12,19 @@ from transformers import AutoTokenizer
 from multiprocessing import Pool
 from functools import partial
 from tqdm import tqdm
+from torch.utils.data import DataLoader, Dataset
+
+class TextDataset(Dataset):
+    """Custom Dataset for text data."""
+    
+    def __init__(self, texts: list):
+        self.texts = texts
+        
+    def __len__(self):
+        return len(self.texts)
+    
+    def __getitem__(self, idx):
+        return self.texts[idx]
 
 class TextPreprocessor:
     def __init__(self, language: str = 'english'):

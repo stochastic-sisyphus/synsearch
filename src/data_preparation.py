@@ -3,43 +3,51 @@ import pandas as pd
 import nltk
 import spacy
 from pathlib import Path
+from torch.utils.data import DataLoader, Dataset
+
+class TextDataset(Dataset):
+    """Custom Dataset for text data."""
+    
+    def __init__(self, texts: list):
+        self.texts = texts
+        
+    def __len__(self):
+        return len(self.texts)
+    
+    def __getitem__(self, idx):
+        return self.texts[idx]
 
 class DataPreparator:
     def __init__(self):
-        # Download required NLTK data
+        """Initialize the DataPreparator with required resources."""
         nltk.download('punkt')
         nltk.download('stopwords')
-        # Load spaCy model
         self.nlp = spacy.load('en_core_web_sm')
         
-    def load_xlsum(self):
-        """Load XL-Sum dataset from HuggingFace"""
+    def load_xlsum(self) -> dict:
+        """Load XL-Sum dataset from HuggingFace."""
         return load_dataset('GEM/xlsum')
     
-    def load_scisummnet(self, path):
-        """Load ScisummNet dataset from local path"""
+    def load_scisummnet(self, path: str) -> pd.DataFrame:
+        """Load ScisummNet dataset from local path."""
         scisummnet_path = Path(path)
         data = []
         
-        # Walk through the directory structure
         for paper_dir in scisummnet_path.glob('top1000_complete/*'):
             if not paper_dir.is_dir():
                 continue
             
             try:
-                # Load abstract
                 abstract_path = paper_dir / 'Documents_xml' / 'abstract.txt'
                 if abstract_path.exists():
                     with open(abstract_path, 'r', encoding='utf-8') as f:
                         abstract = f.read().strip()
                     
-                # Load summary
                 summary_path = paper_dir / 'summary' / 'summary.txt'
                 if summary_path.exists():
                     with open(summary_path, 'r', encoding='utf-8') as f:
                         summary = f.read().strip()
                     
-                # Add to dataset
                 if abstract and summary:
                     data.append({
                         'paper_id': paper_dir.name,
@@ -52,13 +60,10 @@ class DataPreparator:
                 
         return pd.DataFrame(data)
     
-    def preprocess_text(self, text):
-        """Basic text preprocessing"""
-        # Remove special characters
+    def preprocess_text(self, text: str) -> str:
+        """Basic text preprocessing."""
         text = ' '.join(text.split())
-        # Tokenize
         doc = self.nlp(text)
-        # Basic cleaning
         tokens = [
             token.text.lower() 
             for token in doc 
@@ -66,27 +71,23 @@ class DataPreparator:
         ]
         return ' '.join(tokens)
     
-    def process_dataset(self, dataset, save_path):
-        """Process and save dataset"""
+    def process_dataset(self, dataset: list, save_path: str, batch_size: int = 32) -> pd.DataFrame:
+        """Process and save dataset using batch processing."""
         processed_data = []
+        text_dataset = TextDataset([doc['text'] for doc in dataset])
+        dataloader = DataLoader(text_dataset, batch_size=batch_size, shuffle=False)
         
-        # For each document
-        for doc in dataset:
-            processed_doc = {
-                'id': doc.get('id', ''),
-                'text': self.preprocess_text(doc['text']),
-                'summary': self.preprocess_text(doc['summary']),
-                'metadata': {
-                    'source': doc.get('source', ''),
-                    'length': len(doc['text'].split())
+        for batch in dataloader:
+            for text in batch:
+                processed_doc = {
+                    'text': self.preprocess_text(text),
+                    'metadata': {
+                        'length': len(text.split())
+                    }
                 }
-            }
-            processed_data.append(processed_doc)
+                processed_data.append(processed_doc)
         
-        # Convert to DataFrame and save
         df = pd.DataFrame(processed_data)
-        
-        # Create directory if it doesn't exist
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(save_path, index=False)
         
@@ -95,14 +96,12 @@ class DataPreparator:
 def main():
     data_prep = DataPreparator()
     
-    # Process XL-Sum
     xlsum = data_prep.load_xlsum()
     data_prep.process_dataset(
         xlsum, 
         'data/processed/xlsum_processed.csv'
     )
     
-    # Process ScisummNet
     scisummnet = data_prep.load_scisummnet(
         '/Users/vanessa/Dropbox/synsearch/data/scisummnet_release1.1__20190413'
     )
