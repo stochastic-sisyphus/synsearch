@@ -12,7 +12,10 @@ def check_dependencies():
         ('yaml', 'Configuration'),
         ('pytest', 'Testing'),
         ('umap', 'Dimensionality reduction'),
-        ('plotly', 'Visualization')
+        ('plotly', 'Visualization'),
+        ('networkx', 'Graph operations'),
+        ('community', 'Community detection'),
+        ('python-louvain', 'Alternative community detection')
     ]
     
     missing = []
@@ -35,4 +38,4 @@ if __name__ == "__main__":
         print("pip install " + " ".join(missing))
         sys.exit(1)
     else:
-        print("\nAll dependencies satisfied!") 
+        print("\nAll dependencies satisfied!")

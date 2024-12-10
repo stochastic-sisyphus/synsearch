@@ -73,8 +73,9 @@ textacy>=0.12.0
 
 # Graph Clustering Dependencies
 networkx>=2.8.0
-python-louvain>=0.16  # For community detection
-community>=1.0.0b1  # Alternative package name for python-louvain
+python-louvain>=0.16
+# Note: community package is now maintained as python-louvain
+scipy>=1.8.0  # Required by networkx
 
 # Add these lines to requirements.txt
 beautifulsoup4>=4.9.3

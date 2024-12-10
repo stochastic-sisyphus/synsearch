@@ -1,0 +1,4 @@
+Requirement already satisfied: python-louvain in /home/codespace/.python/current/lib/python3.12/site-packages (0.16)
+Requirement already satisfied: networkx in /home/codespace/.local/lib/python3.12/site-packages (3.2.1)
+Requirement already satisfied: scipy in /home/codespace/.local/lib/python3.12/site-packages (1.14.1)
+Requirement already satisfied: numpy in /home/codespace/.python/current/lib/python3.12/site-packages (from python-louvain) (2.0.2)
