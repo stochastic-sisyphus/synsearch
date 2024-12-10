@@ -93,6 +93,8 @@ class EnhancedEmbeddingGenerator:
         try:
             if batch_size is None:
                 batch_size = self._get_optimal_batch_size()
+            else:
+                batch_size = int(batch_size)  # Ensure integer batch size
                 
             all_embeddings = []
             num_batches = (len(texts) + batch_size - 1) // batch_size
@@ -133,8 +135,8 @@ class EnhancedEmbeddingGenerator:
         if self.device == 'cuda':
             try:
                 free_memory = torch.cuda.get_device_properties(0).total_memory
-                # Use 80% of available memory
-                return max(1, (free_memory * 0.8) // (768 * 4))
+                # Use 80% of available memory and ensure integer result
+                return max(1, int((free_memory * 0.8) // (768 * 4)))  # Add int() conversion
             except:
                 return 32  # Default GPU batch size
         return 64  # Default CPU batch size
