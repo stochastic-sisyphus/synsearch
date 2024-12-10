@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 import torch.nn.functional as F
 from sklearn.metrics.pairwise import cosine_similarity
+from tqdm import tqdm  # Add tqdm import
 
 class HybridSummarizer:
     """Base class for hybrid summarization approaches."""

@@ -7,6 +7,7 @@ import logging
 import gc  # Add garbage collector
 from pathlib import Path
 from datetime import datetime
+from tqdm import tqdm  # Add tqdm import
 
 class AttentionLayer(nn.Module):
     def __init__(self, embedding_dim):
