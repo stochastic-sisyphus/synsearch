@@ -21,6 +21,7 @@ from src.summarization.adaptive_summarizer import AdaptiveSummarizer
 from src.utils.metrics_utils import calculate_cluster_metrics
 from clustering import process_clusters  # Add this import if process_clusters is defined in clustering module
 import json  # Add json import
+import multiprocessing
 
 # Set up logging with absolute paths
 log_dir = Path(__file__).parent.parent / "logs"
