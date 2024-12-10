@@ -1,20 +1,15 @@
-tree -I "__pycache__"
+tree -I "__pycache__|*.pyc|*.pyo" -L 4 --prune -P "*.py|*.txt|*.json"
 .
-├── README.md
 ├── __init__.py
-├── config
-│   ├── config.yaml
-│   └── visualization_config.yaml
 ├── data
-│   ├── input
-│   ├── output
-│   └── processed
-├── logs
-│   └── pipeline.log
+│   └── scisummnet_release1.1__20190413
+│       ├── Dataset_Documentation.txt
+│       └── log.txt
 ├── outputs
 │   ├── checkpoints
-│   └── figures
-├── plan.md
+│   │   └── pipeline_state.json
+│   └── embeddings
+│       └── metadata.json
 ├── requirements.txt
 ├── run.py
 ├── scripts
@@ -37,6 +32,8 @@ tree -I "__pycache__"
 │   │   └── streaming_manager.py
 │   ├── dashboard
 │   │   └── app.py
+│   ├── data
+│   │   └── data_loader.py
 │   ├── data_exploration.py
 │   ├── data_loader
 │   │   └── flexible_loader.py
@@ -65,7 +62,6 @@ tree -I "__pycache__"
 │   │   ├── hybrid_summarizer.py
 │   │   ├── model_trainer.py
 │   │   └── summarizer.py
-│   ├── synsearch.code-workspace
 │   ├── utils
 │   │   ├── __init__.py
 │   │   ├── checkpoint_manager.py
@@ -80,16 +76,23 @@ tree -I "__pycache__"
 │       ├── __init__.py
 │       ├── cluster_visualizer.py
 │       └── embedding_visualizer.py
+├── synsearch.egg-info
+│   ├── SOURCES.txt
+│   ├── dependency_links.txt
+│   ├── requires.txt
+│   └── top_level.txt
 └── tests
     ├── __init__.py
     ├── test_data_loader.py
     ├── test_data_pipeline.py
     ├── test_data_validator.py
+    ├── test_dynamic_clustering.py
     ├── test_embedding_generator.py
     ├── test_embedding_visualizer.py
     ├── test_enhanced_pipeline.py
     ├── test_evaluation_metrics.py
     ├── test_integration.py
+    ├── test_preprocessor.py
     └── test_summarizer.py
 
-21 directories, 70 files
+20 directories, 75 files
