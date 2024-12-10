@@ -19,7 +19,7 @@ from evaluation.metrics import EvaluationMetrics
 from src.clustering.dynamic_cluster_manager import DynamicClusterManager
 from src.summarization.adaptive_summarizer import AdaptiveSummarizer
 from src.utils.metrics_utils import calculate_cluster_metrics
-from clustering import process_clusters  # Add this import if process_clusters is defined in clustering module
+from src.clustering.clustering_utils import process_clusters  # Update import path
 import json  # Add json import
 import multiprocessing
 
