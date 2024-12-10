@@ -82,21 +82,23 @@ class EnhancedEmbeddingGenerator:
         batch_size: Optional[int] = None,
         cache_dir: Optional[Path] = None
     ) -> np.ndarray:
-        """Generate embeddings with caching and memory management."""
-        if cache_dir and (cache_dir / 'embeddings.pt').exists():
-            return self.load_embeddings(cache_dir / 'embeddings.pt')
-            
+        """Generate embeddings with optimized batch processing and caching."""
+        if cache_dir:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            cache_file = cache_dir / 'embeddings.pt'
+            if cache_file.exists():
+                return self.load_embeddings(cache_file)
+        
         try:
             if batch_size is None:
                 batch_size = self._get_optimal_batch_size()
                 
             all_embeddings = []
+            num_batches = (len(texts) + batch_size - 1) // batch_size
             
-            # Process in batches with progress bar
-            for i in tqdm(range(0, len(texts), batch_size), desc="Generating embeddings"):
+            for i in tqdm(range(0, len(texts), batch_size), total=num_batches, desc="Generating embeddings"):
                 batch_texts = texts[i:i + batch_size]
                 
-                # Clear cache between batches if using CUDA
                 if self.device == 'cuda':
                     torch.cuda.empty_cache()
                     
@@ -111,16 +113,13 @@ class EnhancedEmbeddingGenerator:
                     if apply_attention:
                         batch_embeddings = self.attention_layer(batch_embeddings)
                     
-                    # Move to CPU and convert to numpy
                     batch_embeddings = batch_embeddings.cpu().numpy()
                     all_embeddings.append(batch_embeddings)
                     
-            # Concatenate all batches
             embeddings = np.concatenate(all_embeddings, axis=0)
             
-            # Cache embeddings if directory provided
             if cache_dir:
-                self.save_embeddings(embeddings, cache_dir / 'embeddings.pt')
+                self.save_embeddings(embeddings, cache_file)
                 
             return embeddings
             

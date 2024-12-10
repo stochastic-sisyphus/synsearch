@@ -9,6 +9,7 @@ from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader, Dataset
+from multiprocessing import Pool, cpu_count
 
 class DataLoader:
     def __init__(self, config: Dict[str, Any]):
@@ -73,63 +74,68 @@ class DataLoader:
         return datasets
 
     def load_scisummnet(self, path: str) -> Optional[pd.DataFrame]:
-        """Load ScisummNet dataset from local directory"""
+        """Load ScisummNet dataset with parallel processing."""
         try:
             self.logger.info(f"Loading ScisummNet dataset from {path}...")
-            data = []
-            
-            # Get path to top1000_complete directory
             top1000_dir = Path(path) / 'top1000_complete'
+            
             if not top1000_dir.exists():
-                self.logger.error(f"Directory not found: {top1000_dir}")
-                return None
+                raise FileNotFoundError(f"Directory not found: {top1000_dir}")
             
-            # List all document directories
             doc_dirs = [d for d in top1000_dir.iterdir() if d.is_dir()]
-            self.logger.info(f"Found {len(doc_dirs)} potential documents")
             
-            for doc_dir in tqdm(doc_dirs, desc="Loading documents"):
-                try:
-                    paper_id = doc_dir.name
-                    xml_path = doc_dir / 'Documents_xml' / f'{paper_id}.xml'
-                    summary_path = doc_dir / 'summary' / f'{paper_id}.gold.txt'
-                    
-                    if not xml_path.exists() or not summary_path.exists():
-                        self.logger.debug(f"Missing files for paper {paper_id}")
-                        continue
-                    
-                    # Read XML content
-                    tree = ET.parse(xml_path)
-                    root = tree.getroot()
-                    text_elements = root.findall('.//S')
-                    text = ' '.join(elem.text.strip() for elem in text_elements if elem.text)
-                    
-                    # Read summary
-                    with open(summary_path, 'r', encoding='utf-8') as f:
-                        summary = f.read().strip()
-                    
-                    if text and summary:  # Only add if both text and summary exist
-                        data.append({
-                            'text': text,
-                            'summary': summary,
-                            'paper_id': paper_id,
-                            'source': 'scisummnet'
-                        })
-                        
-                except Exception as e:
-                    self.logger.warning(f"Error processing document {doc_dir.name}: {e}")
-                    continue
+            with Pool(processes=cpu_count()) as pool:
+                results = list(tqdm(
+                    pool.imap(self._process_document, doc_dirs),
+                    total=len(doc_dirs),
+                    desc="Processing documents"
+                ))
+                
+            valid_results = [r for r in results if r is not None]
             
-            if not data:
-                self.logger.error("No valid documents found in ScisummNet dataset")
-                return None
-            
-            df = pd.DataFrame(data)
-            self.logger.info(f"Successfully loaded {len(df)} documents from ScisummNet")
+            if not valid_results:
+                raise ValueError("No valid documents found")
+                
+            df = pd.DataFrame(valid_results)
+            self.logger.info(f"Successfully loaded {len(df)} documents")
             return df
             
         except Exception as e:
-            self.logger.error(f"Error loading ScisummNet dataset: {e}")
+            self.logger.error(f"Error loading ScisummNet: {e}")
+            return None
+
+    def _process_document(self, doc_dir: Path) -> Optional[Dict]:
+        """Process a single document with error handling."""
+        try:
+            paper_id = doc_dir.name
+            xml_path = doc_dir / 'Documents_xml' / f'{paper_id}.xml'
+            summary_path = doc_dir / 'summary' / f'{paper_id}.gold.txt'
+            
+            if not xml_path.exists() or not summary_path.exists():
+                return None
+                
+            tree = ET.parse(xml_path)
+            text = ' '.join(
+                elem.text.strip()
+                for elem in tree.findall('.//S')
+                if elem.text and elem.text.strip()
+            )
+            
+            with open(summary_path, 'r', encoding='utf-8') as f:
+                summary = f.read().strip()
+                
+            if not text or not summary:
+                return None
+                
+            return {
+                'text': text,
+                'summary': summary,
+                'paper_id': paper_id,
+                'source': 'scisummnet'
+            }
+            
+        except Exception as e:
+            self.logger.warning(f"Error processing {doc_dir.name}: {e}")
             return None
 
 class EnhancedDataLoader:

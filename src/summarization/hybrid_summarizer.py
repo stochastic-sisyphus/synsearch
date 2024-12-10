@@ -179,44 +179,121 @@ class EnhancedHybridSummarizer(HybridSummarizer):
         top_indices = np.argsort(centrality_scores)[-n_samples:]
         return [texts[i]['processed_text'] for i in top_indices]
         
-    def summarize_all_clusters(self, cluster_texts: Dict[str, List[Dict]], style='balanced') -> Dict[str, Dict]:
-        """Generate summaries for all clusters with specified style"""
-        summaries = {}
+    def summarize_all_clusters(
+        self,
+        cluster_texts: Dict[str, List[Dict]],
+        style: str = 'balanced'
+    ) -> Dict[str, Dict]:
+        """Generate summaries for all clusters with batched processing."""
+        try:
+            summaries = {}
+            style_config = self.style_config.get(style, self.style_config['balanced'])
+            
+            for cluster_id, texts in tqdm(cluster_texts.items(), desc="Summarizing clusters"):
+                rep_texts = self._get_representative_texts(texts)
+                
+                # Prepare prompt
+                prompt = self._create_style_prompt(style, rep_texts)
+                
+                # Generate summary
+                inputs = self.tokenizer(
+                    prompt,
+                    return_tensors='pt',
+                    truncation=True,
+                    max_length=1024
+                ).to(self.device)
+                
+                outputs = self.model.generate(
+                    **inputs,
+                    max_length=int(self.max_length * style_config['length_multiplier']),
+                    min_length=self.min_length,
+                    num_beams=4,
+                    length_penalty=2.0,
+                    early_stopping=True
+                )
+                
+                summary = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+                
+                summaries[cluster_id] = {
+                    'summary': summary,
+                    'style': style,
+                    'num_docs': len(texts),
+                    'metadata': self._get_summary_metadata(summary)
+                }
+                
+            return summaries
+            
+        except Exception as e:
+            self.logger.error(f"Error in summarize_all_clusters: {e}")
+            raise
+
+    def _create_style_prompt(self, style: str, texts: List[str]) -> str:
+        """Create style-specific prompts."""
+        style_prompts = {
+            'technical': "Provide a technical summary focusing on methodology and results:\n",
+            'concise': "Summarize the key points briefly:\n",
+            'detailed': "Provide a comprehensive summary including background and implications:\n"
+        }
         
-        for cluster_id, texts in cluster_texts.items():
-            # Select representative texts
-            rep_texts = self._get_representative_texts(texts)
-            
-            # Prepare prompt based on style
-            if style == 'technical':
-                prompt = f"Summarize the following research texts technically:\n{' '.join(rep_texts)}"
-            elif style == 'simple':
-                prompt = f"Summarize the following in simple terms:\n{' '.join(rep_texts)}"
-            else:  # balanced
-                prompt = f"Provide a balanced summary of:\n{' '.join(rep_texts)}"
-            
-            # Generate summary
-            inputs = self.tokenizer(prompt, return_tensors='pt', truncation=True, max_length=1024)
-            inputs = inputs.to(self.device)
-            
+        base_prompt = style_prompts.get(style, "")
+        return f"{base_prompt}{' '.join(texts)}"
+
+    def summarize_batch(self, texts, max_length=150):
+        """Summarize a batch of texts using GPU acceleration."""
+        inputs = self.tokenizer(
+            texts,
+            padding=True,
+            truncation=True,
+            return_tensors="pt"
+        ).to(self.device)
+        
+        with torch.no_grad():
             outputs = self.model.generate(
-                **inputs,
-                max_length=self.max_length,
-                min_length=self.min_length,
+                inputs.input_ids,
+                max_length=max_length,
                 num_beams=4,
-                length_penalty=2.0,
                 early_stopping=True
             )
             
-            summary = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        summaries = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        return summaries
+        
+    def summarize_with_clusters(self, cluster_texts, cluster_features, batch_size=8):
+        """Process clusters in batches for better GPU utilization."""
+        summaries = {}
+        for cluster_id, texts in cluster_texts.items():
+            # Process texts in batches
+            batches = [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
+            cluster_summaries = []
             
-            summaries[cluster_id] = {
-                'summary': summary,
-                'style': style,
-                'num_docs': len(texts)
-            }
+            for batch in batches:
+                batch_summaries = self.summarize_batch(batch)
+                cluster_summaries.extend(batch_summaries)
+                
+            summaries[cluster_id] = cluster_summaries
             
         return summaries
+
+    def summarize_cluster(
+        self,
+        texts: List[str],
+        style: str = 'auto'
+    ) -> Dict[str, Any]:
+        if style == 'auto':
+            style = self._determine_optimal_style(texts)
+        
+        config = self.style_configs[style]
+        summary = self._generate_summary(
+            texts,
+            max_length=config['max_length'],
+            min_length=config['min_length']
+        )
+        
+        return {
+            'summary': summary,
+            'style': style,
+            'metadata': self._get_summary_metadata(summary)
+        }
 
     def _preprocess_cluster_texts(self, texts: List[str], style: str) -> List[str]:
         """Preprocess texts based on style requirements"""
@@ -348,60 +425,3 @@ class EnhancedHybridSummarizer(HybridSummarizer):
         except Exception as e:
             self.logger.error(f"Error loading checkpoint: {e}")
             raise
-
-    def summarize_batch(self, texts, max_length=150):
-        """Summarize a batch of texts using GPU acceleration."""
-        inputs = self.tokenizer(
-            texts,
-            padding=True,
-            truncation=True,
-            return_tensors="pt"
-        ).to(self.device)
-        
-        with torch.no_grad():
-            outputs = self.model.generate(
-                inputs.input_ids,
-                max_length=max_length,
-                num_beams=4,
-                early_stopping=True
-            )
-            
-        summaries = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-        return summaries
-        
-    def summarize_with_clusters(self, cluster_texts, cluster_features, batch_size=8):
-        """Process clusters in batches for better GPU utilization."""
-        summaries = {}
-        for cluster_id, texts in cluster_texts.items():
-            # Process texts in batches
-            batches = [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
-            cluster_summaries = []
-            
-            for batch in batches:
-                batch_summaries = self.summarize_batch(batch)
-                cluster_summaries.extend(batch_summaries)
-                
-            summaries[cluster_id] = cluster_summaries
-            
-        return summaries
-
-    def summarize_cluster(
-        self,
-        texts: List[str],
-        style: str = 'auto'
-    ) -> Dict[str, Any]:
-        if style == 'auto':
-            style = self._determine_optimal_style(texts)
-        
-        config = self.style_configs[style]
-        summary = self._generate_summary(
-            texts,
-            max_length=config['max_length'],
-            min_length=config['min_length']
-        )
-        
-        return {
-            'summary': summary,
-            'style': style,
-            'metadata': self._get_summary_metadata(summary)
-        }

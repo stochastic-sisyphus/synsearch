@@ -143,19 +143,18 @@ def process_dataset(
     evaluator: EvaluationMetrics,
     config: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Process dataset through pipeline with enhanced error handling and metrics."""
+    """Process dataset with enhanced error handling and metrics tracking."""
     logger = logging.getLogger(__name__)
-    checkpoint_dir = Path(config['checkpoints']['dir'])
+    start_time = datetime.now()
     
     try:
         # Validate dataset
-        validator = DataValidator()
-        validation_results = validator.validate_dataset(dataset)
+        validation_results = DataValidator().validate_dataset(dataset)
         if not validation_results['is_valid']:
-            raise ValueError(f"Dataset failed validation: {validation_results['checks']}")
-            
-        # Generate embeddings with caching
-        embedding_cache = checkpoint_dir / dataset['name'] / 'embeddings'
+            raise ValueError(f"Dataset validation failed: {validation_results['checks']}")
+        
+        # Generate or load embeddings
+        embedding_cache = Path(config['checkpoints']['dir']) / dataset['name'] / 'embeddings'
         embeddings = generator.generate_embeddings(
             dataset['texts'],
             cache_dir=embedding_cache if config['checkpoints']['enabled'] else None
@@ -163,15 +162,16 @@ def process_dataset(
         
         # Perform clustering with metrics
         labels, clustering_metrics = cluster_manager.fit_predict(embeddings)
-        logger.info(f"Clustering metrics: {clustering_metrics}")
         
-        # Generate summaries for each cluster
+        # Generate summaries with style adaptation
         summaries = {}
-        for cluster_id, docs in cluster_manager.get_clusters(dataset['texts'], labels).items():
-            cluster_style = determine_cluster_style(docs)
-            summary = summarizer.summarize_cluster(docs, style=cluster_style)
+        clusters = cluster_manager.get_clusters(dataset['texts'], labels)
+        
+        for cluster_id, docs in clusters.items():
+            optimal_style = determine_cluster_style(docs)
+            summary = summarizer.summarize_cluster(docs, style=optimal_style)
             summaries[cluster_id] = summary
-            
+        
         # Calculate comprehensive metrics
         metrics = evaluator.calculate_comprehensive_metrics(
             summaries=summaries,
@@ -179,7 +179,14 @@ def process_dataset(
             embeddings=embeddings
         )
         
-        # Save results and metrics
+        # Add runtime metrics
+        runtime = (datetime.now() - start_time).total_seconds()
+        metrics['runtime'] = {
+            'total_seconds': runtime,
+            'processed_documents': len(dataset['texts']),
+            'documents_per_second': len(dataset['texts']) / runtime
+        }
+        
         results = {
             'validation': validation_results,
             'clustering': clustering_metrics,
@@ -187,12 +194,13 @@ def process_dataset(
             'metrics': metrics
         }
         
-        evaluator.save_metrics(
-            metrics=results,
-            output_dir=config['data']['output_path'],
-            prefix=dataset['name']
-        )
+        # Save results and metrics
+        save_path = Path(config['data']['output_path'])
+        save_path.mkdir(parents=True, exist_ok=True)
         
+        with open(save_path / f"{dataset['name']}_results.json", 'w') as f:
+            json.dump(results, f, indent=2)
+            
         return results
         
     except Exception as e:
