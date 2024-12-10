@@ -83,8 +83,8 @@ outputs/
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/dynamic-summarization.git
-cd dynamic-summarization
+git clone https://github.com/stochastic-sisyphus/synsearch.git
+cd synsearch
 ``` 
 
 2. Create and activate a virtual environment:
