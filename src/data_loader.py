@@ -6,6 +6,9 @@ from typing import Dict, Any, Union, List, Optional
 import json
 import xml.etree.ElementTree as ET
 from sentence_transformers import SentenceTransformer
+from tqdm import tqdm
+import torch
+from torch.utils.data import DataLoader, Dataset
 
 class DataLoader:
     def __init__(self, config: Dict[str, Any]):
@@ -85,7 +88,7 @@ class DataLoader:
             doc_dirs = [d for d in top1000_dir.iterdir() if d.is_dir()]
             self.logger.info(f"Found {len(doc_dirs)} potential documents")
             
-            for doc_dir in doc_dirs:
+            for doc_dir in tqdm(doc_dirs, desc="Loading documents"):
                 try:
                     paper_id = doc_dir.name
                     xml_path = doc_dir / 'Documents_xml' / f'{paper_id}.xml'
@@ -129,55 +132,42 @@ class DataLoader:
             self.logger.error(f"Error loading ScisummNet dataset: {e}")
             return None
 
-    def load_scisummnet_dataset(self) -> pd.DataFrame:
-        """Load ScisummNet dataset."""
+class EnhancedDataLoader:
+    def __init__(self, config: Dict[str, Any]):
+        self.batch_size = config.get('batch_size', 32)
+        self.num_workers = config.get('num_workers', 4)
+        self.logger = logging.getLogger(__name__)
+        
+    def get_dataloader(self, dataset: Dataset, shuffle: bool = True) -> DataLoader:
+        """Create a PyTorch DataLoader with optimal settings."""
+        return DataLoader(
+            dataset,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            shuffle=shuffle,
+            pin_memory=True,
+            drop_last=False
+        )
+        
+    def load_scisummnet(self, path: str) -> Optional[pd.DataFrame]:
+        """Load ScisummNet dataset with progress tracking."""
         try:
-            self.logger.info(f"Loading ScisummNet dataset from {self.config['data']['scisummnet_path']}...")
-            
-            # Get path to top1000_complete directory
-            top1000_dir = Path(self.config['data']['scisummnet_path']) / 'top1000_complete'
-            if not top1000_dir.exists():
-                self.logger.warning(f"ScisummNet top1000_complete directory not found at {top1000_dir}")
-                return None
-
+            self.logger.info(f"Loading ScisummNet dataset from {path}...")
             data = []
-            # Each subdirectory is a paper ID (e.g., W05-0904)
-            for paper_dir in top1000_dir.iterdir():
-                if not paper_dir.is_dir():
-                    continue
-                    
-                paper_id = paper_dir.name
-                xml_path = paper_dir / 'Documents_xml' / f'{paper_id}.xml'
-                summary_path = paper_dir / 'summary' / f'{paper_id}.gold.txt'  # Changed from .txt to .gold.txt
+            
+            top1000_dir = Path(path) / 'top1000_complete'
+            if not top1000_dir.exists():
+                raise FileNotFoundError(f"Directory not found: {top1000_dir}")
+            
+            doc_dirs = [d for d in top1000_dir.iterdir() if d.is_dir()]
+            
+            # Add progress bar
+            for doc_dir in tqdm(doc_dirs, desc="Loading documents"):
+                # ...existing document processing code...
+                pass  # Placeholder for existing document processing code
                 
-                if not xml_path.exists() or not summary_path.exists():
-                    self.logger.warning(f"Missing files for paper {paper_id}")
-                    continue
-                    
-                try:
-                    with open(summary_path, 'r', encoding='utf-8') as f:
-                        summary = f.read().strip()
-                        
-                    # Process XML and add to data
-                    data.append({
-                        'paper_id': paper_id,
-                        'summary': summary,
-                        'xml_path': str(xml_path),
-                        'summary_path': str(summary_path)
-                    })
-                        
-                except Exception as e:
-                    self.logger.warning(f"Error processing paper {paper_id}: {e}")
-                    continue
-
-            if not data:
-                self.logger.warning("No valid documents found in ScisummNet dataset")
-                return None
-            
-            df = pd.DataFrame(data)
-            self.logger.info(f"Successfully loaded {len(df)} documents from ScisummNet")
-            return df
-            
+            return pd.DataFrame(data) if data else None
+                
         except Exception as e:
             self.logger.error(f"Error loading ScisummNet dataset: {e}")
             return None

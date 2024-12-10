@@ -8,16 +8,33 @@ class DataValidator:
         self.logger = logging.getLogger(__name__)
     
     def validate_dataset(self, df: pd.DataFrame) -> Dict[str, bool]:
-        """Validate processed dataset against quality criteria"""
-        checks = {
-            'missing_values': self._check_missing_values(df),
-            'text_length': self._check_text_length(df),
-            'language': self._check_language(df),
-            'duplicates': self._check_duplicates(df)
-        }
-        
-        self.logger.info(f"Validation results: {checks}")
-        return checks
+        """Validate processed dataset against quality criteria."""
+        try:
+            validation_results = {
+                'missing_values': self._check_missing_values(df),
+                'text_length': self._check_text_length(df),
+                'language': self._check_language(df),
+                'duplicates': self._check_duplicates(df)
+            }
+            
+            # Log validation results
+            self.logger.info(f"Dataset validation results: {validation_results}")
+            
+            # Overall validation status
+            is_valid = all(validation_results.values())
+            
+            if not is_valid:
+                self.logger.warning("Dataset failed validation checks")
+                
+            return {
+                'is_valid': is_valid,
+                'checks': validation_results,
+                'stats': self.get_detailed_stats(df)
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error during dataset validation: {e}")
+            raise
     
     def _check_missing_values(self, df: pd.DataFrame) -> bool:
         """Check if missing values are below threshold (5%)"""
@@ -58,17 +75,19 @@ class DataValidator:
         return duplicate_ratio < 0.05  # Allow up to 5% duplicates
     
     def get_detailed_stats(self, df: pd.DataFrame) -> Dict[str, float]:
-        """Generate detailed statistics about the dataset"""
-        stats = {
-            'total_documents': len(df),
-            'avg_text_length': df['text'].str.split().str.len().mean(),
-            'avg_summary_length': df['summary'].str.split().str.len().mean(),
-            'missing_values_pct': (df.isnull().sum() / len(df) * 100).to_dict(),
-            'duplicate_ratio': df.duplicated(subset=['text']).sum() / len(df),
-        }
-        
-        self.logger.info(f"Dataset statistics: {stats}")
-        return stats
+        """Generate detailed statistics about the dataset."""
+        try:
+            text_lengths = df['processed_text'].str.len()
+            return {
+                'total_documents': len(df),
+                'avg_text_length': float(text_lengths.mean()),
+                'std_text_length': float(text_lengths.std()),
+                'missing_ratio': float(df.isnull().mean().mean()),
+                'duplicate_ratio': float(df.duplicated().mean())
+            }
+        except Exception as e:
+            self.logger.error(f"Error calculating dataset stats: {e}")
+            raise
     
     def validate_with_thresholds(self, df: pd.DataFrame, config: Dict) -> Dict[str, bool]:
         """Validate dataset against configurable thresholds"""

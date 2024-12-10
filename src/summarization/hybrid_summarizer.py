@@ -1,6 +1,6 @@
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 import logging
@@ -384,3 +384,24 @@ class EnhancedHybridSummarizer(HybridSummarizer):
             summaries[cluster_id] = cluster_summaries
             
         return summaries
+
+    def summarize_cluster(
+        self,
+        texts: List[str],
+        style: str = 'auto'
+    ) -> Dict[str, Any]:
+        if style == 'auto':
+            style = self._determine_optimal_style(texts)
+        
+        config = self.style_configs[style]
+        summary = self._generate_summary(
+            texts,
+            max_length=config['max_length'],
+            min_length=config['min_length']
+        )
+        
+        return {
+            'summary': summary,
+            'style': style,
+            'metadata': self._get_summary_metadata(summary)
+        }

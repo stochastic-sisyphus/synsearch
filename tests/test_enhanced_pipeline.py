@@ -106,3 +106,26 @@ def test_pipeline_integration():
     assert isinstance(summary, dict)
     assert 'summary' in summary
     assert isinstance(embeddings, np.ndarray)
+
+def test_full_pipeline_integration():
+    """Test complete pipeline with all components."""
+    config = {
+        'embedding': {'model_name': 'all-mpnet-base-v2'},
+        'clustering': {'min_cluster_size': 5},
+        'summarization': {'model_name': 'facebook/bart-large-cnn'}
+    }
+    
+    # Initialize components
+    preprocessor = DomainAgnosticPreprocessor()
+    embedding_gen = EnhancedEmbeddingGenerator(config['embedding'])
+    cluster_manager = DynamicClusterManager(config['clustering'])
+    summarizer = HybridSummarizer(config['summarization'])
+    
+    # Run pipeline
+    processed_text = preprocessor.preprocess_text(sample_text)
+    embeddings = embedding_gen.generate_embeddings([processed_text])
+    clusters = cluster_manager.fit_predict(embeddings)
+    summaries = summarizer.summarize_all_clusters(clusters)
+    
+    assert isinstance(summaries, dict)
+    assert len(summaries) > 0

@@ -1,7 +1,8 @@
 from typing import List, Dict, Union, Optional
 import numpy as np
-from sklearn.metrics import silhouette_score, davies_bouldin_score
+from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
 from rouge_score import rouge_scorer
+import bert_score
 import logging
 from pathlib import Path
 import json
@@ -113,25 +114,67 @@ class EvaluationMetrics:
     def calculate_comprehensive_metrics(
         self, 
         summaries: Dict[str, Dict],
-        references: Dict[str, str],
-        embeddings: Optional[Dict[str, np.ndarray]] = None
+        references: Dict[str, Dict[str, str]], 
+        embeddings: Optional[np.ndarray] = None
+    ) -> Dict[str, Dict[str, float]]:
+        """Calculate comprehensive evaluation metrics."""
+        try:
+            metrics = {
+                'summarization': {
+                    'rouge': self.calculate_rouge_scores(summaries, references),
+                    'bert_score': self.calculate_bert_scores(summaries, references),
+                    'style': self._calculate_style_metrics(summaries)
+                }
+            }
+            
+            if embeddings is not None:
+                metrics['embedding'] = {
+                    'quality': self._calculate_embedding_quality(embeddings),
+                    'stability': self._calculate_embedding_stability(embeddings)
+                }
+                
+            metrics['runtime'] = self._calculate_runtime_metrics()
+            metrics['timestamp'] = datetime.now().isoformat()
+            
+            return metrics
+            
+        except Exception as e:
+            self.logger.error(f"Error calculating metrics: {e}")
+            raise
+
+    def _calculate_embedding_quality(self, embeddings: np.ndarray) -> Dict[str, float]:
+        """Calculate embedding quality metrics."""
+        try:
+            # Calculate cosine similarities
+            similarities = cosine_similarity(embeddings)
+            
+            return {
+                'mean_similarity': float(np.mean(similarities)),
+                'std_similarity': float(np.std(similarities)),
+                'min_similarity': float(np.min(similarities)),
+                'max_similarity': float(np.max(similarities))
+            }
+        except Exception as e:
+            self.logger.error(f"Error calculating embedding quality: {e}")
+            raise
+
+    def calculate_bert_scores(
+        self,
+        summaries: List[str],
+        references: List[str]
     ) -> Dict[str, float]:
-        """Calculate comprehensive metrics including style-aware evaluation."""
-        metrics = {}
-        
-        # Standard ROUGE scores
-        rouge_scores = self.calculate_rouge_scores(
-            [s['summary'] for s in summaries.values()],
-            list(references.values())
-        )
-        metrics.update(rouge_scores)
-        
-        # Style-specific metrics
-        style_metrics = self._calculate_style_metrics(summaries)
-        metrics.update(style_metrics)
-        
-        return metrics
-        
+        """Calculate BERTScore for summaries."""
+        try:
+            P, R, F1 = bert_score.score(summaries, references, lang='en', verbose=False)
+            return {
+                'precision': float(P.mean()),
+                'recall': float(R.mean()),
+                'f1': float(F1.mean())
+            }
+        except Exception as e:
+            self.logger.error(f"Error calculating BERTScore: {e}")
+            return {'precision': 0.0, 'recall': 0.0, 'f1': 0.0}
+
     def _calculate_style_metrics(
         self, 
         summaries: Dict[str, Dict]

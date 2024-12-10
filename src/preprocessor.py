@@ -9,6 +9,8 @@ from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
 from tokenizers import ByteLevelBPETokenizer
 from transformers import AutoTokenizer
+from multiprocessing import Pool
+from functools import partial
 
 class TextPreprocessor:
     def __init__(self, language: str = 'english'):
@@ -78,51 +80,43 @@ class TextPreprocessor:
         
         return " ".join(tokens)
     
-    def process_dataset(self, 
-                       data: Union[pd.DataFrame, Dict], 
-                       text_column: str,
-                       summary_column: Optional[str] = None,
-                       batch_size: int = 1000) -> pd.DataFrame:
-        """Process entire dataset with batching support."""
+    def process_dataset(
+        self, 
+        data: Union[pd.DataFrame, Dict], 
+        text_column: str,
+        summary_column: Optional[str] = None,
+        batch_size: int = 1000,
+        n_jobs: int = -1
+    ) -> pd.DataFrame:
+        """Process dataset using multiprocessing."""
         self.logger.info("Starting dataset processing...")
         
-        # Convert to DataFrame if necessary
         if isinstance(data, dict):
             df = pd.DataFrame(data)
         else:
             df = data.copy()
-            
-        # Process in batches
-        total_rows = len(df)
-        processed_texts = []
-        processed_summaries = []
         
-        for i in range(0, total_rows, batch_size):
-            batch = df.iloc[i:i+batch_size]
-            
+        with Pool(processes=n_jobs if n_jobs > 0 else None) as pool:
             # Process text column
-            batch_texts = batch[text_column].apply(self.preprocess_text)
-            processed_texts.extend(batch_texts)
+            processed_texts = list(tqdm(
+                pool.imap(self.preprocess_text, df[text_column]),
+                total=len(df),
+                desc="Processing texts"
+            ))
             
-            # Process summary column if provided
+            # Process summaries if available
             if summary_column and summary_column in df.columns:
-                batch_summaries = batch[summary_column].apply(
-                    lambda x: self.preprocess_text(x, remove_citations=False)
-                )
-                processed_summaries.extend(batch_summaries)
-            
-            self.logger.info(f"Processed {min(i+batch_size, total_rows)}/{total_rows} documents")
+                process_summary = partial(self.preprocess_text, remove_citations=False)
+                processed_summaries = list(tqdm(
+                    pool.imap(process_summary, df[summary_column]),
+                    total=len(df),
+                    desc="Processing summaries"
+                ))
+                df['processed_summary'] = processed_summaries
         
-        # Update DataFrame
         df['processed_text'] = processed_texts
-        if summary_column and summary_column in df.columns:
-            df['processed_summary'] = processed_summaries
-            
-        # Add metadata
-        df['token_count'] = df['processed_text'].apply(lambda x: len(x.split()))
-        df['has_summary'] = df['processed_summary'].notna() if 'processed_summary' in df.columns else False
+        df['token_count'] = df['processed_text'].apply(len)
         
-        self.logger.info("Dataset processing complete")
         return df
 
     def get_statistics(self, df: pd.DataFrame) -> Dict:
@@ -234,4 +228,4 @@ if __name__ == "__main__":
         print("\nScisummNet Processing Complete:")
         print(f"Total documents: {len(processed_sci)}")
         print("Sample processed text:")
-        print(processed_sci['processed_text'].iloc[0][:200]) 
+        print(processed_sci['processed_text'].iloc[0][:200])

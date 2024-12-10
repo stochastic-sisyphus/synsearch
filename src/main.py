@@ -47,6 +47,8 @@ from datasets import load_dataset
 from utils.metrics_calculator import MetricsCalculator
 from src.summarization.adaptive_summarizer import AdaptiveSummarizer
 from src.clustering.dynamic_cluster_manager import DynamicClusterManager
+import random
+import numpy as np
 
 def get_device():
     """Get the best available device (GPU if available, else CPU)."""
@@ -107,12 +109,12 @@ def validate_config(config):
     
     # Validate dataset configurations
     for dataset_config in config['data']['datasets']:
-        if dataset_config['name'] == 'xlsum' and dataset_config.get('enabled', False):
+        if (dataset_config['name'] == 'xlsum' and dataset_config.get('enabled', False)):
             if 'language' not in dataset_config:
                 raise ValueError("XL-Sum dataset requires 'language' specification in config")
             if 'dataset_name' not in dataset_config:
                 raise ValueError("XL-Sum dataset requires 'dataset_name' specification in config")
-        elif dataset_config['name'] == 'scisummnet' and dataset_config.get('enabled', False):
+        elif (dataset_config['name'] == 'scisummnet' and dataset_config.get('enabled', False)):
             if not config['data'].get('scisummnet_path'):
                 raise ValueError("ScisummNet dataset requires 'scisummnet_path' in config['data']")
     
@@ -141,72 +143,90 @@ def process_dataset(
     evaluator: EvaluationMetrics,
     config: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Process a single dataset through the pipeline."""
+    """Process dataset through pipeline with enhanced error handling and metrics."""
     logger = logging.getLogger(__name__)
-    
-    # Perform clustering
-    labels, clustering_metrics = cluster_manager.fit_predict(dataset['embeddings'])
-    logger.info(f"Clustering completed with metrics: {clustering_metrics}")
-    
-    # Group documents by cluster
-    clusters = cluster_manager.get_cluster_documents(dataset['documents'], labels)
-    
-    # Generate summaries for each cluster
-    summaries = {}
-    for cluster_id, docs in clusters.items():
-        cluster_texts = [doc['text'] for doc in docs]
-        cluster_embeddings = np.array([doc['embedding'] for doc in docs])
-        
-        summary_data = summarizer.summarize_cluster(
-            texts=cluster_texts,
-            embeddings=cluster_embeddings,
-            cluster_id=cluster_id
-        )
-        summaries[str(cluster_id)] = summary_data
-    
-    # Calculate comprehensive metrics
-    metrics = evaluator.calculate_comprehensive_metrics(
-        summaries=summaries,
-        references=dataset.get('references', {}),
-        embeddings=dataset['embeddings']
-    )
-    
-    # Save results
-    results = {
-        'clustering_metrics': clustering_metrics,
-        'summaries': summaries,
-        'evaluation_metrics': metrics
-    }
-    
-    evaluator.save_metrics(
-        metrics=results,
-        output_dir=config['data']['output_path'],
-        prefix=dataset.get('name', 'unnamed_dataset')
-    )
-    
-    return results
-
-def get_optimal_batch_size():
-    """Determine optimal batch size based on available CUDA memory."""
-    if torch.cuda.is_available():
-        # Get available GPU memory
-        gpu_memory = torch.cuda.get_device_properties(0).total_memory
-        # Use more conservative batch sizes
-        if gpu_memory < 4e9:  # Less than 4GB
-            return 4
-        elif gpu_memory < 6e9:  # Less than 6GB
-            return 8
-        elif gpu_memory < 8e9:  # Less than 8GB
-            return 12
-        else:
-            return 16
-    return 16  # Default for CPU
-
-def main():
-    # Initialize logger first
-    logger = logging.getLogger(__name__)
+    checkpoint_dir = Path(config['checkpoints']['dir'])
     
     try:
+        # Validate dataset
+        validator = DataValidator()
+        validation_results = validator.validate_dataset(dataset)
+        if not validation_results['is_valid']:
+            raise ValueError(f"Dataset failed validation: {validation_results['checks']}")
+            
+        # Generate embeddings with caching
+        embedding_cache = checkpoint_dir / dataset['name'] / 'embeddings'
+        embeddings = generator.generate_embeddings(
+            dataset['texts'],
+            cache_dir=embedding_cache if config['checkpoints']['enabled'] else None
+        )
+        
+        # Perform clustering with metrics
+        labels, clustering_metrics = cluster_manager.fit_predict(embeddings)
+        logger.info(f"Clustering metrics: {clustering_metrics}")
+        
+        # Generate summaries for each cluster
+        summaries = {}
+        for cluster_id, docs in cluster_manager.get_clusters(dataset['texts'], labels).items():
+            cluster_style = determine_cluster_style(docs)
+            summary = summarizer.summarize_cluster(docs, style=cluster_style)
+            summaries[cluster_id] = summary
+            
+        # Calculate comprehensive metrics
+        metrics = evaluator.calculate_comprehensive_metrics(
+            summaries=summaries,
+            references=dataset.get('references', {}),
+            embeddings=embeddings
+        )
+        
+        # Save results and metrics
+        results = {
+            'validation': validation_results,
+            'clustering': clustering_metrics,
+            'summaries': summaries,
+            'metrics': metrics
+        }
+        
+        evaluator.save_metrics(
+            metrics=results,
+            output_dir=config['data']['output_path'],
+            prefix=dataset['name']
+        )
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error processing dataset {dataset.get('name', 'unknown')}: {e}")
+        raise
+
+def get_optimal_batch_size() -> int:
+    """Determine optimal batch size based on available CUDA memory."""
+    if not torch.cuda.is_available():
+        return 32  # Default CPU batch size
+        
+    total_memory = torch.cuda.get_device_properties(0).total_memory
+    reserved_memory = 2 * 1024 * 1024 * 1024  # 2GB reserved
+    available_memory = total_memory - reserved_memory
+    return max(1, available_memory // (768 * 4))  # Based on embedding dimension
+
+def set_random_seeds(seed: int = 42):
+    """Set random seeds for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+def main():
+    try:
+        # Set random seeds
+        set_random_seeds(42)
+        
+        # Initialize logger
+        logger = logging.getLogger(__name__)
+        
         # Load and validate configuration
         config = load_config()
         config = validate_config(config)
@@ -280,8 +300,8 @@ def main():
         logger.info("Pipeline completed successfully!")
         
     except Exception as e:
-        logger.error(f"An error occurred: {str(e)}", exc_info=True)
-        raise
+        logger.error(f"Critical error in pipeline: {str(e)}", exc_info=True)
+        raise SystemExit(1)
 
 if __name__ == "__main__":
     main()

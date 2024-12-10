@@ -253,7 +253,7 @@ outputs/
 │   └── summarization/
 ├── figures/
 │   ├── embeddings_umap.png
-│   └── cluster_distribution.png
+│   └─��� cluster_distribution.png
 └── results/
     ├── clusters.json
     ├── summaries.json
@@ -438,3 +438,25 @@ print(f"ROUGE-L F1: {scores['rougeL']['fmeasure']:.3f}")
 bleu_scores = metrics.calculate_bleu_scores(generated_summaries, reference_summaries)
 print(f"BLEU Score: {bleu_scores['bleu']:.3f}")
 ```
+
+# config/config.yaml
+embedding:
+  model_name: 'all-mpnet-base-v2'
+  batch_size: 32
+  max_seq_length: 512
+
+clustering:
+  algorithm: 'hdbscan'
+  min_cluster_size: 5
+  min_samples: 3
+  metric: 'euclidean'
+
+summarization:
+  model_name: 'facebook/bart-large-cnn'
+  styles:
+    technical:
+      max_length: 150
+      min_length: 50
+    concise:
+      max_length: 100
+      min_length: 30

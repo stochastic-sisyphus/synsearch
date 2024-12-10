@@ -81,7 +81,23 @@ summarization:
 logging:
   level: "INFO"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: 'logs/pipeline.log'
 
 # Checkpoints Configuration
 checkpoints:
+  enabled: true
   dir: "outputs/checkpoints"
+  save_frequency: 1000
+
+# Validation Configuration
+validation:
+  min_text_length: 10
+  max_missing_ratio: 0.05
+  min_cluster_size: 5
+  language: 'english'
+
+# Metrics Configuration
+metrics:
+  track_embedding_quality: true
+  track_cluster_stability: true
+  track_summarization_quality: true

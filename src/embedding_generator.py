@@ -2,9 +2,11 @@ import torch
 import torch.nn as nn
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict
 import logging
 import gc  # Add garbage collector
+from pathlib import Path
+from datetime import datetime
 
 class AttentionLayer(nn.Module):
     def __init__(self, embedding_dim):
@@ -77,23 +79,28 @@ class EnhancedEmbeddingGenerator:
         self,
         texts: List[str],
         apply_attention: bool = True,
-        batch_size: Optional[int] = None
+        batch_size: Optional[int] = None,
+        cache_dir: Optional[Path] = None
     ) -> np.ndarray:
-        """Generate embeddings with memory-efficient batching."""
-        if batch_size is None:
-            batch_size = self.batch_size
+        """Generate embeddings with caching and memory management."""
+        if cache_dir and (cache_dir / 'embeddings.pt').exists():
+            return self.load_embeddings(cache_dir / 'embeddings.pt')
             
         try:
-            # Process in batches to manage memory
+            if batch_size is None:
+                batch_size = self._get_optimal_batch_size()
+                
             all_embeddings = []
-            for i in range(0, len(texts), batch_size):
+            
+            # Process in batches with progress bar
+            for i in tqdm(range(0, len(texts), batch_size), desc="Generating embeddings"):
                 batch_texts = texts[i:i + batch_size]
                 
                 # Clear cache between batches if using CUDA
                 if self.device == 'cuda':
                     torch.cuda.empty_cache()
                     
-                with torch.no_grad():  # Reduce memory usage during inference
+                with torch.no_grad():
                     batch_embeddings = self.model.encode(
                         batch_texts,
                         batch_size=batch_size,
@@ -104,17 +111,33 @@ class EnhancedEmbeddingGenerator:
                     if apply_attention:
                         batch_embeddings = self.attention_layer(batch_embeddings)
                     
-                    # Move to CPU and convert to numpy to free GPU memory
+                    # Move to CPU and convert to numpy
                     batch_embeddings = batch_embeddings.cpu().numpy()
                     all_embeddings.append(batch_embeddings)
                     
             # Concatenate all batches
             embeddings = np.concatenate(all_embeddings, axis=0)
+            
+            # Cache embeddings if directory provided
+            if cache_dir:
+                self.save_embeddings(embeddings, cache_dir / 'embeddings.pt')
+                
             return embeddings
             
         except Exception as e:
             self.logger.error(f"Error generating embeddings: {e}")
             raise
+
+    def _get_optimal_batch_size(self) -> int:
+        """Determine optimal batch size based on available memory."""
+        if self.device == 'cuda':
+            try:
+                free_memory = torch.cuda.get_device_properties(0).total_memory
+                # Use 80% of available memory
+                return max(1, (free_memory * 0.8) // (768 * 4))
+            except:
+                return 32  # Default GPU batch size
+        return 64  # Default CPU batch size
 
     def calculate_similarity(self, emb1: torch.Tensor, emb2: torch.Tensor) -> float:
         """Calculate cosine similarity between two embeddings."""
@@ -141,3 +164,22 @@ class EnhancedEmbeddingGenerator:
                 pairs += 1
                 
         return total_similarity / pairs if pairs > 0 else 0.0
+
+    def save_embeddings(self, embeddings: torch.Tensor, path: Path):
+        """Save embeddings to disk with metadata."""
+        torch.save({
+            'embeddings': embeddings,
+            'config': self.config,
+            'timestamp': datetime.now().isoformat()
+        }, path)
+        
+    def _validate_checkpoint(self, checkpoint: Dict) -> bool:
+        """Validate checkpoint contents."""
+        required_keys = ['embeddings', 'config', 'timestamp']
+        return all(key in checkpoint for key in required_keys)
+
+    def load_embeddings(self, path: Path) -> torch.Tensor:
+        """Load embeddings with validation."""
+        checkpoint = torch.load(path)
+        self._validate_checkpoint(checkpoint)
+        return checkpoint['embeddings']
