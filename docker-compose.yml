@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    volumes:
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  tests:
+    build: .
+    command: python -m pytest tests/
+    volumes:
+      - ./tests:/app/tests

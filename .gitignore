@@ -56,3 +56,6 @@ build/
 .coverage
 coverage.xml
 htmlcov/
+
+# everything else
+.github/
