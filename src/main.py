@@ -1,6 +1,19 @@
 import os
 import sys
 from pathlib import Path
+import yaml
+import pandas as pd
+import logging
+import torch
+import numpy as np
+from tqdm import tqdm
+import json
+import multiprocessing
+from typing import List, Dict, Any
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+import random
+from datasets import load_dataset
 
 # Add project root to PYTHONPATH when running directly
 if __name__ == "__main__":
@@ -16,14 +29,16 @@ if __name__ == "__main__":
     from src.summarization.hybrid_summarizer import HybridSummarizer
     from src.evaluation.metrics import EvaluationMetrics
     from src.clustering.dynamic_cluster_manager import DynamicClusterManager
-    from src.utils.metrics_utils import calculate_cluster_metrics
+    from src.utils.metrics_utils import (
+        calculate_cluster_metrics,
+        calculate_cluster_variance,
+        calculate_lexical_diversity
+    )
     from src.utils.style_selector import determine_cluster_style, get_style_parameters
     from src.utils.logging_config import setup_logging
-    from src.utils.metrics_utils import (
-        calculate_cluster_variance, 
-        calculate_lexical_diversity, 
-        calculate_cluster_metrics
-    )
+    from src.utils.metrics_calculator import MetricsCalculator
+    from src.summarization.adaptive_summarizer import AdaptiveSummarizer
+    from src.clustering.clustering_utils import process_clusters
 else:
     # Use relative imports when imported as module
     from .data_loader import DataLoader
@@ -34,29 +49,16 @@ else:
     from .summarization.hybrid_summarizer import HybridSummarizer
     from .evaluation.metrics import EvaluationMetrics
     from .clustering.dynamic_cluster_manager import DynamicClusterManager
-    from .utils.metrics_utils import calculate_cluster_metrics
+    from .utils.metrics_utils import (
+        calculate_cluster_metrics,
+        calculate_cluster_variance,
+        calculate_lexical_diversity
+    )
     from .utils.style_selector import determine_cluster_style, get_style_parameters
     from .utils.logging_config import setup_logging
-    from .utils.metrics_utils import (
-        calculate_cluster_variance,
-        calculate_lexical_diversity,
-        calculate_cluster_metrics
-    )
-
-import yaml
-import pandas as pd
-import logging
-import torch
-import numpy as np
-from tqdm import tqdm
-
-import json  # Add json import
-import multiprocessing
-from typing import List, Dict, Any
-from datetime import datetime
-from .summarization.adaptive_summarizer import AdaptiveSummarizer
-from .utils.metrics_utils import calculate_cluster_metrics
-from .clustering.clustering_utils import process_clusters  # Update import path
+    from .utils.metrics_calculator import MetricsCalculator
+    from .summarization.adaptive_summarizer import AdaptiveSummarizer
+    from .clustering.clustering_utils import process_clusters
 
 # Set up logging with absolute paths
 log_dir = Path(__file__).parent.parent / "logs"
@@ -67,26 +69,10 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(sys.stdout),  # Print to stdout explicitly
-        logging.FileHandler(str(log_file))  # Convert Path to string for logging
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(str(log_file))
     ]
 )
-
-# Add the project root directory to the Python path
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(project_root)
-
-import torch
-import multiprocessing
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-from utils.style_selector import determine_cluster_style, get_style_parameters
-from utils.metrics_utils import calculate_cluster_variance, calculate_lexical_diversity, calculate_cluster_metrics
-from datasets import load_dataset
-from utils.metrics_calculator import MetricsCalculator
-from .summarization.adaptive_summarizer import AdaptiveSummarizer
-from .clustering.dynamic_cluster_manager import DynamicClusterManager
-import random
-import numpy as np
 
 def get_device():
     """Get the best available device (GPU if available, else CPU)."""
