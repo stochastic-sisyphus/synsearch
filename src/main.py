@@ -158,6 +158,13 @@ def process_dataset(
             max_seq_length=config['embedding'].get('max_seq_length', 512)
         )
 
+        # Get dataset name, fallback to 'unnamed' if not provided
+        dataset_name = dataset.get('name', 'unnamed')
+        
+        # Update cache directory path
+        cache_dir = Path(config['checkpoints']['dir']) / dataset_name / 'embeddings' \
+            if config['checkpoints'].get('enabled', False) else None
+
         # Split texts into manageable chunks (e.g., 1000 documents per chunk)
         chunk_size = config.get('processing', {}).get('chunk_size', 1000)
         text_chunks = [dataset['texts'][i:i + chunk_size] 
@@ -297,6 +304,7 @@ def main():
             embeddings = embedding_generator.generate_embeddings(processed_texts)
             
             processed_datasets[dataset_name] = {
+                'name': dataset_name,  # Add dataset name
                 'texts': processed_texts,
                 'embeddings': embeddings,
                 'summaries': df['summary'].tolist() if 'summary' in df else None,
