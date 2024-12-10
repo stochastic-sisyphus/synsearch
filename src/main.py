@@ -17,8 +17,13 @@ if __name__ == "__main__":
     from src.evaluation.metrics import EvaluationMetrics
     from src.clustering.dynamic_cluster_manager import DynamicClusterManager
     from src.utils.metrics_utils import calculate_cluster_metrics
-    from src.utils.style_selector import determine_cluster_style
+    from src.utils.style_selector import determine_cluster_style, get_style_parameters
     from src.utils.logging_config import setup_logging
+    from src.utils.metrics_utils import (
+        calculate_cluster_variance, 
+        calculate_lexical_diversity, 
+        calculate_cluster_metrics
+    )
 else:
     # Use relative imports when imported as module
     from .data_loader import DataLoader
@@ -30,8 +35,13 @@ else:
     from .evaluation.metrics import EvaluationMetrics
     from .clustering.dynamic_cluster_manager import DynamicClusterManager
     from .utils.metrics_utils import calculate_cluster_metrics
-    from .utils.style_selector import determine_cluster_style
+    from .utils.style_selector import determine_cluster_style, get_style_parameters
     from .utils.logging_config import setup_logging
+    from .utils.metrics_utils import (
+        calculate_cluster_variance,
+        calculate_lexical_diversity,
+        calculate_cluster_metrics
+    )
 
 import yaml
 import pandas as pd
