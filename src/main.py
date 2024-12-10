@@ -19,6 +19,8 @@ from evaluation.metrics import EvaluationMetrics
 from src.clustering.dynamic_cluster_manager import DynamicClusterManager
 from src.summarization.adaptive_summarizer import AdaptiveSummarizer
 from src.utils.metrics_utils import calculate_cluster_metrics
+from clustering import process_clusters  # Add this import if process_clusters is defined in clustering module
+import json  # Add json import
 
 # Set up logging with absolute paths
 log_dir = Path(__file__).parent.parent / "logs"
@@ -74,7 +76,6 @@ def load_config():
     
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
-
 def process_texts(texts: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
     """Process texts with adaptive summarization and enhanced metrics."""
     # Initialize components with config settings
@@ -148,6 +149,13 @@ def process_dataset(
     start_time = datetime.now()
     
     try:
+        # Initialize embedding generator
+        embedding_generator = EnhancedEmbeddingGenerator(
+            model_name=config['embedding']['model_name'],
+            batch_size=config['embedding'].get('batch_size', 32),
+            max_seq_length=config['embedding'].get('max_seq_length', 512)
+        )
+
         # Validate dataset
         validation_results = DataValidator().validate_dataset(dataset)
         if not validation_results['is_valid']:
@@ -155,7 +163,7 @@ def process_dataset(
         
         # Generate or load embeddings
         embedding_cache = Path(config['checkpoints']['dir']) / dataset['name'] / 'embeddings'
-        embeddings = generator.generate_embeddings(
+        embeddings = embedding_generator.generate_embeddings(
             dataset['texts'],
             cache_dir=embedding_cache if config['checkpoints']['enabled'] else None
         )

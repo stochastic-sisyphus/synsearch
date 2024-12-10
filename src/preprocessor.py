@@ -11,6 +11,7 @@ from tokenizers import ByteLevelBPETokenizer
 from transformers import AutoTokenizer
 from multiprocessing import Pool
 from functools import partial
+from tqdm import tqdm
 
 class TextPreprocessor:
     def __init__(self, language: str = 'english'):

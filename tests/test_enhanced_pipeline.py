@@ -109,6 +109,7 @@ def test_pipeline_integration():
 
 def test_full_pipeline_integration():
     """Test complete pipeline with all components."""
+    sample_text = "This is a test document for testing the complete pipeline integration."
     config = {
         'embedding': {'model_name': 'all-mpnet-base-v2'},
         'clustering': {'min_cluster_size': 5},

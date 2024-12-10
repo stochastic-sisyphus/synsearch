@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 import json
 from datetime import datetime
+from sklearn.metrics.pairwise import cosine_similarity
 
 class EvaluationMetrics:
     def __init__(self):
@@ -198,3 +199,13 @@ class EvaluationMetrics:
             'scisummnet': calculate_scientific_metrics(summaries, references)
         }
         return metrics
+
+def calculate_xlsum_metrics(summaries, references):
+    """Calculate XL-Sum specific metrics"""
+    # Add implementation
+    return {}
+
+def calculate_scientific_metrics(summaries, references): 
+    """Calculate scientific text specific metrics"""
+    # Add implementation
+    return {}
