@@ -8,17 +8,35 @@ import gc  # Add garbage collector
 from pathlib import Path
 from datetime import datetime
 from tqdm import tqdm  # Add tqdm import
+from torch.utils.data import DataLoader, Dataset
 
 class AttentionLayer(nn.Module):
-    def __init__(self, embedding_dim):
+    """Attention layer for refining embeddings."""
+    
+    def __init__(self, embedding_dim: int):
         super().__init__()
         self.attention = nn.Linear(embedding_dim, 1)
     
-    def forward(self, embeddings):
+    def forward(self, embeddings: torch.Tensor) -> torch.Tensor:
+        """Apply attention mechanism to embeddings."""
         attention_weights = torch.softmax(self.attention(embeddings), dim=0)
         return embeddings * attention_weights
 
+class EmbeddingDataset(Dataset):
+    """Custom Dataset for embeddings."""
+    
+    def __init__(self, texts: List[str]):
+        self.texts = texts
+        
+    def __len__(self):
+        return len(self.texts)
+    
+    def __getitem__(self, idx):
+        return self.texts[idx]
+
 class EnhancedEmbeddingGenerator:
+    """Generates embeddings with memory management and attention mechanism."""
+    
     def __init__(
         self, 
         model_name: str = 'all-mpnet-base-v2',
@@ -97,9 +115,11 @@ class EnhancedEmbeddingGenerator:
             if batch_size is None:
                 batch_size = min(self.batch_size, len(texts))
             
+            dataset = EmbeddingDataset(texts)
+            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+            
             all_embeddings = []
-            for i in range(0, len(texts), batch_size):
-                batch = texts[i:i + batch_size]
+            for batch in tqdm(dataloader, desc="Generating embeddings"):
                 # Clear GPU cache between batches if using CUDA
                 if self.device == 'cuda':
                     torch.cuda.empty_cache()

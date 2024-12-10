@@ -15,8 +15,24 @@ from datetime import datetime
 from summarization.summarizer import ClusterSummarizer
 from summarization.model_trainer import SummarizationModelTrainer
 import pandas as pd
+from torch.utils.data import DataLoader as TorchDataLoader, Dataset
+
+class TextDataset(Dataset):
+    """Custom Dataset for text data."""
+    
+    def __init__(self, texts: list):
+        self.texts = texts
+        
+    def __len__(self):
+        return len(self.texts)
+    
+    def __getitem__(self, idx):
+        return self.texts[idx]
 
 def main():
+    """
+    Main function to run the data processing pipeline.
+    """
     # Setup logging
     setup_logging('logs/processing.log')
     logger = logging.getLogger(__name__)
@@ -134,14 +150,31 @@ def main():
         raise
 
 def generate_embeddings(texts: List[str], config: Dict) -> np.ndarray:
-    """Generate embeddings for the input texts"""
+    """
+    Generate embeddings for the input texts.
+    
+    Args:
+        texts (List[str]): List of input texts.
+        config (Dict): Configuration dictionary.
+    
+    Returns:
+        np.ndarray: Generated embeddings.
+    """
     embedding_generator = EmbeddingGenerator(
         model_name=config['embedding']['model_name'],
         batch_size=config['embedding']['batch_size']
     )
     
     # Generate embeddings
-    embeddings = embedding_generator.generate_embeddings(texts)
+    dataset = TextDataset(texts)
+    dataloader = TorchDataLoader(dataset, batch_size=config['embedding']['batch_size'], shuffle=False)
+    
+    all_embeddings = []
+    for batch in dataloader:
+        embeddings = embedding_generator.generate_embeddings(batch)
+        all_embeddings.append(embeddings)
+    
+    embeddings = np.concatenate(all_embeddings, axis=0)
     
     # Save embeddings if output directory is specified
     if 'output_dir' in config['embedding']:
@@ -159,7 +192,16 @@ def generate_embeddings(texts: List[str], config: Dict) -> np.ndarray:
     return embeddings
 
 def generate_summaries(cluster_texts: Dict[str, List[str]], config: Dict) -> List[Dict[str, str]]:
-    """Generate summaries for clustered texts"""
+    """
+    Generate summaries for clustered texts.
+    
+    Args:
+        cluster_texts (Dict[str, List[str]]): Dictionary of clustered texts.
+        config (Dict): Configuration dictionary.
+    
+    Returns:
+        List[Dict[str, str]]: Generated summaries.
+    """
     summarizer = ClusterSummarizer(
         model_name=config['summarization']['model_name'],
         max_length=config['summarization']['max_length'],
@@ -180,4 +222,4 @@ def generate_summaries(cluster_texts: Dict[str, List[str]], config: Dict) -> Lis
     return summaries
 
 if __name__ == "__main__":
-    main() 
+    main()
