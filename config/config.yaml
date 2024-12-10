@@ -50,6 +50,23 @@ clustering:
     min_samples: 5
     metric: "euclidean"
   output_dir: "outputs/clusters"
+  
+  # Enhanced Clustering Configuration
+  graph_clustering:
+    enabled: true
+    min_similarity: 0.5
+    resolution: 1.0
+    
+  streaming:
+    enabled: true
+    buffer_size: 100
+    update_interval: 60  # seconds
+    
+  explanation:
+    enabled: true
+    max_key_terms: 5
+    min_term_frequency: 2
+    entity_types: ['ORG', 'PERSON', 'GPE', 'TOPIC']
 
 # Visualization Configuration
 visualization:

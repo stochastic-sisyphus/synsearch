@@ -8,6 +8,7 @@ from pathlib import Path
 import json
 from datetime import datetime
 from sklearn.metrics.pairwise import cosine_similarity
+import re
 
 class EvaluationMetrics:
     def __init__(self):
@@ -200,12 +201,131 @@ class EvaluationMetrics:
         }
         return metrics
 
-def calculate_xlsum_metrics(summaries, references):
+def calculate_xlsum_metrics(summaries: List[str], references: List[str]) -> Dict[str, float]:
     """Calculate XL-Sum specific metrics"""
-    # Add implementation
-    return {}
+    metrics = {
+        'average_compression_ratio': np.mean([
+            len(summary.split()) / len(reference.split())
+            for summary, reference in zip(summaries, references)
+        ]),
+        'coverage': _calculate_coverage_score(summaries, references),
+        'factual_consistency': _calculate_factual_consistency(summaries, references)
+    }
+    return metrics
 
-def calculate_scientific_metrics(summaries, references): 
+def calculate_scientific_metrics(summaries: List[str], references: List[str]) -> Dict[str, float]:
     """Calculate scientific text specific metrics"""
-    # Add implementation
-    return {}
+    metrics = {
+        'technical_term_preservation': _calculate_term_preservation(summaries, references),
+        'citation_accuracy': _calculate_citation_accuracy(summaries, references),
+        'methods_coverage': _calculate_methods_coverage(summaries, references),
+        'results_accuracy': _calculate_results_accuracy(summaries, references)
+    }
+    return metrics
+
+def _calculate_coverage_score(summaries: List[str], references: List[str]) -> float:
+    """Calculate content coverage score using token overlap"""
+    total_coverage = 0.0
+    for summary, reference in zip(summaries, references):
+        summary_tokens = set(summary.lower().split())
+        reference_tokens = set(reference.lower().split())
+        coverage = len(summary_tokens.intersection(reference_tokens)) / len(reference_tokens)
+        total_coverage += coverage
+    return total_coverage / len(summaries)
+
+def _calculate_factual_consistency(summaries: List[str], references: List[str]) -> float:
+    """Calculate factual consistency using named entity overlap"""
+    try:
+        import spacy
+        nlp = spacy.load('en_core_web_sm')
+        
+        total_consistency = 0.0
+        for summary, reference in zip(summaries, references):
+            summary_doc = nlp(summary)
+            reference_doc = nlp(reference)
+            
+            summary_entities = {ent.text.lower() for ent in summary_doc.ents}
+            reference_entities = {ent.text.lower() for ent in reference_doc.ents}
+            
+            if reference_entities:
+                consistency = len(summary_entities.intersection(reference_entities)) / len(reference_entities)
+                total_consistency += consistency
+                
+        return total_consistency / len(summaries)
+    except Exception:
+        return 0.0
+
+def _calculate_term_preservation(summaries: List[str], references: List[str]) -> float:
+    """Calculate technical term preservation ratio"""
+    try:
+        import spacy
+        nlp = spacy.load('en_core_web_sm')
+        
+        total_preservation = 0.0
+        for summary, reference in zip(summaries, references):
+            summary_doc = nlp(summary)
+            reference_doc = nlp(reference)
+            
+            # Get technical terms (nouns and noun phrases)
+            summary_terms = {chunk.text.lower() for chunk in summary_doc.noun_chunks}
+            reference_terms = {chunk.text.lower() for chunk in reference_doc.noun_chunks}
+            
+            if reference_terms:
+                preservation = len(summary_terms.intersection(reference_terms)) / len(reference_terms)
+                total_preservation += preservation
+                
+        return total_preservation / len(summaries)
+    except Exception:
+        return 0.0
+
+def _calculate_citation_accuracy(summaries: List[str], references: List[str]) -> float:
+    """Calculate accuracy of citation preservation"""
+    citation_pattern = r'\[\d+\]|\(\w+\s+et\s+al\.\s*,\s*\d{4}\)'
+    
+    total_accuracy = 0.0
+    for summary, reference in zip(summaries, references):
+        ref_citations = set(re.findall(citation_pattern, reference))
+        sum_citations = set(re.findall(citation_pattern, summary))
+        
+        if ref_citations:
+            accuracy = len(sum_citations.intersection(ref_citations)) / len(ref_citations)
+            total_accuracy += accuracy
+            
+    return total_accuracy / len(summaries)
+
+def _calculate_methods_coverage(summaries: List[str], references: List[str]) -> float:
+    """Calculate coverage of methodology-related content"""
+    methods_keywords = {
+        'method', 'approach', 'technique', 'algorithm', 'procedure',
+        'methodology', 'implementation', 'process', 'analysis', 'experiment'
+    }
+    
+    total_coverage = 0.0
+    for summary, reference in zip(summaries, references):
+        summary_words = set(summary.lower().split())
+        reference_words = set(reference.lower().split())
+        
+        summary_methods = summary_words.intersection(methods_keywords)
+        reference_methods = reference_words.intersection(methods_keywords)
+        
+        if reference_methods:
+            coverage = len(summary_methods) / len(reference_methods)
+            total_coverage += coverage
+            
+    return total_coverage / len(summaries)
+
+def _calculate_results_accuracy(summaries: List[str], references: List[str]) -> float:
+    """Calculate accuracy of reported results and findings"""
+    # Match numerical values and percentages
+    number_pattern = r'\d+(?:\.\d+)?%?'
+    
+    total_accuracy = 0.0
+    for summary, reference in zip(summaries, references):
+        ref_numbers = set(re.findall(number_pattern, reference))
+        sum_numbers = set(re.findall(number_pattern, summary))
+        
+        if ref_numbers:
+            accuracy = len(sum_numbers.intersection(ref_numbers)) / len(ref_numbers)
+            total_accuracy += accuracy
+            
+    return total_accuracy / len(summaries)
