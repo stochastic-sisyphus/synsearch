@@ -1,4 +1,35 @@
 import pytest
+import numpy as np
+import torch
+from src.preprocessing.domain_agnostic_preprocessor import DomainAgnosticPreprocessor
+
+@pytest.fixture
+def preprocessor():
+    """Create preprocessor instance for testing."""
+    return DomainAgnosticPreprocessor()
+
+@pytest.fixture
+def sample_texts():
+    """Provide sample texts for testing."""
+    return [
+        "This is a test document.",
+        "Another test document for processing.",
+        "Technical document with p-value < 0.05."
+    ]
+
+def test_preprocessing_basic(preprocessor, sample_texts):
+    """Test basic preprocessing functionality."""
+    processed = preprocessor.preprocess_texts(sample_texts)
+    assert len(processed) == len(sample_texts)
+    assert all(isinstance(text, str) for text in processed)
+
+def test_preprocessing_empty_input(preprocessor):
+    """Test handling of empty input."""
+    result = preprocessor.preprocess_texts([])
+    assert isinstance(result, list)
+    assert len(result) == 0
+
+import pytest
 from src.embedding_generator import EnhancedEmbeddingGenerator
 from src.clustering.dynamic_cluster_manager import DynamicClusterManager
 from src.summarization.enhanced_summarizer import EnhancedSummarizer

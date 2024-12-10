@@ -74,6 +74,9 @@ logging.basicConfig(
     ]
 )
 
+# Initialize logger at module level
+logger = logging.getLogger(__name__)
+
 def get_device():
     """Get the best available device (GPU if available, else CPU)."""
     return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -297,24 +300,46 @@ def set_random_seeds(seed: int = 42):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
+def setup_environment():
+    """Initialize environment settings and global configurations."""
+    # Set random seeds for reproducibility
+    torch.manual_seed(42)
+    np.random.seed(42)
+    
+    # Configure logging
+    logging_config = {
+        'level': logging.INFO,
+        'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        'handlers': [
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler('logs/pipeline.log')
+        ]
+    }
+    logging.basicConfig(**logging_config)
+    
+    # Verify CUDA availability
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    logging.info(f"Using device: {device}")
+    
+    return device
+
 def main():
+    """Enhanced main entry point with better error handling and logging."""
     try:
-        # Set random seeds
-        set_random_seeds(42)
-        
-        # Initialize logger
-        logger = logging.getLogger(__name__)
+        # Initialize environment
+        device = setup_environment()
         
         # Load and validate configuration
         config = load_config()
-        config = validate_config(config)
+        validate_config(config)
         
-        # Setup additional logging configuration
-        setup_logging(config)
-        
-        # Initialize pipeline components with their specific config sections
+        # Initialize components with dependency injection
         data_loader = DataLoader(config)
         preprocessor = DomainAgnosticPreprocessor(config['preprocessing'])
+        embedding_generator = EnhancedEmbeddingGenerator(
+            model_name=config['embedding']['model_name'],
+            device=device
+        )
         
         # Load datasets
         datasets = data_loader.load_all_datasets()

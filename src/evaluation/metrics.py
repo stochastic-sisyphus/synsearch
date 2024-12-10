@@ -1,15 +1,16 @@
 from typing import List, Dict, Union, Optional
 import numpy as np
-from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
-from rouge_score import rouge_scorer
-import bert_score
-import logging
-from pathlib import Path
-import json
-from datetime import datetime
+import torch
+from torch.utils.data import Dataset, DataLoader
+from sklearn.metrics import silhouette_score, davies_bouldin_score
 from sklearn.metrics.pairwise import cosine_similarity
+from rouge_score import rouge_scorer
+import logging
+import json
 import re
-from torch.utils.data import DataLoader, Dataset
+import bert_score
+from pathlib import Path
+from datetime import datetime
 
 class EmbeddingDataset(Dataset):
     """Custom Dataset for embeddings."""
@@ -24,12 +25,15 @@ class EmbeddingDataset(Dataset):
         return self.embeddings[idx]
 
 class EvaluationMetrics:
-    """Enhanced metrics calculation with additional scores."""
+    """Enhanced metrics calculation with better performance and error handling."""
     
-    def __init__(self):
-        """Initialize the evaluation metrics calculator."""
+    def __init__(self, device: Optional[str] = None):
         self.logger = logging.getLogger(__name__)
-        self.rouge_scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
+        self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
+        self.rouge_scorer = rouge_scorer.RougeScorer(
+            ['rouge1', 'rouge2', 'rougeL'], 
+            use_stemmer=True
+        )
         
     def calculate_clustering_metrics(
         self,
@@ -181,27 +185,19 @@ class EvaluationMetrics:
         embeddings: Optional[np.ndarray] = None,
         batch_size: int = 32
     ) -> Dict[str, Dict[str, float]]:
-        """Calculate comprehensive evaluation metrics."""
+        """Calculate all metrics with optimized batch processing."""
         try:
             metrics = {
-                'summarization': {
-                    'rouge': self.calculate_rouge_scores(
-                        [s['summary'] for s in summaries.values()],
-                        [r['summary'] for r in references.values()]
-                    ),
-                    'bert_score': self.calculate_bert_scores(
-                        [s['summary'] for s in summaries.values()],
-                        [r['summary'] for r in references.values()]
-                    ),
-                    'style_consistency': self._calculate_style_consistency(summaries)
-                }
+                'summarization': self._calculate_summarization_metrics(
+                    summaries, references
+                ),
+                'runtime': self._calculate_runtime_metrics()
             }
             
             if embeddings is not None:
-                metrics['clustering'] = {
-                    'silhouette': self.calculate_clustering_metrics(embeddings),
-                    'cohesion': self._calculate_cluster_cohesion(embeddings)
-                }
+                metrics['clustering'] = self._calculate_clustering_metrics(
+                    embeddings, batch_size
+                )
                 
             return metrics
             
