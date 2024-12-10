@@ -98,6 +98,7 @@ def load_config():
     
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
+
 def process_texts(texts: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
     """Process texts with adaptive summarization and enhanced metrics."""
     # Initialize components with config settings

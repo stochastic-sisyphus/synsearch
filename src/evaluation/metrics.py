@@ -9,19 +9,45 @@ import json
 from datetime import datetime
 from sklearn.metrics.pairwise import cosine_similarity
 import re
+from torch.utils.data import DataLoader, Dataset
+
+class EmbeddingDataset(Dataset):
+    """Custom Dataset for embeddings."""
+    
+    def __init__(self, embeddings: np.ndarray):
+        self.embeddings = embeddings
+        
+    def __len__(self):
+        return len(self.embeddings)
+    
+    def __getitem__(self, idx):
+        return self.embeddings[idx]
 
 class EvaluationMetrics:
+    """Class for calculating various evaluation metrics for clustering and summarization."""
+    
     def __init__(self):
-        """Initialize the evaluation metrics calculator"""
+        """Initialize the evaluation metrics calculator."""
         self.logger = logging.getLogger(__name__)
         self.rouge_scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
         
     def calculate_clustering_metrics(
         self,
         embeddings: np.ndarray,
-        labels: np.ndarray
+        labels: np.ndarray,
+        batch_size: int = 32
     ) -> Dict[str, float]:
-        """Calculate clustering quality metrics"""
+        """
+        Calculate clustering quality metrics.
+
+        Args:
+            embeddings (np.ndarray): Array of embeddings.
+            labels (np.ndarray): Array of cluster labels.
+            batch_size (int, optional): Batch size for processing. Defaults to 32.
+
+        Returns:
+            Dict[str, float]: Dictionary of clustering metrics.
+        """
         try:
             # Filter out noise points (label -1) if any
             mask = labels != -1
@@ -34,9 +60,19 @@ class EvaluationMetrics:
             valid_embeddings = embeddings[mask]
             valid_labels = labels[mask]
             
+            # Use DataLoader for batch processing
+            dataset = EmbeddingDataset(valid_embeddings)
+            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+            
+            all_embeddings = []
+            for batch in dataloader:
+                all_embeddings.append(batch)
+            
+            concatenated_embeddings = np.concatenate(all_embeddings, axis=0)
+            
             # Calculate metrics
-            silhouette = silhouette_score(valid_embeddings, valid_labels)
-            davies_bouldin = davies_bouldin_score(valid_embeddings, valid_labels)
+            silhouette = silhouette_score(concatenated_embeddings, valid_labels)
+            davies_bouldin = davies_bouldin_score(concatenated_embeddings, valid_labels)
             
             return {
                 'silhouette_score': float(silhouette),
@@ -52,7 +88,16 @@ class EvaluationMetrics:
         summaries: List[str],
         references: List[str]
     ) -> Dict[str, Dict[str, float]]:
-        """Calculate ROUGE scores for summaries"""
+        """
+        Calculate ROUGE scores for summaries.
+
+        Args:
+            summaries (List[str]): List of generated summaries.
+            references (List[str]): List of reference summaries.
+
+        Returns:
+            Dict[str, Dict[str, float]]: Dictionary of ROUGE scores.
+        """
         try:
             scores = {
                 'rouge1': {'precision': [], 'recall': [], 'fmeasure': []},
@@ -87,7 +132,14 @@ class EvaluationMetrics:
         output_dir: Union[str, Path],
         prefix: str = ''
     ) -> None:
-        """Save metrics to disk"""
+        """
+        Save metrics to disk.
+
+        Args:
+            metrics (Dict): Dictionary of metrics to save.
+            output_dir (Union[str, Path]): Directory to save the metrics.
+            prefix (str, optional): Prefix for the filename. Defaults to ''.
+        """
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         
@@ -100,7 +152,16 @@ class EvaluationMetrics:
         self.logger.info(f"Saved metrics to {output_dir / filename}") 
         
     def calculate_baseline_metrics(self, dataset_name: str, metrics: Dict) -> Dict[str, float]:
-        """Calculate and store baseline metrics for a dataset"""
+        """
+        Calculate and store baseline metrics for a dataset.
+
+        Args:
+            dataset_name (str): Name of the dataset.
+            metrics (Dict): Dictionary of metrics.
+
+        Returns:
+            Dict[str, float]: Dictionary of baseline metrics.
+        """
         baseline_metrics = {
             'dataset': dataset_name,
             'runtime': metrics.get('runtime', 0),
@@ -117,9 +178,21 @@ class EvaluationMetrics:
         self, 
         summaries: Dict[str, Dict],
         references: Dict[str, Dict[str, str]], 
-        embeddings: Optional[np.ndarray] = None
+        embeddings: Optional[np.ndarray] = None,
+        batch_size: int = 32
     ) -> Dict[str, Dict[str, float]]:
-        """Calculate comprehensive evaluation metrics."""
+        """
+        Calculate comprehensive evaluation metrics.
+
+        Args:
+            summaries (Dict[str, Dict]): Dictionary of generated summaries.
+            references (Dict[str, Dict[str, str]]): Dictionary of reference summaries.
+            embeddings (Optional[np.ndarray], optional): Array of embeddings. Defaults to None.
+            batch_size (int, optional): Batch size for processing. Defaults to 32.
+
+        Returns:
+            Dict[str, Dict[str, float]]: Dictionary of comprehensive metrics.
+        """
         try:
             metrics = {
                 'summarization': {
@@ -131,7 +204,7 @@ class EvaluationMetrics:
             
             if embeddings is not None:
                 metrics['embedding'] = {
-                    'quality': self._calculate_embedding_quality(embeddings),
+                    'quality': self._calculate_embedding_quality(embeddings, batch_size),
                     'stability': self._calculate_embedding_stability(embeddings)
                 }
                 
@@ -144,11 +217,30 @@ class EvaluationMetrics:
             self.logger.error(f"Error calculating metrics: {e}")
             raise
 
-    def _calculate_embedding_quality(self, embeddings: np.ndarray) -> Dict[str, float]:
-        """Calculate embedding quality metrics."""
+    def _calculate_embedding_quality(self, embeddings: np.ndarray, batch_size: int = 32) -> Dict[str, float]:
+        """
+        Calculate embedding quality metrics.
+
+        Args:
+            embeddings (np.ndarray): Array of embeddings.
+            batch_size (int, optional): Batch size for processing. Defaults to 32.
+
+        Returns:
+            Dict[str, float]: Dictionary of embedding quality metrics.
+        """
         try:
+            # Use DataLoader for batch processing
+            dataset = EmbeddingDataset(embeddings)
+            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+            
+            all_embeddings = []
+            for batch in dataloader:
+                all_embeddings.append(batch)
+            
+            concatenated_embeddings = np.concatenate(all_embeddings, axis=0)
+            
             # Calculate cosine similarities
-            similarities = cosine_similarity(embeddings)
+            similarities = cosine_similarity(concatenated_embeddings)
             
             return {
                 'mean_similarity': float(np.mean(similarities)),
@@ -165,7 +257,16 @@ class EvaluationMetrics:
         summaries: List[str],
         references: List[str]
     ) -> Dict[str, float]:
-        """Calculate BERTScore for summaries."""
+        """
+        Calculate BERTScore for summaries.
+
+        Args:
+            summaries (List[str]): List of generated summaries.
+            references (List[str]): List of reference summaries.
+
+        Returns:
+            Dict[str, float]: Dictionary of BERT scores.
+        """
         try:
             P, R, F1 = bert_score.score(summaries, references, lang='en', verbose=False)
             return {
@@ -181,7 +282,15 @@ class EvaluationMetrics:
         self, 
         summaries: Dict[str, Dict]
     ) -> Dict[str, float]:
-        """Calculate metrics specific to different summary styles."""
+        """
+        Calculate metrics specific to different summary styles.
+
+        Args:
+            summaries (Dict[str, Dict]): Dictionary of generated summaries.
+
+        Returns:
+            Dict[str, float]: Dictionary of style metrics.
+        """
         style_metrics = {
             'technical_accuracy': 0.0,
             'conciseness_ratio': 0.0,
@@ -194,7 +303,16 @@ class EvaluationMetrics:
         return style_metrics
 
     def calculate_dataset_metrics(summaries, references):
-        """Calculate dataset-specific metrics"""
+        """
+        Calculate dataset-specific metrics.
+
+        Args:
+            summaries (List[str]): List of generated summaries.
+            references (List[str]): List of reference summaries.
+
+        Returns:
+            Dict[str, float]: Dictionary of dataset-specific metrics.
+        """
         metrics = {
             'xlsum': calculate_xlsum_metrics(summaries, references),
             'scisummnet': calculate_scientific_metrics(summaries, references)
@@ -202,7 +320,16 @@ class EvaluationMetrics:
         return metrics
 
 def calculate_xlsum_metrics(summaries: List[str], references: List[str]) -> Dict[str, float]:
-    """Calculate XL-Sum specific metrics"""
+    """
+    Calculate XL-Sum specific metrics.
+
+    Args:
+        summaries (List[str]): List of generated summaries.
+        references (List[str]): List of reference summaries.
+
+    Returns:
+        Dict[str, float]: Dictionary of XL-Sum specific metrics.
+    """
     metrics = {
         'average_compression_ratio': np.mean([
             len(summary.split()) / len(reference.split())
@@ -214,7 +341,16 @@ def calculate_xlsum_metrics(summaries: List[str], references: List[str]) -> Dict
     return metrics
 
 def calculate_scientific_metrics(summaries: List[str], references: List[str]) -> Dict[str, float]:
-    """Calculate scientific text specific metrics"""
+    """
+    Calculate scientific text specific metrics.
+
+    Args:
+        summaries (List[str]): List of generated summaries.
+        references (List[str]): List of reference summaries.
+
+    Returns:
+        Dict[str, float]: Dictionary of scientific text specific metrics.
+    """
     metrics = {
         'technical_term_preservation': _calculate_term_preservation(summaries, references),
         'citation_accuracy': _calculate_citation_accuracy(summaries, references),
@@ -224,7 +360,16 @@ def calculate_scientific_metrics(summaries: List[str], references: List[str]) ->
     return metrics
 
 def _calculate_coverage_score(summaries: List[str], references: List[str]) -> float:
-    """Calculate content coverage score using token overlap"""
+    """
+    Calculate content coverage score using token overlap.
+
+    Args:
+        summaries (List[str]): List of generated summaries.
+        references (List[str]): List of reference summaries.
+
+    Returns:
+        float: Content coverage score.
+    """
     total_coverage = 0.0
     for summary, reference in zip(summaries, references):
         summary_tokens = set(summary.lower().split())
@@ -234,7 +379,16 @@ def _calculate_coverage_score(summaries: List[str], references: List[str]) -> fl
     return total_coverage / len(summaries)
 
 def _calculate_factual_consistency(summaries: List[str], references: List[str]) -> float:
-    """Calculate factual consistency using named entity overlap"""
+    """
+    Calculate factual consistency using named entity overlap.
+
+    Args:
+        summaries (List[str]): List of generated summaries.
+        references (List[str]): List of reference summaries.
+
+    Returns:
+        float: Factual consistency score.
+    """
     try:
         import spacy
         nlp = spacy.load('en_core_web_sm')
@@ -256,7 +410,16 @@ def _calculate_factual_consistency(summaries: List[str], references: List[str]) 
         return 0.0
 
 def _calculate_term_preservation(summaries: List[str], references: List[str]) -> float:
-    """Calculate technical term preservation ratio"""
+    """
+    Calculate technical term preservation ratio.
+
+    Args:
+        summaries (List[str]): List of generated summaries.
+        references (List[str]): List of reference summaries.
+
+    Returns:
+        float: Technical term preservation ratio.
+    """
     try:
         import spacy
         nlp = spacy.load('en_core_web_sm')
@@ -279,7 +442,16 @@ def _calculate_term_preservation(summaries: List[str], references: List[str]) ->
         return 0.0
 
 def _calculate_citation_accuracy(summaries: List[str], references: List[str]) -> float:
-    """Calculate accuracy of citation preservation"""
+    """
+    Calculate accuracy of citation preservation.
+
+    Args:
+        summaries (List[str]): List of generated summaries.
+        references (List[str]): List of reference summaries.
+
+    Returns:
+        float: Citation accuracy score.
+    """
     citation_pattern = r'\[\d+\]|\(\w+\s+et\s+al\.\s*,\s*\d{4}\)'
     
     total_accuracy = 0.0
@@ -294,7 +466,16 @@ def _calculate_citation_accuracy(summaries: List[str], references: List[str]) ->
     return total_accuracy / len(summaries)
 
 def _calculate_methods_coverage(summaries: List[str], references: List[str]) -> float:
-    """Calculate coverage of methodology-related content"""
+    """
+    Calculate coverage of methodology-related content.
+
+    Args:
+        summaries (List[str]): List of generated summaries.
+        references (List[str]): List of reference summaries.
+
+    Returns:
+        float: Methods coverage score.
+    """
     methods_keywords = {
         'method', 'approach', 'technique', 'algorithm', 'procedure',
         'methodology', 'implementation', 'process', 'analysis', 'experiment'
@@ -315,7 +496,16 @@ def _calculate_methods_coverage(summaries: List[str], references: List[str]) -> 
     return total_coverage / len(summaries)
 
 def _calculate_results_accuracy(summaries: List[str], references: List[str]) -> float:
-    """Calculate accuracy of reported results and findings"""
+    """
+    Calculate accuracy of reported results and findings.
+
+    Args:
+        summaries (List[str]): List of generated summaries.
+        references (List[str]): List of reference summaries.
+
+    Returns:
+        float: Results accuracy score.
+    """
     # Match numerical values and percentages
     number_pattern = r'\d+(?:\.\d+)?%?'
     
