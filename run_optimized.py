@@ -10,6 +10,13 @@ import numpy as np
 from src.utils.performance import PerformanceOptimizer
 import logging
 from datetime import datetime
+import json
+
+from src.embedding_generator import EnhancedEmbeddingGenerator
+from src.clustering.dynamic_cluster_manager import DynamicClusterManager
+from src.summarization.hybrid_summarizer import HybridSummarizer
+from src.visualization.embedding_visualizer import EmbeddingVisualizer
+from src.evaluation.metrics import EvaluationMetrics
 
 def init_worker():
     """Initialize worker process with optimized settings."""
@@ -92,6 +99,52 @@ def main():
             f.write(f"{text}\n")
 
     logging.info(f"Saved processed texts to {output_file}")
+
+    # Initialize components
+    embedding_generator = EnhancedEmbeddingGenerator()
+    cluster_manager = DynamicClusterManager()
+    summarizer = HybridSummarizer()
+    visualizer = EmbeddingVisualizer()
+    evaluator = EvaluationMetrics()
+
+    # Generate embeddings
+    embeddings = embedding_generator.generate_embeddings(processed_texts)
+    embeddings_file = output_dir / f"embeddings_{run_id}.npy"
+    np.save(embeddings_file, embeddings)
+    logging.info(f"Saved embeddings to {embeddings_file}")
+
+    # Perform clustering
+    labels, clustering_metrics = cluster_manager.fit_predict(embeddings)
+    clusters_file = output_dir / f"clusters_{run_id}.json"
+    with open(clusters_file, 'w') as f:
+        json.dump({'labels': labels.tolist(), 'metrics': clustering_metrics}, f)
+    logging.info(f"Saved clusters to {clusters_file}")
+
+    # Generate summaries
+    cluster_texts = {label: [] for label in set(labels)}
+    for text, label in zip(processed_texts, labels):
+        cluster_texts[label].append(text)
+    summaries = summarizer.summarize_all_clusters(cluster_texts)
+    summaries_file = output_dir / f"summaries_{run_id}.json"
+    with open(summaries_file, 'w') as f:
+        json.dump(summaries, f)
+    logging.info(f"Saved summaries to {summaries_file}")
+
+    # Visualize embeddings
+    visualization_file = output_dir / f"visualizations_{run_id}.html"
+    visualizer.visualize_embeddings(embeddings, save_path=visualization_file)
+    logging.info(f"Saved visualizations to {visualization_file}")
+
+    # Evaluate results
+    evaluation_metrics = evaluator.calculate_comprehensive_metrics(
+        summaries=summaries,
+        references={},  # Add reference summaries if available
+        embeddings=embeddings
+    )
+    evaluation_file = output_dir / f"evaluation_{run_id}.json"
+    with open(evaluation_file, 'w') as f:
+        json.dump(evaluation_metrics, f)
+    logging.info(f"Saved evaluation metrics to {evaluation_file}")
 
 if __name__ == '__main__':
     mp.set_start_method('spawn', force=True)
