@@ -228,6 +228,9 @@ class EnhancedHybridSummarizer(HybridSummarizer):
                     'metadata': self._get_summary_metadata(summary)
                 }
                 
+                # Save intermediate outputs
+                self._save_intermediate_outputs(cluster_id, summary, style, len(texts))
+                
             return summaries
             
         except Exception as e:
@@ -432,3 +435,25 @@ class EnhancedHybridSummarizer(HybridSummarizer):
         except Exception as e:
             self.logger.error(f"Error loading checkpoint: {e}")
             raise
+
+    def _save_intermediate_outputs(self, cluster_id: str, summary: str, style: str, num_docs: int) -> None:
+        """Save intermediate outputs after summarization."""
+        output_dir = Path("outputs/summarization")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        summary_file = output_dir / f"summary_{cluster_id}.txt"
+        metadata_file = output_dir / f"metadata_{cluster_id}.json"
+        
+        with open(summary_file, 'w') as f:
+            f.write(summary)
+        
+        metadata = {
+            'cluster_id': cluster_id,
+            'style': style,
+            'num_docs': num_docs
+        }
+        
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f)
+        
+        self.logger.info(f"Saved intermediate outputs for cluster {cluster_id} to {output_dir}")
