@@ -23,9 +23,12 @@ venv:
 setup: venv download-data install
 
 install-deps: venv
-	$(PIP) install requests tqdm datasets transformers torch numpy sentencepiece protobuf
+	$(PIP) install requests tqdm datasets transformers torch numpy sentencepiece protobuf \
+		nltk spacy scikit-learn pandas scipy \
+		beautifulsoup4 lxml textacy
 
 download-data: install-deps
+	$(PYTHON) -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
 	$(PYTHON) scripts/download_datasets.py
 
 install: venv
