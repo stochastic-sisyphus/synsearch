@@ -1,27 +1,34 @@
-.PHONY: setup download-data install test clean
+.PHONY: setup download-data install test clean venv
 
-setup: download-data install
+VENV = .venv
+PYTHON = $(VENV)/bin/python
+PIP = $(VENV)/bin/pip
+
+venv:
+	python3 -m venv $(VENV)
+
+setup: venv download-data install
 
 download-data:
-	python scripts/download_datasets.py
+	$(PYTHON) scripts/download_datasets.py
 
-install:
-	pip install -e .
-	python -m spacy download en_core_web_sm
+install: venv
+	$(PIP) install -e .
+	$(PYTHON) -m spacy download en_core_web_sm
 
-test:
-	PYTHONPATH=. pytest tests/ -v --cov=src
+test: venv
+	PYTHONPATH=. $(PYTHON) -m pytest tests/ -v --cov=src
 
-format:
-	black src/ tests/
-	isort src/ tests/
+format: venv
+	$(PYTHON) -m black src/ tests/
+	$(PYTHON) -m isort src/ tests/
 
-lint:
-	flake8 src/ tests/
-	mypy src/ tests/
+lint: venv
+	$(PYTHON) -m flake8 src/ tests/
+	$(PYTHON) -m mypy src/ tests/
 
 clean:
-	rm -rf data/scisummnet.zip
+	rm -rf data/scisummnet.zip $(VENV)
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
 	find . -type d -name ".mypy_cache" -exec rm -rf {} +
