@@ -32,7 +32,7 @@ python-louvain>=0.16
 scipy>=1.8.0
 
 # Utilities & Performance
-tqdm>=4.65.0
+tqdm>=4.67.1
 pyyaml>=6.0
 python-dotenv>=0.19.0
 cachetools>=5.0.0
@@ -77,7 +77,7 @@ PyPDF2>=2.0.0
 python-docx>=0.8.11
 
 # API Integration
-requests>=2.26.0
+requests>=2.32.3
 aiohttp>=3.8.0
 
 # Testing

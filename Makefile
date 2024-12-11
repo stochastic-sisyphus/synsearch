@@ -17,6 +17,7 @@ download-data: install-deps
 
 install: venv
 	$(PIP) install -e .
+	$(PIP) install spacy  # Added explicit spacy install
 	$(PYTHON) -m spacy download en_core_web_sm
 
 test: venv

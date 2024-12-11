@@ -20,6 +20,7 @@ setup(
         "dash-html-components>=2.0.0",
         "dash-table>=5.0.0",
         "jupyter-dash>=0.4.0",
+        "spacy>=3.5.0",  # Added spacy
         "cachetools>=5.0.0",
         "joblib>=1.1.0"
     ],
