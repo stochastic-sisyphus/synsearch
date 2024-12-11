@@ -103,7 +103,13 @@ def main():
 
     # Initialize components
     embedding_generator = EnhancedEmbeddingGenerator()
-    cluster_manager = DynamicClusterManager()
+    config = {  # Add your configuration here
+        'clustering': {
+            'min_cluster_size': 5,
+            'min_samples': 3
+        }
+    }
+    cluster_manager = DynamicClusterManager(config=config)
     summarizer = HybridSummarizer()
     visualizer = EmbeddingVisualizer()
     evaluator = EvaluationMetrics()
