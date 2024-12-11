@@ -29,7 +29,6 @@ hdbscan>=0.8.29
 umap-learn>=0.5.3
 networkx>=2.8.0
 python-louvain>=0.16
-community>=0.15
 scipy>=1.8.0
 
 # Utilities & Performance
@@ -96,8 +95,7 @@ textacy>=0.12.0
 
 # Graph Clustering Dependencies
 networkx>=2.8.0
-python-louvain>=0.16
-# Note: community package is now maintained as python-louvain
+python-louvain>=0.16  # Replaces community package
 scipy>=1.8.0  # Required by networkx
 
 # Add these lines to requirements.txt
