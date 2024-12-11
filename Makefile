@@ -13,6 +13,9 @@ export TOKENIZERS_PARALLELISM=true  # Enable HuggingFace tokenizer parallelism
 export TORCH_NUM_THREADS=8  # PyTorch threads
 export CUDA_LAUNCH_BLOCKING=0  # Async CUDA operations
 export PYTHONWARNINGS="ignore"  # Reduce overhead from warnings
+export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512  # Memory allocation strategy
+export TRANSFORMERS_OFFLINE=1  # Avoid network checks
+export HF_DATASETS_OFFLINE=1  # Avoid dataset downloads during processing
 
 venv:
 	python3 -m venv $(VENV)
@@ -20,14 +23,14 @@ venv:
 setup: venv download-data install
 
 install-deps: venv
-	$(PIP) install requests tqdm
+	$(PIP) install requests tqdm datasets transformers torch numpy sentencepiece protobuf
 
 download-data: install-deps
 	$(PYTHON) scripts/download_datasets.py
 
 install: venv
 	$(PIP) install -e .
-	$(PIP) install spacy joblib tqdm torch numpy  # Add parallel processing deps
+	$(PIP) install spacy joblib pandas datasets transformers sentence-transformers tqdm torch numpy 
 	$(PYTHON) -m spacy download en_core_web_sm
 
 test: venv
@@ -41,7 +44,10 @@ lint: venv
 	$(PYTHON) -m flake8 src/ tests/
 	$(PYTHON) -m mypy src/ tests/
 
-run-optimized: venv
+run-optimized: install-deps
+	$(PYTHON) run_optimized.py
+
+run: venv
 	$(PYTHON) run_optimized.py
 
 clean:
