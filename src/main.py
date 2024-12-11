@@ -594,7 +594,14 @@ class EnhancedPipelineManager(PipelineManager):
 
 def validate_dataset_paths(config: Dict[str, Any]) -> None:
     """Validate that required datasets are present"""
-    if config['data']['datasets']['scisummnet']['enabled']:
+    # Find scisummnet dataset config if enabled
+    scisummnet_config = next(
+        (dataset for dataset in config['data']['datasets'] 
+         if dataset['name'] == 'scisummnet' and dataset.get('enabled', False)),
+        None
+    )
+    
+    if scisummnet_config:
         scisummnet_path = Path(config['data']['scisummnet_path'])
         if not scisummnet_path.exists():
             raise FileNotFoundError(
