@@ -9,7 +9,10 @@ venv:
 
 setup: venv download-data install
 
-download-data:
+install-deps: venv
+	$(PIP) install requests tqdm
+
+download-data: install-deps
 	$(PYTHON) scripts/download_datasets.py
 
 install: venv
