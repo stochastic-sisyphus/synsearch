@@ -1,16 +1,16 @@
 .PHONY: setup download-data install test clean
 
-setup: download-data install test
+setup: download-data install
 
 download-data:
 	python scripts/download_datasets.py
 
 install:
-	pip install -r requirements.txt
+	pip install -e .
 	python -m spacy download en_core_web_sm
 
 test:
-	pytest tests/ -v --cov=src
+	PYTHONPATH=. pytest tests/ -v --cov=src
 
 format:
 	black src/ tests/
