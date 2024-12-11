@@ -4,6 +4,7 @@ import nltk
 import spacy
 from pathlib import Path
 from torch.utils.data import DataLoader, Dataset
+import logging
 
 class TextDataset(Dataset):
     """Custom Dataset for text data."""
@@ -23,6 +24,7 @@ class DataPreparator:
         nltk.download('punkt')
         nltk.download('stopwords')
         self.nlp = spacy.load('en_core_web_sm')
+        self.logger = logging.getLogger(__name__)
         
     def load_xlsum(self) -> dict:
         """Load XL-Sum dataset from HuggingFace."""
@@ -56,7 +58,7 @@ class DataPreparator:
                     })
                     
             except Exception as e:
-                print(f"Error processing {paper_dir.name}: {e}")
+                self.logger.error(f"Error processing {paper_dir.name}: {e}")
                 
         return pd.DataFrame(data)
     
@@ -78,14 +80,17 @@ class DataPreparator:
         dataloader = DataLoader(text_dataset, batch_size=batch_size, shuffle=False)
         
         for batch in dataloader:
-            for text in batch:
-                processed_doc = {
-                    'text': self.preprocess_text(text),
-                    'metadata': {
-                        'length': len(text.split())
+            try:
+                for text in batch:
+                    processed_doc = {
+                        'text': self.preprocess_text(text),
+                        'metadata': {
+                            'length': len(text.split())
+                        }
                     }
-                }
-                processed_data.append(processed_doc)
+                    processed_data.append(processed_doc)
+            except Exception as e:
+                self.logger.error(f"Error processing batch: {e}")
         
         df = pd.DataFrame(processed_data)
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)

@@ -96,28 +96,32 @@ class ClusterManager:
         Returns:
             Tuple[np.ndarray, Dict]: Cluster labels and metrics.
         """
-        self.logger.info(f"Starting clustering with {self.method} on {len(embeddings)} documents")
-        
-        # Move embeddings to GPU if available and algorithm supports it
-        if self.device == 'cuda' and self.method == 'kmeans':
-            embeddings_tensor = torch.tensor(embeddings, device=self.device)
-            self.labels_ = self._gpu_kmeans(embeddings_tensor)
-        else:
-            # Use parallel CPU processing
-            dataset = EmbeddingDataset(embeddings)
-            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+        try:
+            self.logger.info(f"Starting clustering with {self.method} on {len(embeddings)} documents")
             
-            all_labels = []
-            for batch in dataloader:
-                with parallel_backend('loky', n_jobs=self.n_jobs):
-                    labels = self.clusterer.fit_predict(batch)
-                    all_labels.append(labels)
+            # Move embeddings to GPU if available and algorithm supports it
+            if self.device == 'cuda' and self.method == 'kmeans':
+                embeddings_tensor = torch.tensor(embeddings, device=self.device)
+                self.labels_ = self._gpu_kmeans(embeddings_tensor)
+            else:
+                # Use parallel CPU processing
+                dataset = EmbeddingDataset(embeddings)
+                dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+                
+                all_labels = []
+                for batch in dataloader:
+                    with parallel_backend('loky', n_jobs=self.n_jobs):
+                        labels = self.clusterer.fit_predict(batch)
+                        all_labels.append(labels)
+                
+                self.labels_ = np.concatenate(all_labels)
             
-            self.labels_ = np.concatenate(all_labels)
-        
-        metrics = self._calculate_metrics(embeddings)
-        return self.labels_, metrics
-    
+            metrics = self._calculate_metrics(embeddings)
+            return self.labels_, metrics
+        except Exception as e:
+            self.logger.error(f"Error in fit_predict: {e}")
+            return np.array([]), {}
+
     def _gpu_kmeans(self, embeddings_tensor: torch.Tensor) -> np.ndarray:
         """
         Perform K-means clustering on GPU.

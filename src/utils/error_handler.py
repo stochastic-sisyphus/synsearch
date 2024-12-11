@@ -1,4 +1,3 @@
-
 import sys
 import logging
 import traceback
@@ -13,7 +12,13 @@ class GlobalErrorHandler:
         self.logger = logger or logging.getLogger(__name__)
         
     def handle_error(self, error: Exception, context: str = "") -> None:
-        """Handle errors with consistent formatting and logging"""
+        """
+        Handle errors with consistent formatting and logging.
+
+        Args:
+            error (Exception): The exception to handle.
+            context (str, optional): Additional context about where the error occurred.
+        """
         error_type = type(error).__name__
         error_msg = str(error)
         trace = traceback.format_exc()
@@ -26,7 +31,15 @@ class GlobalErrorHandler:
         )
 
 def with_error_handling(func: Callable) -> Callable:
-    """Decorator for consistent error handling"""
+    """
+    Decorator for consistent error handling.
+
+    Args:
+        func (Callable): The function to wrap with error handling.
+
+    Returns:
+        Callable: The wrapped function with error handling.
+    """
     @wraps(func)
     def wrapper(*args, **kwargs) -> Any:
         try:

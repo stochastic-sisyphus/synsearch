@@ -10,7 +10,7 @@ from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader, Dataset
 from multiprocessing import Pool, cpu_count
-from src.utils.performance import PerformanceOptimizer  # Add this import
+from src.utils.performance import PerformanceOptimizer
 
 class TextDataset(Dataset):
     """Custom Dataset for text data."""

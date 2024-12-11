@@ -2,6 +2,7 @@ from sklearn.metrics import silhouette_score, davies_bouldin_score
 import numpy as np
 from typing import Dict, List
 from torch.utils.data import DataLoader, Dataset
+import logging
 
 class EmbeddingDataset(Dataset):
     """Custom Dataset for embeddings."""
@@ -18,6 +19,9 @@ class EmbeddingDataset(Dataset):
 class ClusterEvaluator:
     """Comprehensive evaluation of clustering quality"""
     
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+
     def evaluate_clustering(
         self,
         embeddings: np.ndarray,
@@ -35,22 +39,26 @@ class ClusterEvaluator:
         Returns:
             Dict[str, float]: Dictionary of clustering metrics.
         """
-        dataset = EmbeddingDataset(embeddings)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-        
-        all_embeddings = []
-        for batch in dataloader:
-            all_embeddings.append(batch)
-        
-        concatenated_embeddings = np.concatenate(all_embeddings, axis=0)
-        
-        return {
-            'silhouette': silhouette_score(concatenated_embeddings, labels),
-            'davies_bouldin': davies_bouldin_score(concatenated_embeddings, labels),
-            'cluster_sizes': self._get_cluster_sizes(labels),
-            'cluster_density': self._calculate_cluster_density(concatenated_embeddings, labels)
-        }
-    
+        try:
+            dataset = EmbeddingDataset(embeddings)
+            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+            
+            all_embeddings = []
+            for batch in dataloader:
+                all_embeddings.append(batch)
+            
+            concatenated_embeddings = np.concatenate(all_embeddings, axis=0)
+            
+            return {
+                'silhouette': silhouette_score(concatenated_embeddings, labels),
+                'davies_bouldin': davies_bouldin_score(concatenated_embeddings, labels),
+                'cluster_sizes': self._get_cluster_sizes(labels),
+                'cluster_density': self._calculate_cluster_density(concatenated_embeddings, labels)
+            }
+        except Exception as e:
+            self.logger.error(f"Error evaluating clustering: {e}")
+            return {}
+
     def _get_cluster_sizes(self, labels: np.ndarray) -> Dict[int, int]:
         """
         Calculate the size of each cluster.

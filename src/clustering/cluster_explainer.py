@@ -83,20 +83,24 @@ class ClusterExplainer:
         Returns:
             (int, Dict[str, Any]): Cluster label and its explanation.
         """
-        cluster_texts = [text for text, l in zip(texts, labels) if l == label]
-        cluster_indices = np.where(labels == label)[0]
-        
-        explanation = {
-            'size': len(cluster_texts),
-            'key_terms': self._get_key_terms(
-                tfidf_matrix[cluster_indices],
-                feature_names
-            ),
-            'entities': self._extract_entities(cluster_texts),
-            'summary_stats': self._calculate_summary_stats(cluster_texts)
-        }
-        
-        return label, explanation
+        try:
+            cluster_texts = [text for text, l in zip(texts, labels) if l == label]
+            cluster_indices = np.where(labels == label)[0]
+            
+            explanation = {
+                'size': len(cluster_texts),
+                'key_terms': self._get_key_terms(
+                    tfidf_matrix[cluster_indices],
+                    feature_names
+                ),
+                'entities': self._extract_entities(cluster_texts),
+                'summary_stats': self._calculate_summary_stats(cluster_texts)
+            }
+            
+            return label, explanation
+        except Exception as e:
+            self.logger.error(f"Error processing cluster {label}: {e}")
+            return label, {}
             
     def _get_key_terms(
         self,
