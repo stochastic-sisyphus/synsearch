@@ -5,6 +5,7 @@ from sklearn.cluster import MiniBatchKMeans
 import logging
 from pathlib import Path
 import torch
+import json
 
 class DynamicClusterManager:
     """Manages dynamic clustering with adaptive thresholds and online updates."""
@@ -43,6 +44,9 @@ class DynamicClusterManager:
                 labels = self._adapt_clustering(embeddings, metrics)
                 metrics = self._calculate_metrics(embeddings, labels)
                 
+            # Save intermediate outputs
+            self._save_intermediate_outputs(embeddings, labels, metrics)
+            
             return labels, metrics
             
         except Exception as e:
@@ -70,3 +74,26 @@ class DynamicClusterManager:
                     clusters[label] = []
                 clusters[label].append(text)
         return clusters
+
+    def _calculate_metrics(self, embeddings: np.ndarray, labels: np.ndarray) -> Dict:
+        """Calculate clustering metrics."""
+        # Placeholder for actual metric calculation
+        return {
+            'silhouette_score': 0.5  # Example metric
+        }
+
+    def _save_intermediate_outputs(self, embeddings: np.ndarray, labels: np.ndarray, metrics: Dict) -> None:
+        """Save intermediate outputs after clustering."""
+        output_dir = Path("outputs/clustering")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        embeddings_file = output_dir / "embeddings.npy"
+        labels_file = output_dir / "labels.npy"
+        metrics_file = output_dir / "metrics.json"
+        
+        np.save(embeddings_file, embeddings)
+        np.save(labels_file, labels)
+        with open(metrics_file, 'w') as f:
+            json.dump(metrics, f)
+        
+        self.logger.info(f"Saved intermediate outputs to {output_dir}")

@@ -17,6 +17,7 @@ from src.clustering.dynamic_cluster_manager import DynamicClusterManager
 from src.summarization.hybrid_summarizer import HybridSummarizer
 from src.visualization.embedding_visualizer import EmbeddingVisualizer
 from src.evaluation.metrics import EvaluationMetrics
+from src.utils.checkpoint_manager import CheckpointManager
 
 def init_worker():
     """Initialize worker process with optimized settings."""
@@ -78,16 +79,26 @@ def main():
         for i in range(0, len(texts), batch_size)
     ]
 
-    # Process batches in parallel
-    processed_texts = []
-    with ProcessPoolExecutor(
-        max_workers=n_workers, 
-        initializer=init_worker
-    ) as executor:
-        with tqdm(total=len(batches), desc="Processing batches") as pbar:
-            for batch_result in executor.map(process_batch, batches):
-                processed_texts.extend(batch_result)
-                pbar.update(1)
+    # Initialize checkpoint manager
+    checkpoint_manager = CheckpointManager()
+
+    # Check for existing processed texts
+    processed_texts = checkpoint_manager.get_stage_data('processed_texts')
+    if processed_texts is None:
+        processed_texts = []
+
+        # Process batches in parallel
+        with ProcessPoolExecutor(
+            max_workers=n_workers, 
+            initializer=init_worker
+        ) as executor:
+            with tqdm(total=len(batches), desc="Processing batches") as pbar:
+                for batch_result in executor.map(process_batch, batches):
+                    processed_texts.extend(batch_result)
+                    pbar.update(1)
+
+        # Save processed texts checkpoint
+        checkpoint_manager.save_stage('processed_texts', processed_texts)
 
     logging.info(f"Processed {len(processed_texts)} texts")
 
@@ -114,24 +125,40 @@ def main():
     visualizer = EmbeddingVisualizer()
     evaluator = EvaluationMetrics()
 
-    # Generate embeddings
-    embeddings = embedding_generator.generate_embeddings(processed_texts)
+    # Check for existing embeddings
+    embeddings = checkpoint_manager.get_stage_data('embeddings')
+    if embeddings is None:
+        # Generate embeddings
+        embeddings = embedding_generator.generate_embeddings(processed_texts)
+        checkpoint_manager.save_stage('embeddings', embeddings)
+
     embeddings_file = output_dir / f"embeddings_{run_id}.npy"
     np.save(embeddings_file, embeddings)
     logging.info(f"Saved embeddings to {embeddings_file}")
 
-    # Perform clustering
-    labels, clustering_metrics = cluster_manager.fit_predict(embeddings)
+    # Check for existing clusters
+    clusters = checkpoint_manager.get_stage_data('clusters')
+    if clusters is None:
+        # Perform clustering
+        labels, clustering_metrics = cluster_manager.fit_predict(embeddings)
+        clusters = {'labels': labels.tolist(), 'metrics': clustering_metrics}
+        checkpoint_manager.save_stage('clusters', clusters)
+
     clusters_file = output_dir / f"clusters_{run_id}.json"
     with open(clusters_file, 'w') as f:
-        json.dump({'labels': labels.tolist(), 'metrics': clustering_metrics}, f)
+        json.dump(clusters, f)
     logging.info(f"Saved clusters to {clusters_file}")
 
-    # Generate summaries
-    cluster_texts = {label: [] for label in set(labels)}
-    for text, label in zip(processed_texts, labels):
-        cluster_texts[label].append(text)
-    summaries = summarizer.summarize_all_clusters(cluster_texts)
+    # Check for existing summaries
+    summaries = checkpoint_manager.get_stage_data('summaries')
+    if summaries is None:
+        # Generate summaries
+        cluster_texts = {label: [] for label in set(clusters['labels'])}
+        for text, label in zip(processed_texts, clusters['labels']):
+            cluster_texts[label].append(text)
+        summaries = summarizer.summarize_all_clusters(cluster_texts)
+        checkpoint_manager.save_stage('summaries', summaries)
+
     summaries_file = output_dir / f"summaries_{run_id}.json"
     with open(summaries_file, 'w') as f:
         json.dump(summaries, f)

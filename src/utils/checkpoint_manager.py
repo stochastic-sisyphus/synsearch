@@ -51,3 +51,18 @@ class CheckpointManager:
         """Get performance metrics for a stage"""
         stage_data = self.get_stage_data(stage_name)
         return stage_data.get('metrics') if stage_data else None 
+
+    def save_periodic_checkpoint(self, stage_name: str, data: Dict[str, Any], interval: int = 10) -> None:
+        """Save periodic checkpoint during long-running steps"""
+        if 'checkpoint_counter' not in self.state:
+            self.state['checkpoint_counter'] = 0
+        
+        self.state['checkpoint_counter'] += 1
+        
+        if self.state['checkpoint_counter'] % interval == 0:
+            self.save_stage(stage_name, data)
+            self.logger.info(f"Periodic checkpoint saved for stage: {stage_name}")
+
+    def log_checkpoint_progress(self, stage_name: str, message: str) -> None:
+        """Log progress for checkpointing"""
+        self.logger.info(f"Checkpoint progress for {stage_name}: {message}")
