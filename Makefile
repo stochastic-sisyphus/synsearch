@@ -1,37 +1,27 @@
-.PHONY: install test lint format clean docker-build docker-run dashboard-dash dashboard-streamlit
+.PHONY: setup download-data install test clean
+
+setup: download-data install test
+
+download-data:
+	python scripts/download_datasets.py
 
 install:
 	pip install -r requirements.txt
+	python -m spacy download en_core_web_sm
 
 test:
-	python -m pytest tests/
+	pytest tests/ -v --cov=src
+
+format:
+	black src/ tests/
+	isort src/ tests/
 
 lint:
 	flake8 src/ tests/
-	mypy src/
-	black --check .
-
-format:
-	black .
-	isort .
+	mypy src/ tests/
 
 clean:
-	find . -type d -name "__pycache__" -exec rm -r {} +
-	find . -type f -name "*.pyc" -delete
-	rm -rf .coverage htmlcov/
-
-docker-build:
-	docker-compose build
-
-docker-run:
-	docker-compose up
-
-.PHONY: docs
-docs:
-	sphinx-build -b html docs/source docs/build
-
-dashboard-dash:
-	python -m src.dashboard.app --framework dash
-
-dashboard-streamlit:
-	streamlit run src/dashboard/app.py
+	rm -rf data/scisummnet.zip
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+	find . -type d -name ".pytest_cache" -exec rm -rf {} +
+	find . -type d -name ".mypy_cache" -exec rm -rf {} +

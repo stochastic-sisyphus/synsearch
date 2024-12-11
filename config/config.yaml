@@ -4,7 +4,7 @@ data:
   output_path: "data/output"
   processed_path: "data/processed"
   batch_size: 32
-  scisummnet_path: "data/scisummnet"
+  scisummnet_path: ${DATASET_DIR:data/scisummnet}  # Default path with env var override
   datasets:
     - name: "scisummnet"
       enabled: false

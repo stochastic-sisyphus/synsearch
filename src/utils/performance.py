@@ -1,10 +1,9 @@
-
 import multiprocessing
 import psutil
-from typing import Optional
 import torch
 from functools import lru_cache
 import logging
+from typing import Optional
 
 class PerformanceOptimizer:
     """Handles performance optimization settings"""
@@ -21,7 +20,7 @@ class PerformanceOptimizer:
     def get_optimal_workers(self) -> int:
         """Get optimal number of worker processes"""
         return max(1, multiprocessing.cpu_count() - 1)
-        
+            
     @lru_cache(maxsize=1)
     def _get_cuda_batch_size(self, embedding_dim: int) -> int:
         """Calculate optimal batch size for GPU"""

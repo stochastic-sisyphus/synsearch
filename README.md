@@ -1,7 +1,5 @@
 # Dynamic Summarization and Adaptive Clustering
 
-A framework for real-time research synthesis using dynamic clustering and abstractive summarization. This project combines attention-based embedding refinement, adaptive clustering algorithms, and style-aware summarization to provide comprehensive research synthesis capabilities.
-
 ## Requirements
 
 ### System Requirements
@@ -9,6 +7,11 @@ A framework for real-time research synthesis using dynamic clustering and abstra
 - 8GB RAM minimum (16GB recommended)
 - CUDA-compatible GPU recommended for faster processing
 - 2GB free disk space
+
+### Quick Setup
+
+1. **Clone and setup environment**:
+```
 
 ### Dependencies
 See `requirements.txt` for complete list of dependencies.
@@ -253,7 +256,7 @@ outputs/
 │   └── summarization/
 ├── figures/
 │   ├── embeddings_umap.png
-│   └─��� cluster_distribution.png
+│   └── cluster_distribution.png
 └── results/
     ├── clusters.json
     ├── summaries.json

@@ -16,6 +16,7 @@ import random
 from datasets import load_dataset
 from dataclasses import dataclass, asdict
 from typing import Optional, Union, Type
+from src.utils.performance import PerformanceOptimizer  # Add this
 
 # Add project root to PYTHONPATH when running directly
 if __name__ == "__main__":
@@ -591,11 +592,28 @@ class EnhancedPipelineManager(PipelineManager):
         if null_counts.any():
             raise ValueError(f"Found null values in columns: {null_counts[null_counts > 0].to_dict()}")
 
+def validate_dataset_paths(config: Dict[str, Any]) -> None:
+    """Validate that required datasets are present"""
+    if config['data']['datasets']['scisummnet']['enabled']:
+        scisummnet_path = Path(config['data']['scisummnet_path'])
+        if not scisummnet_path.exists():
+            raise FileNotFoundError(
+                f"ScisummNet dataset not found at {scisummnet_path}. "
+                "Please run 'make download-data' to download required datasets."
+            )
+
 def main():
-    """Enhanced main entry point with better error handling"""
     try:
-        # Initialize environment
+        # Load and validate configuration
+        config = load_config()
+        config = validate_config(config)
+        
+        # Validate dataset paths
+        validate_dataset_paths(config)
+        
+        # Initialize environment and performance optimizer
         device = setup_environment()
+        perf_optimizer = PerformanceOptimizer()
         
         # Load and validate configuration
         config = load_config()
@@ -609,7 +627,7 @@ def main():
             model_name=config['embedding']['model_name'],
             embedding_dim=config['embedding'].get('dimension', 768),
             max_seq_length=config['embedding'].get('max_seq_length', 512),
-            batch_size=config['embedding'].get('batch_size', 32),
+            batch_size=perf_optimizer.get_optimal_batch_size(),
             device=device,
             config=config['embedding']
         )
@@ -673,12 +691,14 @@ def main():
         # Process each dataset through the pipeline
         for dataset_name, dataset in processed_datasets.items():
             logger.info(f"Running pipeline for dataset: {dataset_name}")
+            batch_size = perf_optimizer.get_optimal_batch_size()
+            
             results = process_dataset(
                 dataset=dataset,
                 cluster_manager=cluster_manager,
                 summarizer=summarizer,
                 evaluator=evaluator,
-                config=config
+                config={**config, 'batch_size': batch_size}
             )
             logger.info(f"Pipeline results for {dataset_name}: {results}")
         

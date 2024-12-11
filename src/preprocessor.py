@@ -14,6 +14,7 @@ from functools import partial
 from tqdm import tqdm
 from torch.utils.data import DataLoader, Dataset
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from src.utils.performance import PerformanceOptimizer  # Add this
 
 class TextDataset(Dataset):
     """Custom Dataset for text data."""
@@ -49,6 +50,7 @@ class TextPreprocessor:
             
         self.stopwords = set(nltk.corpus.stopwords.words(language))
         self.lemmatizer = nltk.WordNetLemmatizer()
+        self.perf_optimizer = PerformanceOptimizer()
         
     def clean_xml(self, text: str) -> str:
         """Remove XML tags and clean the text."""
@@ -111,7 +113,10 @@ class TextPreprocessor:
         else:
             df = data.copy()
         
-        with Pool(processes=n_jobs if n_jobs > 0 else None) as pool:
+        if n_jobs == -1:
+            n_jobs = self.perf_optimizer.get_optimal_workers()
+
+        with Pool(processes=n_jobs) as pool:
             # Process text column
             processed_texts = list(tqdm(
                 pool.imap(self.preprocess_text, df[text_column]),

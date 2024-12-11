@@ -10,6 +10,7 @@ from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader, Dataset
 from multiprocessing import Pool, cpu_count
+from src.utils.performance import PerformanceOptimizer  # Add this import
 
 class TextDataset(Dataset):
     """Custom Dataset for text data."""
@@ -28,7 +29,18 @@ class DataLoader:
         """Initialize DataLoader with configuration"""
         self.config = config
         self.logger = logging.getLogger(__name__)
-        self.batch_size = config.get('data', {}).get('batch_size', 32)
+        
+        # Initialize performance optimizer
+        self.perf_optimizer = PerformanceOptimizer()
+        
+        # Get optimal batch size
+        self.batch_size = min(
+            config.get('data', {}).get('batch_size', 32),
+            self.perf_optimizer.get_optimal_batch_size()
+        )
+        
+        # Get optimal number of workers
+        self.num_workers = self.perf_optimizer.get_optimal_workers()
         
         # Convert relative paths to absolute using project root
         project_root = Path(__file__).parent.parent
@@ -126,7 +138,11 @@ class DataLoader:
             if not xml_path.exists() or not summary_path.exists():
                 return None
                 
-            tree = ET.parse(xml_path)
+            # Use mmap for large files
+            with open(xml_path, 'rb') as f:
+                tree = ET.parse(f)
+                
+            # Use list comprehension for better performance
             text = ' '.join(
                 elem.text.strip()
                 for elem in tree.findall('.//S')

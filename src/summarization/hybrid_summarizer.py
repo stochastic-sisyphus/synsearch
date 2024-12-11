@@ -8,6 +8,7 @@ from pathlib import Path
 import torch.nn.functional as F
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm  # Add tqdm import
+from src.utils.performance import PerformanceOptimizer  # Add this
 
 class HybridSummarizer:
     """Base class for hybrid summarization approaches."""
@@ -58,6 +59,11 @@ class EnhancedHybridSummarizer(HybridSummarizer):
         )
         summary = summarizer.summarize(texts, style='technical')
     """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.perf_optimizer = PerformanceOptimizer()
+        self.batch_size = self.perf_optimizer.get_optimal_batch_size()
+
     def __init__(
         self,
         model_name: str = 'facebook/bart-large-cnn',
