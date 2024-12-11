@@ -14,7 +14,7 @@ from functools import partial
 from tqdm import tqdm
 from torch.utils.data import DataLoader, Dataset
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-from src.utils.performance import PerformanceOptimizer  # Add this
+from src.utils.performance import PerformanceOptimizer
 
 class TextDataset(Dataset):
     """Custom Dataset for text data."""
@@ -64,38 +64,42 @@ class TextPreprocessor:
     
     def preprocess_text(self, text: str, remove_citations: bool = True) -> str:
         """Clean and normalize text with advanced options."""
-        if not isinstance(text, str) or not text.strip():
-            return ""
+        try:
+            if not isinstance(text, str) or not text.strip():
+                return ""
+                
+            # Basic cleaning
+            text = text.lower().strip()
             
-        # Basic cleaning
-        text = text.lower().strip()
-        
-        # Remove citations if requested
-        if remove_citations:
-            text = re.sub(r'\[\d+\]|\[[\w\s,]+\]', '', text)
-        
-        # Remove URLs
-        text = re.sub(r'http[s]?://\S+', '', text)
-        
-        # Remove special characters but keep sentence structure
-        text = re.sub(r'[^a-zA-Z0-9\s\.\,\?\!]', ' ', text)
-        
-        # Normalize whitespace
-        text = re.sub(r'\s+', ' ', text)
-        
-        # SpaCy processing for advanced NLP
-        doc = self.nlp(text)
-        
-        # Remove stopwords, lemmatize, and filter tokens
-        tokens = []
-        for token in doc:
-            if (not token.is_stop and 
-                not token.is_punct and 
-                not token.is_space and 
-                len(token.text) > 1):  # Filter single characters
-                tokens.append(token.lemma_)
-        
-        return " ".join(tokens)
+            # Remove citations if requested
+            if remove_citations:
+                text = re.sub(r'\[\d+\]|\[[\w\s,]+\]', '', text)
+            
+            # Remove URLs
+            text = re.sub(r'http[s]?://\S+', '', text)
+            
+            # Remove special characters but keep sentence structure
+            text = re.sub(r'[^a-zA-Z0-9\s\.\,\?\!]', ' ', text)
+            
+            # Normalize whitespace
+            text = re.sub(r'\s+', ' ', text)
+            
+            # SpaCy processing for advanced NLP
+            doc = self.nlp(text)
+            
+            # Remove stopwords, lemmatize, and filter tokens
+            tokens = []
+            for token in doc:
+                if (not token.is_stop and 
+                    not token.is_punct and 
+                    not token.is_space and 
+                    len(token.text) > 1):  # Filter single characters
+                    tokens.append(token.lemma_)
+            
+            return " ".join(tokens)
+        except Exception as e:
+            self.logger.error(f"Error in preprocessing text: {e}")
+            return ""
     
     def process_dataset(
         self, 
@@ -194,6 +198,7 @@ class DomainAgnosticPreprocessor:
     """Enhanced preprocessor for handling various text domains."""
     
     def __init__(self, config: Optional[Dict] = None):
+        """Initialize the domain-agnostic preprocessor with optional configuration."""
         self.config = config or {}
         self.logger = logging.getLogger(__name__)
         try:
@@ -235,7 +240,7 @@ class DomainAgnosticPreprocessor:
             
         except Exception as e:
             self.logger.error(f"Error preprocessing text: {e}")
-            raise
+            return ""
 
     def preprocess_texts(
         self,

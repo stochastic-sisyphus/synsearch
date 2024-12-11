@@ -30,6 +30,7 @@ def process_batch(batch_data):
         return []
 
 def main():
+    """Main function to run the optimized script."""
     # Generate a unique run identifier
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 

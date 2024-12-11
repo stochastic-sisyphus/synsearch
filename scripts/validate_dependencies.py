@@ -4,6 +4,12 @@ import logging
 from pathlib import Path
 
 def check_dependencies():
+    """
+    Check for required dependencies and log missing ones.
+
+    Returns:
+        List[str]: List of missing packages.
+    """
     required_packages = [
         ('pandas', 'Data manipulation'),
         ('numpy', 'Numerical operations'),
@@ -33,9 +39,9 @@ def check_dependencies():
         try:
             importlib.import_module(package)
             print(f"✓ {package:<20} - {purpose}")
-        except ImportError:
+        except ImportError as e:
             missing.append(package)
-            print(f"✗ {package:<20} - {purpose}")
+            print(f"✗ {package:<20} - {purpose} (Error: {e})")
     
     return missing
 

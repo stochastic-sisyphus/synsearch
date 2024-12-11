@@ -41,19 +41,23 @@ class EvaluationPipeline:
         Returns:
             Dict[str, float]: Dictionary of clustering metrics.
         """
-        dataset = EmbeddingDataset(embeddings)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-        
-        all_embeddings = []
-        for batch in dataloader:
-            all_embeddings.append(batch)
-        
-        concatenated_embeddings = np.concatenate(all_embeddings, axis=0)
-        
-        metrics = calculate_cluster_metrics(concatenated_embeddings, labels)
-        self.logger.log_metrics(metrics, 'clustering')
-        return metrics
-    
+        try:
+            dataset = EmbeddingDataset(embeddings)
+            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+            all_embeddings = []
+            for batch in dataloader:
+                all_embeddings.append(batch)
+
+            concatenated_embeddings = np.concatenate(all_embeddings, axis=0)
+
+            metrics = calculate_cluster_metrics(concatenated_embeddings, labels)
+            self.logger.log_metrics(metrics, 'clustering')
+            return metrics
+        except Exception as e:
+            self.logger.error(f"Error evaluating clustering: {e}")
+            return {}
+
     def evaluate_summaries(self, 
                            generated_summaries: List[str], 
                            reference_summaries: List[str]) -> Dict[str, float]:

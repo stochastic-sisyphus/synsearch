@@ -56,4 +56,15 @@ def test_scisummnet_content(data_loader):
     
     # Check for no completely empty rows
     assert not df['text'].isna().all()
-    assert not df['title'].isna().all() 
+    assert not df['title'].isna().all()
+
+def test_load_all_datasets(data_loader):
+    """Test loading all datasets"""
+    datasets = data_loader.load_all_datasets()
+    assert datasets is not None
+    assert 'xlsum' in datasets
+    assert 'scisummnet' in datasets
+    assert isinstance(datasets['xlsum'], pd.DataFrame)
+    assert isinstance(datasets['scisummnet'], pd.DataFrame)
+    assert len(datasets['xlsum']) > 0
+    assert len(datasets['scisummnet']) > 0
