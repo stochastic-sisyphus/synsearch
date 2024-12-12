@@ -3,11 +3,8 @@ import pandas as pd
 from datasets import load_dataset
 import logging
 from typing import Dict, Any, Union, List, Optional
-import json
 import xml.etree.ElementTree as ET
-from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
-import torch
 from torch.utils.data import DataLoader, Dataset
 from multiprocessing import Pool, cpu_count
 from src.utils.performance import PerformanceOptimizer
@@ -26,6 +23,22 @@ class TextDataset(Dataset):
         return self.texts[idx]
 
 class DataLoader:
+    """
+    DataLoader class for loading and validating datasets.
+
+    The DataLoader requires the following:
+    - A configuration dictionary `config` with necessary keys.
+    - Proper logger initialization, i.e., `self.logger` should be set up using `logging.getLogger(__name__)`.
+
+    Attributes:
+        config (Dict[str, Any]): Configuration dictionary.
+        logger (logging.Logger): Logger instance.
+        perf_optimizer (PerformanceOptimizer): Performance optimizer instance.
+        batch_size (int): Optimal batch size.
+        num_workers (int): Optimal number of workers.
+        validator (DataValidator): Data validator instance.
+    """
+
     def __init__(self, config: Dict[str, Any]):
         """Initialize DataLoader with configuration"""
         self.config = config
@@ -72,58 +85,68 @@ class DataLoader:
         if not isinstance(self.config, dict) or 'data' not in self.config:
             raise ValueError("Invalid configuration format")
         
-        # Load XL-Sum dataset if enabled
         for dataset_config in self.config['data']['datasets']:
             if not dataset_config.get('enabled', False):
                 continue
-                
-            if dataset_config['name'] == 'xlsum':
-                try:
-                    self.logger.info("Loading XL-Sum dataset...")
-                    language = dataset_config.get('language', 'english')
-                    dataset = load_dataset('GEM/xlsum', language)
-                    if dataset and 'train' in dataset:
-                        df = pd.DataFrame({
-                            'text': dataset['train']['text'],
-                            'summary': dataset['train']['target'],
-                            'id': range(len(dataset['train'])),
-                            'source': ['xlsum'] * len(dataset['train'])
-                        })
-                        validation_results = self.validator.validate_dataset(df)
-                        if not validation_results['is_valid']:
-                            self.logger.warning(f"XL-Sum dataset validation failed: {validation_results}")
-                            continue
-                        datasets['xlsum'] = df
-                        self.logger.info(f"Successfully loaded {len(df)} documents from XL-Sum")
-                    else:
-                        self.logger.warning("XL-Sum dataset structure is not as expected")
-                except Exception as e:
-                    self.logger.warning(f"Failed to load XL-Sum dataset: {e}")
             
-            # Load ScisummNet dataset if enabled
-            elif dataset_config['name'] == 'scisummnet':
-                try:
-                    self.logger.info("Loading ScisummNet dataset...")
-                    scisummnet_path = Path(self.config['data']['scisummnet_path'])
-                    if scisummnet_path.exists():
-                        df = self.load_scisummnet(str(scisummnet_path))
-                        if df is not None and not df.empty:
-                            validation_results = self.validator.validate_dataset(df)
-                            if not validation_results['is_valid']:
-                                self.logger.warning(f"ScisummNet dataset validation failed: {validation_results}")
-                                continue
-                            datasets['scisummnet'] = df
-                            self.logger.info(f"Successfully loaded {len(df)} documents from ScisummNet")
-                        else:
-                            self.logger.warning("No valid documents found in ScisummNet dataset")
-                    else:
-                        self.logger.warning(f"ScisummNet path not found: {scisummnet_path}")
-                except Exception as e:
-                    self.logger.warning(f"Failed to load ScisummNet dataset: {e}")
-
+            dataset_name = dataset_config['name']
+            if dataset_name == 'xlsum':
+                datasets.update(self._load_xlsum_dataset(dataset_config))
+            elif dataset_name == 'scisummnet':
+                datasets.update(self._load_scisummnet_dataset())
+        
         if not datasets:
             raise ValueError("No datasets were successfully loaded")
         
+        return datasets
+
+    def _load_xlsum_dataset(self, dataset_config: Dict[str, Any]) -> Dict[str, pd.DataFrame]:
+        """Load XL-Sum dataset."""
+        datasets = {}
+        try:
+            self.logger.info("Loading XL-Sum dataset...")
+            language = dataset_config.get('language', 'english')
+            dataset = load_dataset('GEM/xlsum', language)
+            if dataset and 'train' in dataset:
+                df = pd.DataFrame({
+                    'text': dataset['train']['text'],
+                    'summary': dataset['train']['target'],
+                    'id': range(len(dataset['train'])),
+                    'source': ['xlsum'] * len(dataset['train'])
+                })
+                validation_results = self.validator.validate_dataset(df)
+                if not validation_results['is_valid']:
+                    self.logger.warning(f"XL-Sum dataset validation failed: {validation_results}")
+                else:
+                    datasets['xlsum'] = df
+                    self.logger.info(f"Successfully loaded {len(df)} documents from XL-Sum")
+            else:
+                self.logger.warning("XL-Sum dataset structure is not as expected")
+        except Exception as e:
+            self.logger.warning(f"Failed to load XL-Sum dataset: {e}")
+        return datasets
+
+    def _load_scisummnet_dataset(self) -> Dict[str, pd.DataFrame]:
+        """Load ScisummNet dataset."""
+        datasets = {}
+        try:
+            self.logger.info("Loading ScisummNet dataset...")
+            scisummnet_path = Path(self.config['data']['scisummnet_path'])
+            if scisummnet_path.exists():
+                df = self.load_scisummnet(str(scisummnet_path))
+                if df is not None and not df.empty:
+                    validation_results = self.validator.validate_dataset(df)
+                    if not validation_results['is_valid']:
+                        self.logger.warning(f"ScisummNet dataset validation failed: {validation_results}")
+                    else:
+                        datasets['scisummnet'] = df
+                        self.logger.info(f"Successfully loaded {len(df)} documents from ScisummNet")
+                else:
+                    self.logger.warning("No valid documents found in ScisummNet dataset")
+            else:
+                self.logger.warning(f"ScisummNet path not found: {scisummnet_path}")
+        except Exception as e:
+            self.logger.warning(f"Failed to load ScisummNet dataset: {e}")
         return datasets
 
     def load_scisummnet(self, path: str) -> Optional[pd.DataFrame]:
@@ -167,11 +190,9 @@ class DataLoader:
             if not xml_path.exists() or not summary_path.exists():
                 return None
                 
-            # Use mmap for large files
             with open(xml_path, 'rb') as f:
                 tree = ET.parse(f)
                 
-            # Use list comprehension for better performance
             text = ' '.join(
                 elem.text.strip()
                 for elem in tree.findall('.//S')
