@@ -21,6 +21,9 @@ class CheckpointManager:
                     return json.load(f)
             except json.JSONDecodeError:
                 self.logger.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
+                backup_file = self.checkpoint_dir / f'pipeline_state_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+                self.state_file.rename(backup_file)
+                self.logger.info(f"Backed up corrupted state file to {backup_file}")
                 return self._create_new_state()
         return self._create_new_state()
     
