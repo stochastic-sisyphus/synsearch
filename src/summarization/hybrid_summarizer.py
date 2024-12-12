@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm  # Add tqdm import
 from src.utils.performance import PerformanceOptimizer  # Add this
+from src.data_validator import DataValidator  # Add this
 
 class HybridSummarizer:
     """Base class for hybrid summarization approaches."""
@@ -18,9 +19,15 @@ class HybridSummarizer:
         self.device = device
         self.tokenizer = tokenizer or AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(device)
+        self.validator = DataValidator()  # Add this
         
     def summarize(self, texts: List[str], max_length: int = 150) -> List[str]:
         """Generate summaries for input texts."""
+        # Validate input texts
+        validation_results = self.validator.validate_texts(texts)
+        if not validation_results['is_valid']:
+            raise ValueError(f"Input texts validation failed: {validation_results}")
+        
         summaries = []
         for text in texts:
             inputs = self.tokenizer(text, return_tensors="pt", max_length=512, truncation=True)
@@ -37,6 +44,11 @@ class HybridSummarizer:
             
             summary = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             summaries.append(summary)
+        
+        # Validate generated summaries
+        validation_results = self.validator.validate_summaries(summaries)
+        if not validation_results['is_valid']:
+            raise ValueError(f"Generated summaries validation failed: {validation_results}")
             
         return summaries
 
