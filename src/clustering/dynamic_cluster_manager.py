@@ -50,7 +50,7 @@ class DynamicClusterManager:
             # Clear unused variables and cache
             del embeddings
             torch.cuda.empty_cache()
-            
+            self.logger.info("Completed clustering")
             return labels, metrics
             
         except Exception as e:
