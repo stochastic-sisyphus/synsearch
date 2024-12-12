@@ -97,6 +97,8 @@ class EnhancedEmbeddingGenerator:
             self.logger.warning(f"Input texts validation failed: {validation_results}")
             raise ValueError("Input texts validation failed")
             
+        self.logger.info(f"Generating embeddings for {len(texts)} texts with batch size {batch_size or self.batch_size}")
+                        
         try:
             if cache_dir:
                 cache_dir.mkdir(parents=True, exist_ok=True)
