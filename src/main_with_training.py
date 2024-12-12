@@ -45,6 +45,7 @@ def main():
         # Initialize components
         loader = DataLoader(config['data']['scisummnet_path'])
         preprocessor = TextPreprocessor()
+        validator = DataValidator()
         
         # Process datasets
         logger.info("Loading and processing datasets...")
@@ -70,6 +71,12 @@ def main():
                 summary_column='summary'
             )
             logger.info(f"Processed {len(processed_scisummnet)} ScisummNet documents")
+        
+        # Validate processed datasets
+        if not validator.validate_dataset(processed_xlsum):
+            raise ValueError("Processed XL-Sum dataset validation failed")
+        if not validator.validate_dataset(processed_scisummnet):
+            raise ValueError("Processed ScisummNet dataset validation failed")
         
         # Train summarization model if enabled
         if config.get('training', {}).get('enabled', False):
@@ -107,6 +114,10 @@ def main():
         logger.info("Generating embeddings...")
         embeddings = generate_embeddings(all_texts, config)
         
+        # Validate embeddings
+        if not validator.validate_embeddings(embeddings):
+            raise ValueError("Generated embeddings validation failed")
+        
         # Initialize and run clustering
         logger.info("Performing clustering...")
         cluster_manager = ClusterManager(config)
@@ -124,6 +135,11 @@ def main():
                 if label != -1  # Skip noise cluster
             }
             summaries = generate_summaries(cluster_texts, config)
+        
+        # Validate summaries
+        for summary in summaries:
+            if not validator.validate_summary(summary['summary']):
+                raise ValueError(f"Summary validation failed for cluster {summary['cluster_id']}")
         
         # Save results
         logger.info("Saving results...")

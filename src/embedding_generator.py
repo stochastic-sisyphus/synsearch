@@ -9,6 +9,7 @@ from pathlib import Path
 from datetime import datetime
 from tqdm import tqdm
 from torch.utils.data import DataLoader, Dataset
+from src.data_validator import DataValidator
 
 class AttentionLayer(nn.Module):
     """Attention layer for refining embeddings."""
@@ -76,6 +77,9 @@ class EnhancedEmbeddingGenerator:
             self.logger.error(f"Error initializing model: {str(e)}")
             raise RuntimeError(f"Failed to initialize embedding model: {str(e)}")
 
+        # Initialize DataValidator
+        self.validator = DataValidator()
+
     def generate_embeddings(
         self,
         texts: List[str],
@@ -86,6 +90,12 @@ class EnhancedEmbeddingGenerator:
         """Generate embeddings with optimized batch processing and caching."""
         if not texts:
             raise ValueError("Empty text list provided")
+        
+        # Validate input texts
+        validation_results = self.validator.validate_texts(texts)
+        if not validation_results['is_valid']:
+            self.logger.warning(f"Input texts validation failed: {validation_results}")
+            raise ValueError("Input texts validation failed")
             
         try:
             if cache_dir:
@@ -118,6 +128,12 @@ class EnhancedEmbeddingGenerator:
                     all_embeddings.append(embeddings)
             
             final_embeddings = np.concatenate(all_embeddings, axis=0)
+            
+            # Validate generated embeddings
+            validation_results = self.validator.validate_embeddings(final_embeddings)
+            if not validation_results['is_valid']:
+                self.logger.warning(f"Generated embeddings validation failed: {validation_results}")
+                raise ValueError("Generated embeddings validation failed")
             
             if cache_dir:
                 np.save(cache_file, final_embeddings)

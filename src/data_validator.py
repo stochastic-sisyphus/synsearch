@@ -225,6 +225,121 @@ class DataValidator:
             'stats': self.get_detailed_stats(df)
         }
 
+    def validate_intermediate_outputs(self, outputs: Dict[str, Any]) -> Dict[str, bool]:
+        """
+        Validate intermediate outputs in the pipeline.
+
+        Args:
+            outputs (Dict[str, Any]): Dictionary of intermediate outputs.
+
+        Returns:
+            Dict[str, bool]: Dictionary with validation results.
+        """
+        try:
+            validation_results = {
+                'has_required_keys': self._check_required_keys(outputs),
+                'has_valid_types': self._check_output_types(outputs),
+                'is_valid': False  # Will be set based on all checks
+            }
+
+            # Set overall validity
+            validation_results['is_valid'] = all([
+                validation_results['has_required_keys'],
+                validation_results['has_valid_types']
+            ])
+
+            return validation_results
+
+        except Exception as e:
+            self.logger.error(f"Error during intermediate output validation: {e}")
+            return {'is_valid': False, 'error': str(e)}
+
+    def _check_required_keys(self, outputs: Dict[str, Any]) -> bool:
+        """Check for presence of required keys in outputs"""
+        required_keys = ['embeddings', 'summaries']
+        return all(key in outputs for key in required_keys)
+
+    def _check_output_types(self, outputs: Dict[str, Any]) -> bool:
+        """Validate data types of intermediate outputs"""
+        try:
+            if 'embeddings' in outputs:
+                if not isinstance(outputs['embeddings'], list):
+                    return False
+            if 'summaries' in outputs:
+                if not isinstance(outputs['summaries'], list):
+                    return False
+            return True
+        except Exception:
+            return False
+
+    def validate_embeddings(self, embeddings: Any) -> Dict[str, bool]:
+        """
+        Validate generated embeddings.
+
+        Args:
+            embeddings (Any): Embeddings to validate.
+
+        Returns:
+            Dict[str, bool]: Dictionary with validation results.
+        """
+        try:
+            validation_results = {
+                'is_list': isinstance(embeddings, list),
+                'has_valid_length': self._check_embedding_length(embeddings),
+                'is_valid': False  # Will be set based on all checks
+            }
+
+            # Set overall validity
+            validation_results['is_valid'] = all([
+                validation_results['is_list'],
+                validation_results['has_valid_length']
+            ])
+
+            return validation_results
+
+        except Exception as e:
+            self.logger.error(f"Error during embeddings validation: {e}")
+            return {'is_valid': False, 'error': str(e)}
+
+    def _check_embedding_length(self, embeddings: List[Any]) -> bool:
+        """Check if embeddings have valid length"""
+        min_length = 10  # Minimum length for embeddings
+        return all(len(embedding) >= min_length for embedding in embeddings)
+
+    def validate_summaries(self, summaries: List[str]) -> Dict[str, bool]:
+        """
+        Validate generated summaries.
+
+        Args:
+            summaries (List[str]): Summaries to validate.
+
+        Returns:
+            Dict[str, bool]: Dictionary with validation results.
+        """
+        try:
+            validation_results = {
+                'is_list': isinstance(summaries, list),
+                'has_valid_length': self._check_summary_length(summaries),
+                'is_valid': False  # Will be set based on all checks
+            }
+
+            # Set overall validity
+            validation_results['is_valid'] = all([
+                validation_results['is_list'],
+                validation_results['has_valid_length']
+            ])
+
+            return validation_results
+
+        except Exception as e:
+            self.logger.error(f"Error during summaries validation: {e}")
+            return {'is_valid': False, 'error': str(e)}
+
+    def _check_summary_length(self, summaries: List[str]) -> bool:
+        """Check if summaries have valid length"""
+        min_length = 10  # Minimum length for summaries
+        return all(len(summary) >= min_length for summary in summaries)
+
 class DataFrameDataset(Dataset):
     def __init__(self, df: pd.DataFrame):
         self.df = df

@@ -11,6 +11,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from multiprocessing import Pool, cpu_count
 from src.utils.performance import PerformanceOptimizer
+from src.data_validator import DataValidator
 
 class TextDataset(Dataset):
     """Custom Dataset for text data."""
@@ -47,6 +48,9 @@ class DataLoader:
         if 'scisummnet_path' in self.config['data']:
             self.config['data']['scisummnet_path'] = str(project_root / self.config['data']['scisummnet_path'])
 
+        # Initialize DataValidator
+        self.validator = DataValidator()
+
     def load_all_datasets(self) -> Dict[str, pd.DataFrame]:
         """Load all configured datasets."""
         datasets = {}
@@ -68,6 +72,10 @@ class DataLoader:
                             'id': range(len(dataset['train'])),
                             'source': ['xlsum'] * len(dataset['train'])
                         })
+                        validation_results = self.validator.validate_dataset(df)
+                        if not validation_results['is_valid']:
+                            self.logger.warning(f"XL-Sum dataset validation failed: {validation_results}")
+                            continue
                         datasets['xlsum'] = df
                         self.logger.info(f"Successfully loaded {len(df)} documents from XL-Sum")
                     else:
@@ -83,6 +91,10 @@ class DataLoader:
                     if scisummnet_path.exists():
                         df = self.load_scisummnet(str(scisummnet_path))
                         if df is not None and not df.empty:
+                            validation_results = self.validator.validate_dataset(df)
+                            if not validation_results['is_valid']:
+                                self.logger.warning(f"ScisummNet dataset validation failed: {validation_results}")
+                                continue
                             datasets['scisummnet'] = df
                             self.logger.info(f"Successfully loaded {len(df)} documents from ScisummNet")
                         else:
