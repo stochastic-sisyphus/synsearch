@@ -10,11 +10,11 @@ from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 from src.utils.performance import PerformanceOptimizer
 from src.data_validator import DataValidator
-import json  # Add this import statement
+import json  # Ensure this import is present
 
 class HybridSummarizer:
     """Base class for hybrid summarization approaches."""
-
+    
     def __init__(self, model_name='t5-base', tokenizer=None, device='cuda' if torch.cuda.is_available() else 'cpu'):
         self.model_name = model_name
         self.device = device
