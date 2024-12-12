@@ -252,7 +252,12 @@ class DataValidator:
 
         except Exception as e:
             self.logger.error(f"Error during intermediate output validation: {e}")
-            return {'is_valid': False, 'error': str(e)}
+            return {
+                'has_required_keys': False,
+                'has_valid_types': False,
+                'is_valid': False,
+                'error': str(e)
+            }
 
     def _check_required_keys(self, outputs: Dict[str, Any]) -> bool:
         """Check for presence of required keys in outputs"""
@@ -299,7 +304,12 @@ class DataValidator:
 
         except Exception as e:
             self.logger.error(f"Error during embeddings validation: {e}")
-            return {'is_valid': False, 'error': str(e)}
+            return {
+                'is_list': False,
+                'has_valid_length': False,
+                'is_valid': False,
+                'error': str(e)
+            }
 
     def _check_embedding_length(self, embeddings: List[Any]) -> bool:
         """Check if embeddings have valid length"""
@@ -333,7 +343,12 @@ class DataValidator:
 
         except Exception as e:
             self.logger.error(f"Error during summaries validation: {e}")
-            return {'is_valid': False, 'error': str(e)}
+            return {
+                'is_list': False,
+                'has_valid_length': False,
+                'is_valid': False,
+                'error': str(e)
+            }
 
     def _check_summary_length(self, summaries: List[str]) -> bool:
         """Check if summaries have valid length"""
@@ -367,7 +382,12 @@ class DataValidator:
 
         except Exception as e:
             self.logger.error(f"Error during texts validation: {e}")
-            return {'is_valid': False, 'error': str(e)}
+            return {
+                'is_list': False,
+                'has_valid_length': False,
+                'is_valid': False,
+                'error': str(e)
+            }
 
 class DataFrameDataset(Dataset):
     def __init__(self, df: pd.DataFrame):
