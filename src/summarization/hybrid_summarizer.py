@@ -479,3 +479,21 @@ class EnhancedHybridSummarizer(HybridSummarizer):
             json.dump(metadata, f)
         
         self.logger.info(f"Saved intermediate outputs for cluster {cluster_id} to {output_dir}")
+
+    def _get_summary_metadata(self, summary: str) -> Dict[str, Any]:
+        """
+        Extract metadata from the generated summary.
+
+        Args:
+            summary (str): The generated summary text.
+
+        Returns:
+            Dict[str, Any]: Metadata information.
+        """
+        # Example metadata extraction logic
+        metadata = {
+            'length': len(summary),
+            'num_sentences': summary.count('.'),
+            'num_words': len(summary.split())
+        }
+        return metadata
