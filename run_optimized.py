@@ -14,7 +14,7 @@ import json
 
 from src.embedding_generator import EnhancedEmbeddingGenerator
 from src.clustering.dynamic_cluster_manager import DynamicClusterManager
-from src.summarization.hybrid_summarizer import HybridSummarizer
+from src.summarization.hybrid_summarizer import EnhancedHybridSummarizer  # Use EnhancedHybridSummarizer
 from src.visualization.embedding_visualizer import EmbeddingVisualizer
 from src.evaluation.metrics import EvaluationMetrics
 from src.utils.checkpoint_manager import CheckpointManager
@@ -128,7 +128,7 @@ def main():
         }
     }
     cluster_manager = DynamicClusterManager(config=config)
-    summarizer = HybridSummarizer()
+    summarizer = EnhancedHybridSummarizer()  # Use EnhancedHybridSummarizer here
     visualizer = EmbeddingVisualizer()
     evaluator = EvaluationMetrics()
 
