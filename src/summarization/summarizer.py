@@ -117,8 +117,12 @@ class ClusterSummarizer:
         summaries = []
         
         for cluster_id, texts in tqdm(cluster_texts.items()):
-            summary = self.summarize_cluster(texts, cluster_id)
-            summaries.append(summary)
+            try:
+                summary = self.summarize_cluster(texts, cluster_id)
+                summaries.append(summary)
+            except Exception as e:
+                self.logger.warning(f"Skipping cluster {cluster_id} due to error: {e}")
+                continue
             
         return summaries
     
@@ -134,10 +138,14 @@ class ClusterSummarizer:
             summaries (List[Dict[str, str]]): List of dictionaries containing summaries for each cluster.
             output_dir (Union[str, Path]): Directory to save the summaries.
         """
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        with open(output_dir / 'summaries.json', 'w') as f:
-            json.dump(summaries, f, indent=2)
+        try:
+            output_dir = Path(output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
             
-        self.logger.info(f"Saved summaries to {output_dir}") 
+            with open(output_dir / 'summaries.json', 'w') as f:
+                json.dump(summaries, f, indent=2)
+                
+            self.logger.info(f"Saved summaries to {output_dir}")
+        except Exception as e:
+            self.logger.error(f"Error saving summaries: {e}")
+            raise

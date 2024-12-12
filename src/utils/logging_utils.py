@@ -99,3 +99,38 @@ class MetricsLogger:
                 
                 # Log to console/file
                 self.logger.info(f"Step: {step} - Metrics: {metrics}")
+
+    def log_method_call(self, method_name: str, *args, **kwargs) -> None:
+        """
+        Log the method call with parameters.
+
+        Args:
+            method_name (str): The name of the method being called.
+            *args: Positional arguments.
+            **kwargs: Keyword arguments.
+        """
+        self.logger.info(f"Calling method: {method_name}")
+        self.logger.debug(f"Parameters: args={args}, kwargs={kwargs}")
+
+    def log_intermediate_result(self, result: Any, description: str = "") -> None:
+        """
+        Log intermediate results.
+
+        Args:
+            result (Any): The result to log.
+            description (str, optional): Additional description of the result.
+        """
+        self.logger.info(f"Intermediate result: {description}")
+        self.logger.debug(f"Result: {result}")
+
+    def ensure_structural_correctness(self, data: Any, expected_type: type, description: str = "") -> None:
+        """
+        Ensure the structural correctness of the input data.
+
+        Args:
+            data (Any): The data to validate.
+            expected_type (type): The expected type of the data.
+            description (str, optional): Additional description of the data.
+        """
+        if not isinstance(data, expected_type):
+            raise ValueError(f"Incorrect data structure for {description}. Expected {expected_type}, got {type(data)}")
