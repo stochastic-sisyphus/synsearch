@@ -18,7 +18,7 @@ from src.summarization.hybrid_summarizer import EnhancedHybridSummarizer
 from src.visualization.embedding_visualizer import EmbeddingVisualizer
 from src.evaluation.metrics import EvaluationMetrics
 from src.utils.checkpoint_manager import CheckpointManager
-from src.utils.error_handler import with_error_handling
+from src.utils.error_handler import with_error_handling, GlobalErrorHandler
 from src.utils.logging_utils import MetricsLogger
 
 def init_worker():

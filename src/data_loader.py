@@ -51,6 +51,19 @@ class DataLoader:
         # Initialize DataValidator
         self.validator = DataValidator()
 
+        # Validate input configuration
+        if not self._validate_config():
+            raise ValueError("Invalid configuration format")
+
+    def _validate_config(self) -> bool:
+        """Validate input configuration"""
+        required_keys = ['data', 'preprocessing', 'embedding', 'clustering']
+        for key in required_keys:
+            if key not in self.config:
+                self.logger.error(f"Missing required configuration key: {key}")
+                return False
+        return True
+
     def load_all_datasets(self) -> Dict[str, pd.DataFrame]:
         """Load all configured datasets."""
         datasets = {}
