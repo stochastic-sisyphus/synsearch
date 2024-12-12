@@ -537,3 +537,5 @@ def _calculate_methods_coverage(summaries: List[str], references: List[str]) -> 
         references (List[str]): List of reference summaries.
 
     Returns:
+        float: Coverage score.
+    """
