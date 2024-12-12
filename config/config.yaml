@@ -94,6 +94,7 @@ logging:
   level: "INFO"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
   file: 'logs/pipeline.log'
+  output_dir: 'logs/output'
 
 # Checkpoints Configuration
 checkpoints:
