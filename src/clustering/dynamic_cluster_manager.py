@@ -6,6 +6,8 @@ import logging
 from pathlib import Path
 import torch
 import json
+from sklearn.metrics import silhouette_score
+from joblib import Parallel, delayed
 
 class DynamicClusterManager:
     """Manages dynamic clustering with adaptive thresholds and online updates."""
@@ -17,14 +19,7 @@ class DynamicClusterManager:
         self.logger = logging.getLogger(__name__)
         
         # Initialize clustering models
-        self.hdbscan = HDBSCAN(
-            min_cluster_size=self.min_cluster_size,
-            min_samples=self.min_samples,
-            metric='euclidean',
-            cluster_selection_method='eom'
-        )
-        
-        self.online_clusterer = MiniBatchKMeans(
+        self.clusterer = MiniBatchKMeans(
             n_clusters=config.get('n_clusters', 10),
             batch_size=config.get('batch_size', 1000)
         )
@@ -32,8 +27,8 @@ class DynamicClusterManager:
     def fit_predict(self, embeddings: np.ndarray) -> Tuple[np.ndarray, Dict]:
         """Perform clustering with dynamic threshold adaptation."""
         try:
-            # Initial clustering with HDBSCAN
-            labels = self.hdbscan.fit_predict(embeddings)
+            # Initial clustering with MiniBatchKMeans
+            labels = self.clusterer.fit_predict(embeddings)
             
             # Calculate clustering metrics
             metrics = self._calculate_metrics(embeddings, labels)
@@ -105,3 +100,43 @@ class DynamicClusterManager:
             json.dump(metrics, f)
         
         self.logger.info(f"Saved intermediate outputs to {output_dir}")
+
+    def enable_approximate_nearest_neighbors(self):
+        """Enable approximate nearest neighbors for HDBSCAN."""
+        self.hdbscan = HDBSCAN(
+            min_cluster_size=self.min_cluster_size,
+            min_samples=self.min_samples,
+            metric='euclidean',
+            cluster_selection_method='eom',
+            approx_min_span_tree=True
+        )
+
+    def process_embeddings_in_parallel_chunks(self, embeddings: np.ndarray, chunk_size: int = 1000) -> np.ndarray:
+        """Process embeddings in parallel chunks."""
+        n_chunks = len(embeddings) // chunk_size + (1 if len(embeddings) % chunk_size != 0 else 0)
+        results = Parallel(n_jobs=-1)(
+            delayed(self.clusterer.fit_predict)(embeddings[i * chunk_size:(i + 1) * chunk_size])
+            for i in range(n_chunks)
+        )
+        return np.concatenate(results)
+
+    def save_partial_clustering_results(self, labels: np.ndarray, output_dir: str = "outputs/clustering") -> None:
+        """Save partial clustering results."""
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        labels_file = output_dir / "partial_labels.npy"
+        np.save(labels_file, labels)
+        self.logger.info(f"Saved partial clustering results to {labels_file}")
+
+    def adjust_clustering_parameters_based_on_silhouette(self, embeddings: np.ndarray, labels: np.ndarray) -> np.ndarray:
+        """Automatically adjust clustering parameters based on silhouette scores."""
+        silhouette_avg = silhouette_score(embeddings, labels)
+        if silhouette_avg < 0.5:
+            self.logger.info("Adjusting clustering parameters based on silhouette score...")
+            self.min_cluster_size = max(3, self.min_cluster_size - 1)
+            self.clusterer = HDBSCAN(
+                min_cluster_size=self.min_cluster_size,
+                min_samples=self.min_samples
+            )
+            labels = self.clusterer.fit_predict(embeddings)
+        return labels
