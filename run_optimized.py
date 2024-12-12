@@ -40,13 +40,13 @@ def process_batch(batch_data):
         return []
 
 @with_error_handling
-def main():
+def main(config):
     """Main function to run the optimized script."""
     # Generate a unique run identifier
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Set up logging
-    log_dir = Path("logs")
+    log_dir = Path(config['logging']['log_dir'])
     log_dir.mkdir(exist_ok=True)
     log_file = log_dir / f"run_optimized_{run_id}.log"
     logging.basicConfig(
@@ -69,9 +69,9 @@ def main():
 
     # Load dataset with optimized settings
     dataset = load_dataset(
-        'GEM/xlsum',
-        'english',
-        cache_dir='data/cache',
+        config['dataset']['name'],
+        config['dataset']['language'],
+        cache_dir=config['dataset']['cache_dir'],
         num_proc=n_workers
     )
 
@@ -111,7 +111,7 @@ def main():
     logging.info(f"Processed {len(processed_texts)} texts")
 
     # Save processed texts to output file
-    output_dir = Path("outputs")
+    output_dir = Path(config['output']['dir'])
     output_dir.mkdir(exist_ok=True)
     output_file = output_dir / f"processed_texts_{run_id}.txt"
     with open(output_file, 'w') as f:
@@ -122,13 +122,7 @@ def main():
 
     # Initialize components
     embedding_generator = EnhancedEmbeddingGenerator()
-    config = {  # Add your configuration here
-        'clustering': {
-            'min_cluster_size': 5,
-            'min_samples': 3
-        }
-    }
-    cluster_manager = DynamicClusterManager(config=config)
+    cluster_manager = DynamicClusterManager(config=config['clustering'])
     summarizer = EnhancedHybridSummarizer()
     visualizer = EmbeddingVisualizer()
     evaluator = EvaluationMetrics()
@@ -223,9 +217,10 @@ def main():
         json.dump(evaluation_metrics, f)
     logging.info(f"Saved evaluation metrics to {evaluation_file}")
 
-    # Remove the deliberate error to allow the script to complete successfully
-    # raise RuntimeError("Deliberate error to ensure the script does not run successfully")
-
 if __name__ == '__main__':
+    # Load configuration from a JSON file
+    with open('config.json', 'r') as f:
+        config = json.load(f)
+    
     mp.set_start_method('spawn', force=True)
-    main()
+    main(config)
