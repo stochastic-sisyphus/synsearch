@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 def verify_model_compatibility(model_name: str, expected_dimension: int) -> bool:
     """Verify that the selected model matches the expected embedding dimension."""
     from sentence_transformers import SentenceTransformer
@@ -8,4 +12,4 @@ def verify_model_compatibility(model_name: str, expected_dimension: int) -> bool
         return actual_dimension == expected_dimension
     except Exception as e:
         logger.error(f"Error verifying model compatibility: {str(e)}")
-        return False 
+        return False
