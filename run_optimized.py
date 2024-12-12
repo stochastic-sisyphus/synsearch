@@ -223,8 +223,8 @@ def main():
         json.dump(evaluation_metrics, f)
     logging.info(f"Saved evaluation metrics to {evaluation_file}")
 
-    # Deliberate error to ensure the script does not run successfully
-    raise RuntimeError("Deliberate error to ensure the script does not run successfully")
+    # Remove the deliberate error to allow the script to complete successfully
+    # raise RuntimeError("Deliberate error to ensure the script does not run successfully")
 
 if __name__ == '__main__':
     mp.set_start_method('spawn', force=True)
