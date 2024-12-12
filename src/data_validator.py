@@ -139,7 +139,7 @@ class DataValidator:
         duplicate_ratio = df.duplicated(subset=['text']).sum() / len(df)
         return duplicate_ratio < 0.05  # Allow up to 5% duplicates
 
-    def get_detailed_stats(self, df: pd.DataFrame) -> Dict[str, float]:
+    def get_detailed_stats(self, df: pd.DataFrame) -> Dict:
         """
         Generate detailed statistics about the dataset.
 
@@ -339,6 +339,35 @@ class DataValidator:
         """Check if summaries have valid length"""
         min_length = 10  # Minimum length for summaries
         return all(len(summary) >= min_length for summary in summaries)
+
+    def validate_texts(self, texts: List[str]) -> Dict[str, bool]:
+        """
+        Validate input texts for summarization.
+
+        Args:
+            texts (List[str]): Texts to validate.
+
+        Returns:
+            Dict[str, bool]: Dictionary with validation results.
+        """
+        try:
+            validation_results = {
+                'is_list': isinstance(texts, list),
+                'has_valid_length': self._check_text_length(pd.DataFrame({'text': texts})),
+                'is_valid': False  # Will be set based on all checks
+            }
+
+            # Set overall validity
+            validation_results['is_valid'] = all([
+                validation_results['is_list'],
+                validation_results['has_valid_length']
+            ])
+
+            return validation_results
+
+        except Exception as e:
+            self.logger.error(f"Error during texts validation: {e}")
+            return {'is_valid': False, 'error': str(e)}
 
 class DataFrameDataset(Dataset):
     def __init__(self, df: pd.DataFrame):

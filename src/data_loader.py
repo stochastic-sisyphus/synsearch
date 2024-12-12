@@ -55,6 +55,10 @@ class DataLoader:
         """Load all configured datasets."""
         datasets = {}
         
+        # Validate input configuration
+        if not isinstance(self.config, dict) or 'data' not in self.config:
+            raise ValueError("Invalid configuration format")
+        
         # Load XL-Sum dataset if enabled
         for dataset_config in self.config['data']['datasets']:
             if not dataset_config.get('enabled', False):
