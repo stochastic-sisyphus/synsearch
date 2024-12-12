@@ -11,6 +11,7 @@ from src.utils.performance import PerformanceOptimizer
 import logging
 from datetime import datetime
 import json
+import yaml
 
 from src.embedding_generator import EnhancedEmbeddingGenerator
 from src.clustering.dynamic_cluster_manager import DynamicClusterManager
@@ -46,12 +47,12 @@ def main(config):
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Set up logging
-    log_dir = Path(config['logging']['log_dir'])
+    log_dir = Path(config['logging']['file']).parent
     log_dir.mkdir(exist_ok=True)
     log_file = log_dir / f"run_optimized_{run_id}.log"
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
+        format=config['logging']['format'],
         handlers=[
             logging.StreamHandler(sys.stdout),
             logging.FileHandler(str(log_file))
@@ -69,9 +70,9 @@ def main(config):
 
     # Load dataset with optimized settings
     dataset = load_dataset(
-        config['dataset']['name'],
-        config['dataset']['language'],
-        cache_dir=config['dataset']['cache_dir'],
+        config['data']['datasets'][1]['dataset_name'],
+        config['data']['datasets'][1]['language'],
+        cache_dir=config['data']['output_path'],
         num_proc=n_workers
     )
 
@@ -111,7 +112,7 @@ def main(config):
     logging.info(f"Processed {len(processed_texts)} texts")
 
     # Save processed texts to output file
-    output_dir = Path(config['output']['dir'])
+    output_dir = Path(config['data']['output_path'])
     output_dir.mkdir(exist_ok=True)
     output_file = output_dir / f"processed_texts_{run_id}.txt"
     with open(output_file, 'w') as f:
@@ -218,9 +219,9 @@ def main(config):
     logging.info(f"Saved evaluation metrics to {evaluation_file}")
 
 if __name__ == '__main__':
-    # Load configuration from a JSON file
-    with open('config.json', 'r') as f:
-        config = json.load(f)
-    
+    # Load configuration from a YAML file
+    with open('config/config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+
     mp.set_start_method('spawn', force=True)
     main(config)
