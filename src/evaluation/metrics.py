@@ -292,8 +292,8 @@ class EvaluationMetrics:
             similarities = cosine_similarity(concatenated_embeddings)
             
             self.logger.info("Completed embedding quality calculation")
-            self.logger.debug(f"Embedding quality metrics: mean_similarity={np.mean(similarities)}, std_similarity={np.std(similarities)}, min_similarity={np.min(similarities)}, max_similarity={np.max(similarities)}")
-
+            self.logger.debug(f"Embedding quality metrics: mean_similarity={np.mean(similarities)}, std_similarity={np.std(similarities)}, min_similarity={np.min(similarities)}, max_similarity={np.m[...]
+            
             return {
                 'mean_similarity': float(np.mean(similarities)),
                 'std_similarity': float(np.std(similarities)),
@@ -497,8 +497,8 @@ def _calculate_term_preservation(summaries: List[str], references: List[str]) ->
             summary_terms = {chunk.text.lower() for chunk in summary_doc.noun_chunks}
             reference_terms = {chunk.text.lower() for chunk in reference_doc.noun_chunks}
             
-            if reference_terms:
-                preservation = len(summary_terms.intersection(reference_terms)) / len(reference_terms)
+            if reference terms:
+                preservation = len(summary_terms.intersection(reference_terms)) / len(reference terms)
                 total_preservation += preservation
                 
         return total_preservation / len(summaries)
@@ -538,48 +538,3 @@ def _calculate_methods_coverage(summaries: List[str], references: List[str]) -> 
         references (List[str]): List of reference summaries.
 
     Returns:
-        float: Methods coverage score.
-    """
-    methods_keywords = {
-        'method', 'approach', 'technique', 'algorithm', 'procedure',
-        'methodology', 'implementation', 'process', 'analysis', 'experiment'
-    }
-    
-    total_coverage = 0.0
-    for summary, reference in zip(summaries, references):
-        summary_words = set(summary.lower().split())
-        reference_words = set(reference.lower().split())
-        
-        summary_methods = summary_words.intersection(methods_keywords)
-        reference_methods = reference_words.intersection(methods_keywords)
-        
-        if reference_methods:
-            coverage = len(summary_methods) / len(reference_methods)
-            total_coverage += coverage
-            
-    return total_coverage / len(summaries)
-
-def _calculate_results_accuracy(summaries: List[str], references: List[str]) -> float:
-    """
-    Calculate accuracy of reported results and findings.
-
-    Args:
-        summaries (List[str]): List of generated summaries.
-        references (List[str]): List of reference summaries.
-
-    Returns:
-        float: Results accuracy score.
-    """
-    # Match numerical values and percentages
-    number_pattern = r'\d+(?:\.\d+)?%?'
-    
-    total_accuracy = 0.0
-    for summary, reference in zip(summaries, references):
-        ref_numbers = set(re.findall(number_pattern, reference))
-        sum_numbers = set(re.findall(number_pattern, summary))
-        
-        if ref_numbers:
-            accuracy = len(sum_numbers.intersection(ref_numbers)) / len(ref_numbers)
-            total_accuracy += accuracy
-            
-    return total_accuracy / len(summaries)
