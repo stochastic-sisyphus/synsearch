@@ -21,7 +21,6 @@ from src.utils.checkpoint_manager import CheckpointManager
 
 def init_worker():
     """Initialize worker process with optimized settings."""
-    # Pin memory for better performance
     torch.cuda.empty_cache()
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
@@ -130,7 +129,9 @@ def main():
     if embeddings is None:
         # Generate embeddings
         embeddings = embedding_generator.generate_embeddings(processed_texts)
-        checkpoint_manager.save_stage('embeddings', embeddings)
+        # Convert embeddings to list before saving
+        embeddings_list = embeddings.tolist()
+        checkpoint_manager.save_stage('embeddings', embeddings_list)
 
     embeddings_file = output_dir / f"embeddings_{run_id}.npy"
     np.save(embeddings_file, embeddings)
