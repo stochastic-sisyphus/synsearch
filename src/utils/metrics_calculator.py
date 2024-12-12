@@ -1,11 +1,3 @@
-from typing import Dict, List, Any
-import numpy as np
-from sklearn.metrics import silhouette_score, davies_bouldin_score
-import logging
-from pathlib import Path
-from datetime import datetime
-import json
-
 class MetricsCalculator:
     """Calculate and manage various metrics for the pipeline."""
     
@@ -78,4 +70,15 @@ class MetricsCalculator:
         with open(output_path, 'w') as f:
             json.dump(metrics, f, indent=2)
         
-        self.logger.info(f"Saved metrics to {output_path}") 
+        self.logger.info(f"Saved metrics to {output_path}")
+
+    def _calculate_summarization_metrics(
+        self,
+        generated_summaries: List[str],
+        reference_summaries: List[str]
+    ) -> Dict[str, Dict[str, float]]:
+        """Calculate summarization quality metrics."""
+        metrics = {}
+        for gen_summary, ref_summary in zip(generated_summaries, reference_summaries):
+            metrics.update(self._calculate_reference_metrics(gen_summary, ref_summary))
+        return metrics
