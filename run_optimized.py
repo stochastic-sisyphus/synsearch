@@ -151,8 +151,8 @@ def main():
     logging.info(f"Saved embeddings to {embeddings_file}")
 
     # Clear unused variables and cache
-    del processed_texts
-    torch.cuda.empty_cache()
+    perf_optimizer.clear_memory_cache()
+    checkpoint_manager.save_periodic_checkpoint('embeddings', embeddings_list)
     logging.info("Completed embedding generation")
 
     # Check for existing clusters
@@ -174,8 +174,9 @@ def main():
     logging.info(f"Saved clusters to {clusters_file}")
 
     # Clear unused variables and cache
-    del embeddings
-    torch.cuda.empty_cache()
+    perf_optimizer.clear_memory_cache()
+    checkpoint_manager.save_periodic_checkpoint('clusters', clusters)
+    logging.info("Completed clustering")
 
     # Check for existing summaries
     try:
@@ -196,6 +197,11 @@ def main():
     with open(summaries_file, 'w') as f:
         json.dump(summaries, f)
     logging.info(f"Saved summaries to {summaries_file}")
+
+    # Clear unused variables and cache
+    perf_optimizer.clear_memory_cache()
+    checkpoint_manager.save_periodic_checkpoint('summaries', summaries)
+    logging.info("Completed summarization")
 
     # Visualize embeddings
     visualization_file = output_dir / f"visualizations_{run_id}.html"
