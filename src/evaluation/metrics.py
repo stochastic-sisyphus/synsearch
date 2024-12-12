@@ -292,8 +292,7 @@ class EvaluationMetrics:
             similarities = cosine_similarity(concatenated_embeddings)
             
             self.logger.info("Completed embedding quality calculation")
-            self.logger.debug(f"Embedding quality metrics: mean_similarity={np.mean(similarities)}, std_similarity={np.std(similarities)}, min_similarity={np.min(similarities)}, max_similarity={np.m[...]
-            
+            self.logger.debug(f"Embedding quality metrics: mean_similarity={np.mean(similarities)}, std_similarity={np.std(similarities)}, min_similarity={np.min(similarities)}, max_similarity={np.max(similarities)}")
             return {
                 'mean_similarity': float(np.mean(similarities)),
                 'std_similarity': float(np.std(similarities)),
