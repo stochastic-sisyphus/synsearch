@@ -18,6 +18,7 @@ from src.summarization.hybrid_summarizer import HybridSummarizer
 from src.visualization.embedding_visualizer import EmbeddingVisualizer
 from src.evaluation.metrics import EvaluationMetrics
 from src.utils.checkpoint_manager import CheckpointManager
+from src.utils.error_handler import with_error_handling
 
 def init_worker():
     """Initialize worker process with optimized settings."""
@@ -26,6 +27,7 @@ def init_worker():
         torch.backends.cudnn.benchmark = True
         torch.backends.cudnn.enabled = True
 
+@with_error_handling
 def process_batch(batch_data):
     """Process a batch of texts in parallel."""
     try:
@@ -36,6 +38,7 @@ def process_batch(batch_data):
         logging.error(f"Error processing batch: {e}")
         return []
 
+@with_error_handling
 def main():
     """Main function to run the optimized script."""
     # Generate a unique run identifier
@@ -147,6 +150,10 @@ def main():
     np.save(embeddings_file, embeddings)
     logging.info(f"Saved embeddings to {embeddings_file}")
 
+    # Clear unused variables and cache
+    del processed_texts
+    torch.cuda.empty_cache()
+
     # Check for existing clusters
     try:
         clusters = checkpoint_manager.get_stage_data('clusters')
@@ -164,6 +171,10 @@ def main():
     with open(clusters_file, 'w') as f:
         json.dump(clusters, f)
     logging.info(f"Saved clusters to {clusters_file}")
+
+    # Clear unused variables and cache
+    del embeddings
+    torch.cuda.empty_cache()
 
     # Check for existing summaries
     try:
