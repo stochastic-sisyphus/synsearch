@@ -153,6 +153,7 @@ def main():
     # Clear unused variables and cache
     del processed_texts
     torch.cuda.empty_cache()
+    logging.info("Completed embedding generation")
 
     # Check for existing clusters
     try:
