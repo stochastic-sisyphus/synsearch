@@ -95,12 +95,7 @@ class EvaluationPipeline:
             if not isinstance(reference_summaries, list) or not all(isinstance(s, str) for s in reference_summaries):
                 raise ValueError("Reference summaries must be a list of strings")
 
-            metrics = {
-                'summary_metrics': [
-                    calculate_summary_metrics(gen, ref) 
-                    for gen, ref in zip(generated_summaries, reference_summaries)
-                ]
-            }
+            metrics = MetricsCalculator()._calculate_summarization_metrics(generated_summaries, reference_summaries)
             self.logger.log_metrics(metrics, 'summarization')
             return metrics
         except Exception as e:
