@@ -16,8 +16,16 @@ class CheckpointManager:
     def _load_state(self) -> Dict:
         """Load existing pipeline state or create new one"""
         if self.state_file.exists():
-            with open(self.state_file) as f:
-                return json.load(f)
+            try:
+                with open(self.state_file) as f:
+                    return json.load(f)
+            except json.JSONDecodeError:
+                self.logger.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
+                return self._create_new_state()
+        return self._create_new_state()
+    
+    def _create_new_state(self) -> Dict:
+        """Create a new pipeline state"""
         return {
             'last_completed_stage': None,
             'stages': {},
