@@ -7,9 +7,9 @@ import logging
 from pathlib import Path
 import torch.nn.functional as F
 from sklearn.metrics.pairwise import cosine_similarity
-from tqdm import tqdm  # Add tqdm import
-from src.utils.performance import PerformanceOptimizer  # Add this
-from src.data_validator import DataValidator  # Add this
+from tqdm import tqdm
+from src.utils.performance import PerformanceOptimizer
+from src.data_validator import DataValidator
 
 class HybridSummarizer:
     """Base class for hybrid summarization approaches."""
@@ -19,20 +19,26 @@ class HybridSummarizer:
         self.device = device
         self.tokenizer = tokenizer or AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(device)
-        self.validator = DataValidator()  # Add this
-        
+        self.validator = DataValidator()
+        self.logger = logging.getLogger(__name__)
+        logging.basicConfig(level=logging.INFO)
+
     def summarize(self, texts: List[str], max_length: int = 150) -> List[str]:
         """Generate summaries for input texts."""
         # Validate input texts
         validation_results = self.validator.validate_texts(texts)
         if not validation_results['is_valid']:
             raise ValueError(f"Input texts validation failed: {validation_results}")
-        
+
+        # Log input texts and validation results
+        self.logger.info(f"Input texts: {texts}")
+        self.logger.info(f"Input validation results: {validation_results}")
+
         summaries = []
         for text in texts:
             inputs = self.tokenizer(text, return_tensors="pt", max_length=512, truncation=True)
             inputs = inputs.to(self.device)
-            
+
             outputs = self.model.generate(
                 **inputs,
                 max_length=max_length,
@@ -41,15 +47,19 @@ class HybridSummarizer:
                 num_beams=4,
                 early_stopping=True
             )
-            
+
             summary = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             summaries.append(summary)
-        
+
         # Validate generated summaries
         validation_results = self.validator.validate_summaries(summaries)
         if not validation_results['is_valid']:
             raise ValueError(f"Generated summaries validation failed: {validation_results}")
-            
+
+        # Log generated summaries and validation results
+        self.logger.info(f"Generated summaries: {summaries}")
+        self.logger.info(f"Output validation results: {validation_results}")
+
         return summaries
 
 class EnhancedHybridSummarizer(HybridSummarizer):
