@@ -496,7 +496,7 @@ def _calculate_term_preservation(summaries: List[str], references: List[str]) ->
             summary_terms = {chunk.text.lower() for chunk in summary_doc.noun_chunks}
             reference_terms = {chunk.text.lower() for chunk in reference_doc.noun_chunks}
             
-            if reference terms:
+            if reference_terms:
                 preservation = len(summary_terms.intersection(reference_terms)) / len(reference terms)
                 total_preservation += preservation
                 
