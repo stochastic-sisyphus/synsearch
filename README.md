@@ -271,7 +271,13 @@ from src.evaluation.metrics import EvaluationMetrics
 metrics = EvaluationMetrics()
 scores = metrics.calculate_rouge_scores(generated_summaries, reference_summaries)
 print(f"ROUGE-L F1: {scores['rougeL']['fmeasure']:.3f}")
-```
+
+bleu_scores = metrics.calculate_bleu_scores(generated_summaries, reference_summaries)
+print(f"BLEU Score: {bleu_scores['bleu']:.3f}")
+
+# New method usage example
+summarization_metrics = metrics._calculate_summarization_metrics(generated_summaries, reference_summaries)
+print(f"Summarization Metrics: {summarization_metrics}")
 
 ## Project Structure
 dynamic-summarization/
