@@ -82,7 +82,12 @@ def main():
     checkpoint_manager = CheckpointManager()
 
     # Check for existing processed texts
-    processed_texts = checkpoint_manager.get_stage_data('processed_texts')
+    try:
+        processed_texts = checkpoint_manager.get_stage_data('processed_texts')
+    except json.JSONDecodeError:
+        logging.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
+        processed_texts = None
+
     if processed_texts is None:
         processed_texts = []
 
@@ -125,7 +130,12 @@ def main():
     evaluator = EvaluationMetrics()
 
     # Check for existing embeddings
-    embeddings = checkpoint_manager.get_stage_data('embeddings')
+    try:
+        embeddings = checkpoint_manager.get_stage_data('embeddings')
+    except json.JSONDecodeError:
+        logging.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
+        embeddings = None
+
     if embeddings is None:
         # Generate embeddings
         embeddings = embedding_generator.generate_embeddings(processed_texts)
@@ -138,7 +148,12 @@ def main():
     logging.info(f"Saved embeddings to {embeddings_file}")
 
     # Check for existing clusters
-    clusters = checkpoint_manager.get_stage_data('clusters')
+    try:
+        clusters = checkpoint_manager.get_stage_data('clusters')
+    except json.JSONDecodeError:
+        logging.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
+        clusters = None
+
     if clusters is None:
         # Perform clustering
         labels, clustering_metrics = cluster_manager.fit_predict(embeddings)
@@ -151,7 +166,12 @@ def main():
     logging.info(f"Saved clusters to {clusters_file}")
 
     # Check for existing summaries
-    summaries = checkpoint_manager.get_stage_data('summaries')
+    try:
+        summaries = checkpoint_manager.get_stage_data('summaries')
+    except json.JSONDecodeError:
+        logging.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
+        summaries = None
+
     if summaries is None:
         # Generate summaries
         cluster_texts = {label: [] for label in set(clusters['labels'])}
