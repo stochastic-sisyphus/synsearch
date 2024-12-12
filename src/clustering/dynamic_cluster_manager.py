@@ -47,6 +47,10 @@ class DynamicClusterManager:
             # Save intermediate outputs
             self._save_intermediate_outputs(embeddings, labels, metrics)
             
+            # Clear unused variables and cache
+            del embeddings
+            torch.cuda.empty_cache()
+            
             return labels, metrics
             
         except Exception as e:
@@ -55,15 +59,19 @@ class DynamicClusterManager:
 
     def _adapt_clustering(self, embeddings: np.ndarray, metrics: Dict) -> np.ndarray:
         """Adapt clustering parameters based on metrics."""
-        # Implement adaptive logic here
-        # For example, adjust min_cluster_size based on silhouette score
-        new_min_cluster_size = max(3, self.min_cluster_size - 1)
-        
-        adapted_clusterer = HDBSCAN(
-            min_cluster_size=new_min_cluster_size,
-            min_samples=self.min_samples
-        )
-        return adapted_clusterer.fit_predict(embeddings)
+        try:
+            # Implement adaptive logic here
+            # For example, adjust min_cluster_size based on silhouette score
+            new_min_cluster_size = max(3, self.min_cluster_size - 1)
+            
+            adapted_clusterer = HDBSCAN(
+                min_cluster_size=new_min_cluster_size,
+                min_samples=self.min_samples
+            )
+            return adapted_clusterer.fit_predict(embeddings)
+        except Exception as e:
+            self.logger.error(f"Error in adapting clustering: {e}")
+            raise
 
     def get_clusters(self, texts: List[str], labels: np.ndarray) -> Dict[int, List[str]]:
         """Group texts by cluster labels."""

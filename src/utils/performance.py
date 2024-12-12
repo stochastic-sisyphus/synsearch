@@ -38,3 +38,13 @@ class PerformanceOptimizer:
         mem = psutil.virtual_memory()
         available_gb = mem.available / 1e9
         return min(max(int(available_gb * 8), 8), 32)  # 8-32 range
+
+    def clear_memory_cache(self) -> None:
+        """Clear unused variables and cache to optimize memory usage"""
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            gc.collect()
+            self.logger.info("Memory cache cleared successfully.")
+        except Exception as e:
+            self.logger.error(f"Error clearing memory cache: {e}")

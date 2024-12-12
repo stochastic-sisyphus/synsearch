@@ -3,6 +3,8 @@ import json
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
+import torch
+import gc
 
 class CheckpointManager:
     def __init__(self, checkpoint_dir: str = 'outputs/checkpoints', enable_metrics: bool = True):
@@ -37,14 +39,24 @@ class CheckpointManager:
         
     def save_stage(self, stage_name: str, data: Dict[str, Any]) -> None:
         """Save checkpoint for a pipeline stage"""
-        self.state['last_completed_stage'] = stage_name
-        self.state['stages'][stage_name] = data
-        self.state['timestamp'] = datetime.now().isoformat()
-        
-        with open(self.state_file, 'w') as f:
-            json.dump(self.state, f, indent=2)
+        try:
+            self.state['last_completed_stage'] = stage_name
+            self.state['stages'][stage_name] = data
+            self.state['timestamp'] = datetime.now().isoformat()
             
-        self.logger.info(f"Saved checkpoint for stage: {stage_name}")
+            with open(self.state_file, 'w') as f:
+                json.dump(self.state, f, indent=2)
+                
+            self.logger.info(f"Saved checkpoint for stage: {stage_name}")
+            
+            # Clear unused variables and cache
+            del data
+            torch.cuda.empty_cache()
+            gc.collect()
+            
+        except Exception as e:
+            self.logger.error(f"Error saving stage {stage_name}: {e}")
+            raise
         
     def get_last_stage(self) -> Optional[str]:
         """Get the last completed pipeline stage"""
@@ -52,7 +64,11 @@ class CheckpointManager:
         
     def get_stage_data(self, stage_name: str) -> Optional[Dict]:
         """Get data for a specific pipeline stage"""
-        return self.state['stages'].get(stage_name) 
+        try:
+            return self.state['stages'].get(stage_name)
+        except Exception as e:
+            self.logger.error(f"Error getting stage data for {stage_name}: {e}")
+            raise
         
     def is_stage_complete(self, stage_name: str) -> bool:
         """Check if a pipeline stage is complete"""
