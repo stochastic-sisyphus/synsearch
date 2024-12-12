@@ -190,8 +190,8 @@ def main():
     if summaries is None:
         # Generate summaries
         cluster_texts = {label: [] for label in set(clusters['labels'])}
-        for text, label in zip(processed_texts, clusters['labels']):
-            cluster_texts[label].append(text)
+        for text, label, embedding in zip(processed_texts, clusters['labels'], embeddings):
+            cluster_texts[label].append({'processed_text': text, 'embedding': embedding})
         summaries = summarizer.summarize_all_clusters(cluster_texts)
         checkpoint_manager.save_stage('summaries', summaries)
 
