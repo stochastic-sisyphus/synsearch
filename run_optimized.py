@@ -146,7 +146,7 @@ def main():
         embeddings_list = embeddings.tolist()
         checkpoint_manager.save_stage('embeddings', embeddings_list)
     else:
-        embeddings_list = embeddings.tolist()  # Ensure embeddings_list is assigned if it already exists
+        embeddings_list = embeddings  # Ensure embeddings_list is assigned if it already exists
 
     embeddings_file = output_dir / f"embeddings_{run_id}.npy"
     np.save(embeddings_file, embeddings)
