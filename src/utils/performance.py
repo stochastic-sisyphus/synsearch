@@ -4,6 +4,7 @@ import torch
 from functools import lru_cache
 import logging
 from typing import Optional
+import gc
 
 class PerformanceOptimizer:
     """Handles performance optimization settings"""
