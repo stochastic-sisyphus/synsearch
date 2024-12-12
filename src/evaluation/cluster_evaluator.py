@@ -39,7 +39,20 @@ class ClusterEvaluator:
         Returns:
             Dict[str, float]: Dictionary of clustering metrics.
         """
+        self.logger.info("Starting clustering evaluation")
+        self.logger.debug(f"Embeddings shape: {embeddings.shape}, Labels shape: {labels.shape}")
+
         try:
+            # Ensure structural correctness of inputs
+            if not isinstance(embeddings, np.ndarray):
+                raise ValueError("Embeddings must be a numpy array")
+            if embeddings.ndim != 2:
+                raise ValueError("Embeddings must be a 2D array")
+            if not isinstance(labels, np.ndarray):
+                raise ValueError("Labels must be a numpy array")
+            if labels.ndim != 1:
+                raise ValueError("Labels must be a 1D array")
+
             dataset = EmbeddingDataset(embeddings)
             dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
             
@@ -49,12 +62,16 @@ class ClusterEvaluator:
             
             concatenated_embeddings = np.concatenate(all_embeddings, axis=0)
             
-            return {
+            metrics = {
                 'silhouette': silhouette_score(concatenated_embeddings, labels),
                 'davies_bouldin': davies_bouldin_score(concatenated_embeddings, labels),
                 'cluster_sizes': self._get_cluster_sizes(labels),
                 'cluster_density': self._calculate_cluster_density(concatenated_embeddings, labels)
             }
+            
+            self.logger.info("Completed clustering evaluation")
+            self.logger.debug(f"Clustering metrics: {metrics}")
+            return metrics
         except Exception as e:
             self.logger.error(f"Error evaluating clustering: {e}")
             return {}

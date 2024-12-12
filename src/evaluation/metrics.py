@@ -53,9 +53,13 @@ class EvaluationMetrics:
             Dict[str, float]: Dictionary of clustering metrics.
         """
         try:
+            self.logger.info("Starting clustering metrics calculation")
+            self.logger.debug(f"Embeddings shape: {embeddings.shape}, Labels shape: {labels.shape}")
+
             # Filter out noise points (label -1) if any
             mask = labels != -1
             if not np.any(mask):
+                self.logger.warning("No valid labels found for clustering metrics calculation")
                 return {
                     'silhouette_score': 0.0,
                     'davies_bouldin_score': float('inf')
@@ -78,6 +82,9 @@ class EvaluationMetrics:
             silhouette = silhouette_score(concatenated_embeddings, valid_labels)
             davies_bouldin = davies_bouldin_score(concatenated_embeddings, valid_labels)
             
+            self.logger.info("Completed clustering metrics calculation")
+            self.logger.debug(f"Clustering metrics: silhouette_score={silhouette}, davies_bouldin_score={davies_bouldin}")
+            
             return {
                 'silhouette_score': float(silhouette),
                 'davies_bouldin_score': float(davies_bouldin)
@@ -85,7 +92,10 @@ class EvaluationMetrics:
             
         except Exception as e:
             self.logger.error(f"Error calculating clustering metrics: {e}")
-            raise
+            return {
+                'silhouette_score': 0.0,
+                'davies_bouldin_score': float('inf')
+            }
             
     def calculate_rouge_scores(
         self,
@@ -103,6 +113,9 @@ class EvaluationMetrics:
             Dict[str, Dict[str, float]]: Dictionary of ROUGE scores.
         """
         try:
+            self.logger.info("Starting ROUGE scores calculation")
+            self.logger.debug(f"Number of summaries: {len(summaries)}, Number of references: {len(references)}")
+
             scores = {
                 'rouge1': {'precision': [], 'recall': [], 'fmeasure': []},
                 'rouge2': {'precision': [], 'recall': [], 'fmeasure': []},
@@ -124,11 +137,18 @@ class EvaluationMetrics:
                     k: float(np.mean(v)) for k, v in values.items()
                 }
                 
+            self.logger.info("Completed ROUGE scores calculation")
+            self.logger.debug(f"ROUGE scores: {averaged_scores}")
+            
             return averaged_scores
             
         except Exception as e:
             self.logger.error(f"Error calculating ROUGE scores: {e}")
-            raise
+            return {
+                'rouge1': {'precision': 0.0, 'recall': 0.0, 'fmeasure': 0.0},
+                'rouge2': {'precision': 0.0, 'recall': 0.0, 'fmeasure': 0.0},
+                'rougeL': {'precision': 0.0, 'recall': 0.0, 'fmeasure': 0.0}
+            }
             
     def save_metrics(
         self,
@@ -144,17 +164,24 @@ class EvaluationMetrics:
             output_dir (Union[str, Path]): Directory to save the metrics.
             prefix (str, optional): Prefix for the filename. Defaults to ''.
         """
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"{prefix}_metrics_{timestamp}.json" if prefix else f"metrics_{timestamp}.json"
-        
-        with open(output_dir / filename, 'w') as f:
-            json.dump(metrics, f, indent=2)
+        try:
+            self.logger.info("Starting metrics saving")
+            self.logger.debug(f"Metrics: {metrics}, Output directory: {output_dir}, Prefix: {prefix}")
+
+            output_dir = Path(output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
             
-        self.logger.info(f"Saved metrics to {output_dir / filename}") 
-        
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"{prefix}_metrics_{timestamp}.json" if prefix else f"metrics_{timestamp}.json"
+            
+            with open(output_dir / filename, 'w') as f:
+                json.dump(metrics, f, indent=2)
+                
+            self.logger.info(f"Saved metrics to {output_dir / filename}")
+            
+        except Exception as e:
+            self.logger.error(f"Error saving metrics: {e}")
+            
     def calculate_baseline_metrics(self, dataset_name: str, metrics: Dict) -> Dict[str, float]:
         """
         Calculate and store baseline metrics for a dataset.
@@ -166,17 +193,38 @@ class EvaluationMetrics:
         Returns:
             Dict[str, float]: Dictionary of baseline metrics.
         """
-        baseline_metrics = {
-            'dataset': dataset_name,
-            'runtime': metrics.get('runtime', 0),
-            'rouge_scores': metrics.get('rouge_scores', {}),
-            'clustering_scores': {
-                'silhouette': metrics.get('silhouette_score', 0),
-                'davies_bouldin': metrics.get('davies_bouldin_score', 0)
-            },
-            'preprocessing_time': metrics.get('preprocessing_time', 0)
-        }
-        return baseline_metrics 
+        try:
+            self.logger.info("Starting baseline metrics calculation")
+            self.logger.debug(f"Dataset name: {dataset_name}, Metrics: {metrics}")
+
+            baseline_metrics = {
+                'dataset': dataset_name,
+                'runtime': metrics.get('runtime', 0),
+                'rouge_scores': metrics.get('rouge_scores', {}),
+                'clustering_scores': {
+                    'silhouette': metrics.get('silhouette_score', 0),
+                    'davies_bouldin': metrics.get('davies_bouldin_score', 0)
+                },
+                'preprocessing_time': metrics.get('preprocessing_time', 0)
+            }
+
+            self.logger.info("Completed baseline metrics calculation")
+            self.logger.debug(f"Baseline metrics: {baseline_metrics}")
+
+            return baseline_metrics
+
+        except Exception as e:
+            self.logger.error(f"Error calculating baseline metrics: {e}")
+            return {
+                'dataset': dataset_name,
+                'runtime': 0,
+                'rouge_scores': {},
+                'clustering_scores': {
+                    'silhouette': 0,
+                    'davies_bouldin': 0
+                },
+                'preprocessing_time': 0
+            }
 
     def calculate_comprehensive_metrics(
         self,
@@ -187,6 +235,9 @@ class EvaluationMetrics:
     ) -> Dict[str, Dict[str, float]]:
         """Calculate all metrics with optimized batch processing."""
         try:
+            self.logger.info("Starting comprehensive metrics calculation")
+            self.logger.debug(f"Summaries: {summaries.keys()}, References: {references.keys()}, Embeddings: {embeddings is not None}")
+
             metrics = {
                 'summarization': self._calculate_summarization_metrics(
                     summaries, references
@@ -199,11 +250,18 @@ class EvaluationMetrics:
                     embeddings, batch_size
                 )
                 
+            self.logger.info("Completed comprehensive metrics calculation")
+            self.logger.debug(f"Comprehensive metrics: {metrics}")
+
             return metrics
             
         except Exception as e:
-            self.logger.error(f"Error calculating metrics: {e}")
-            raise
+            self.logger.error(f"Error calculating comprehensive metrics: {e}")
+            return {
+                'summarization': {},
+                'runtime': {},
+                'clustering': {}
+            }
 
     def _calculate_embedding_quality(self, embeddings: np.ndarray, batch_size: int = 32) -> Dict[str, float]:
         """
@@ -217,6 +275,9 @@ class EvaluationMetrics:
             Dict[str, float]: Dictionary of embedding quality metrics.
         """
         try:
+            self.logger.info("Starting embedding quality calculation")
+            self.logger.debug(f"Embeddings shape: {embeddings.shape}, Batch size: {batch_size}")
+
             # Use DataLoader for batch processing
             dataset = EmbeddingDataset(embeddings)
             dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
@@ -230,6 +291,9 @@ class EvaluationMetrics:
             # Calculate cosine similarities
             similarities = cosine_similarity(concatenated_embeddings)
             
+            self.logger.info("Completed embedding quality calculation")
+            self.logger.debug(f"Embedding quality metrics: mean_similarity={np.mean(similarities)}, std_similarity={np.std(similarities)}, min_similarity={np.min(similarities)}, max_similarity={np.max(similarities)}")
+
             return {
                 'mean_similarity': float(np.mean(similarities)),
                 'std_similarity': float(np.std(similarities)),
@@ -238,7 +302,12 @@ class EvaluationMetrics:
             }
         except Exception as e:
             self.logger.error(f"Error calculating embedding quality: {e}")
-            raise
+            return {
+                'mean_similarity': 0.0,
+                'std_similarity': 0.0,
+                'min_similarity': 0.0,
+                'max_similarity': 0.0
+            }
 
     def calculate_bert_scores(
         self,
@@ -256,7 +325,14 @@ class EvaluationMetrics:
             Dict[str, float]: Dictionary of BERT scores.
         """
         try:
+            self.logger.info("Starting BERT scores calculation")
+            self.logger.debug(f"Number of summaries: {len(summaries)}, Number of references: {len(references)}")
+
             P, R, F1 = bert_score.score(summaries, references, lang='en', verbose=False)
+
+            self.logger.info("Completed BERT scores calculation")
+            self.logger.debug(f"BERT scores: precision={P.mean()}, recall={R.mean()}, f1={F1.mean()}")
+
             return {
                 'precision': float(P.mean()),
                 'recall': float(R.mean()),

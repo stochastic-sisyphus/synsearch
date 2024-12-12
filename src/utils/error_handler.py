@@ -49,3 +49,53 @@ def with_error_handling(func: Callable) -> Callable:
             handler.handle_error(e, func.__name__)
             raise
     return wrapper
+
+def validate_method_implementation(obj: Any, method_name: str) -> bool:
+    """
+    Validate if a method is implemented in the given object.
+
+    Args:
+        obj (Any): The object to check.
+        method_name (str): The name of the method to validate.
+
+    Returns:
+        bool: True if the method is implemented, False otherwise.
+    """
+    return callable(getattr(obj, method_name, None))
+
+def log_method_call(logger: logging.Logger, method_name: str, *args, **kwargs) -> None:
+    """
+    Log the method call with parameters.
+
+    Args:
+        logger (logging.Logger): The logger instance.
+        method_name (str): The name of the method being called.
+        *args: Positional arguments.
+        **kwargs: Keyword arguments.
+    """
+    logger.info(f"Calling method: {method_name}")
+    logger.debug(f"Parameters: args={args}, kwargs={kwargs}")
+
+def log_intermediate_result(logger: logging.Logger, result: Any, description: str = "") -> None:
+    """
+    Log intermediate results.
+
+    Args:
+        logger (logging.Logger): The logger instance.
+        result (Any): The result to log.
+        description (str, optional): Additional description of the result.
+    """
+    logger.info(f"Intermediate result: {description}")
+    logger.debug(f"Result: {result}")
+
+def ensure_structural_correctness(data: Any, expected_type: type, description: str = "") -> None:
+    """
+    Ensure the structural correctness of the input data.
+
+    Args:
+        data (Any): The data to validate.
+        expected_type (type): The expected type of the data.
+        description (str, optional): Additional description of the data.
+    """
+    if not isinstance(data, expected_type):
+        raise ValueError(f"Incorrect data structure for {description}. Expected {expected_type}, got {type(data)}")
