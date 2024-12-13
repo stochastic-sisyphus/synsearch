@@ -40,23 +40,36 @@ class CheckpointManager:
     def save_stage(self, stage_name: str, data: Dict[str, Any]) -> None:
         """Save checkpoint for a pipeline stage"""
         try:
-            self.state['last_completed_stage'] = stage_name
-            self.state['stages'][stage_name] = data
-            self.state['timestamp'] = datetime.now().isoformat()
+            checkpoint_path = self.checkpoint_dir / f"{stage_name}_checkpoint.pt"
+            temp_path = checkpoint_path.with_suffix('.tmp')
             
-            with open(self.state_file, 'w') as f:
-                json.dump(self.state, f, indent=2)
-                
+            # Save to temporary file first
+            torch.save(data, temp_path)
+            
+            # Atomic rename
+            temp_path.replace(checkpoint_path)
+            
             self.logger.info(f"Saved checkpoint for stage: {stage_name}")
             
-            # Clear unused variables and cache
-            del data
-            torch.cuda.empty_cache()
-            gc.collect()
+        except Exception as e:
+            self.logger.error(f"Error saving checkpoint: {e}")
+            if temp_path.exists():
+                temp_path.unlink()
+            raise
+
+    def load_stage(self, stage_name: str) -> Optional[Dict[str, Any]]:
+        """Load checkpoint for a pipeline stage"""
+        try:
+            checkpoint_path = self.checkpoint_dir / f"{stage_name}_checkpoint.pt"
+            if not checkpoint_path.exists():
+                return None
+                
+            data = torch.load(checkpoint_path)
+            return data
             
         except Exception as e:
-            self.logger.error(f"Error saving stage {stage_name}: {e}")
-            raise
+            self.logger.error(f"Error loading checkpoint: {e}")
+            return None
         
     def get_last_stage(self) -> Optional[str]:
         """Get the last completed pipeline stage"""
