@@ -7,7 +7,6 @@ from datasets import load_dataset
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor
 import numpy as np
-from src.utils.performance import PerformanceOptimizer
 import logging
 from datetime import datetime
 import json
@@ -21,6 +20,7 @@ from src.evaluation.metrics import EvaluationMetrics
 from src.utils.checkpoint_manager import CheckpointManager
 from src.utils.error_handler import with_error_handling, GlobalErrorHandler
 from src.utils.logging_utils import MetricsLogger
+from src.utils.validation_utils import validate_text_list, validate_embeddings, validate_labels, validate_cluster_metrics
 
 
 def init_worker():
@@ -37,7 +37,11 @@ def process_batch(batch_data):
     try:
         from src.preprocessor import DomainAgnosticPreprocessor
         preprocessor = DomainAgnosticPreprocessor()
-        return [preprocessor.preprocess_text(text) for text in batch_data]
+        processed_batch = [preprocessor.preprocess_text(text) for text in batch_data]
+
+        # Validate processed texts
+        validate_text_list(processed_batch, name="processed_batch")
+        return processed_batch
     except Exception as e:
         logging.error(f"Error processing batch: {e}")
         return []
@@ -77,6 +81,7 @@ def main(config):
     logging.info("Starting run with ID: %s", run_id)
 
     # Get optimal batch size and workers
+    from src.utils.performance import PerformanceOptimizer
     perf_optimizer = PerformanceOptimizer()
     batch_size = perf_optimizer.get_optimal_batch_size()
     n_workers = perf_optimizer.get_optimal_workers()
@@ -91,11 +96,14 @@ def main(config):
         num_proc=n_workers
     )
 
-    # Split data into batches
-    texts = dataset['train']['text']
-    if not texts:
-        raise ValueError("No texts found in the dataset.")
+    # Validate dataset
+    if 'train' not in dataset or 'text' not in dataset['train']:
+        raise KeyError("Dataset does not contain the required 'train' or 'text' keys.")
 
+    texts = dataset['train']['text']
+    validate_text_list(texts, name="dataset texts")
+
+    # Split data into batches
     batches = [
         texts[i:i + batch_size]
         for i in range(0, len(texts), batch_size)
@@ -129,6 +137,9 @@ def main(config):
 
     logging.info(f"Processed {len(processed_texts)} texts")
 
+    # Validate processed texts
+    validate_text_list(processed_texts, name="processed_texts")
+
     # Save processed texts to output file
     output_dir = Path(config['data']['output_path'])
     output_dir.mkdir(exist_ok=True)
@@ -145,7 +156,6 @@ def main(config):
     summarizer = EnhancedHybridSummarizer()
     visualizer = EmbeddingVisualizer()
     evaluator = EvaluationMetrics()
-    logger = MetricsLogger(config)
 
     # Check for existing embeddings
     try:
@@ -157,22 +167,17 @@ def main(config):
     if embeddings is None:
         # Generate embeddings
         embeddings = embedding_generator.generate_embeddings(processed_texts)
-        if embeddings.size == 0:
-            raise ValueError("Generated embeddings are empty.")
-        # Convert embeddings to list before saving
-        embeddings_list = embeddings.tolist()
-        checkpoint_manager.save_stage('embeddings', embeddings_list)
-    else:
-        embeddings_list = embeddings
+        validate_embeddings(embeddings)
+
+        # Save embeddings
+        checkpoint_manager.save_stage('embeddings', embeddings.tolist())
 
     embeddings_file = output_dir / f"embeddings_{run_id}.npy"
     np.save(embeddings_file, embeddings)
     logging.info(f"Saved embeddings to {embeddings_file}")
 
-    # Clear unused variables and cache
+    # Clear memory cache
     perf_optimizer.clear_memory_cache()
-    checkpoint_manager.save_periodic_checkpoint('embeddings', embeddings_list)
-    logging.info("Completed embedding generation")
 
     # Check for existing clusters
     try:
@@ -184,8 +189,10 @@ def main(config):
     if clusters is None:
         # Perform clustering
         labels, clustering_metrics = cluster_manager.fit_predict(embeddings)
-        if labels.size == 0:
-            raise ValueError("Clustering resulted in empty labels.")
+        validate_labels(labels, len(processed_texts))
+        validate_cluster_metrics(clustering_metrics)
+
+        # Save clusters
         clusters = {'labels': labels.tolist(), 'metrics': clustering_metrics}
         checkpoint_manager.save_stage('clusters', clusters)
 
@@ -194,75 +201,36 @@ def main(config):
         json.dump(clusters, f)
     logging.info(f"Saved clusters to {clusters_file}")
 
-    # Clear unused variables and cache
-    perf_optimizer.clear_memory_cache()
-    checkpoint_manager.save_periodic_checkpoint('clusters', clusters)
-    logging.info("Completed clustering")
+    # Summarization
+    cluster_texts = {label: [] for label in set(clusters['labels'])}
+    for text, label in zip(processed_texts, clusters['labels']):
+        cluster_texts[label].append(text)
 
-    # Check for existing summaries
-    try:
-        summaries = checkpoint_manager.get_stage_data('summaries')
-    except json.JSONDecodeError:
-        logging.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
-        summaries = None
-
-    if summaries is None:
-        # Generate summaries
-        cluster_texts = {label: [] for label in set(clusters['labels'])}
-        for text, label, embedding in zip(processed_texts, clusters['labels'], embeddings):
-            cluster_texts[label].append({'processed_text': text, 'embedding': embedding})
-
-        # Remove empty clusters
-        cluster_texts = {label: texts for label, texts in cluster_texts.items() if texts}
-        if not cluster_texts:
-            raise ValueError("No valid clusters with texts for summarization.")
-
-        summaries = summarizer.summarize_all_clusters(cluster_texts)
-        checkpoint_manager.save_stage('summaries', summaries)
+    summaries = summarizer.summarize_all_clusters(cluster_texts)
+    validate_text_list(list(summaries.values()), name="summaries")
 
     summaries_file = output_dir / f"summaries_{run_id}.json"
     with open(summaries_file, 'w') as f:
         json.dump(summaries, f)
     logging.info(f"Saved summaries to {summaries_file}")
 
-    # Clear unused variables and cache
-    perf_optimizer.clear_memory_cache()
-    checkpoint_manager.save_periodic_checkpoint('summaries', summaries)
-    logging.info("Completed summarization")
-
-    # Visualize embeddings
+    # Visualization
     visualization_file = output_dir / f"visualizations_{run_id}.html"
     visualizer.visualize_embeddings(embeddings, save_path=visualization_file)
     logging.info(f"Saved visualizations to {visualization_file}")
 
-    # Evaluate results
-    references = []  # Assuming you have references, otherwise handle empty case
-    if not references:
-        logging.warning("No references provided for ROUGE score calculation.")
+    # Evaluation
+    try:
+        rouge_scores = evaluator.calculate_rouge_scores(list(summaries.values()), references=[])
+        logging.info(f"ROUGE Scores: {rouge_scores}")
+    except Exception as e:
+        logging.error(f"Error calculating ROUGE scores: {e}")
 
-    rouge_scores = evaluator.calculate_rouge_scores(
-        summaries=list(summaries.values()),
-        references=references if references else summaries
-    )
-    evaluation_metrics = {
-        'rouge_scores': rouge_scores
-    }
-
-    # Ensure labels are correctly passed
-    labels = clusters['labels'] if isinstance(clusters, dict) and 'labels' in clusters else None
-
-    if labels is not None and hasattr(embeddings, 'shape'):
-        evaluation_metrics['clustering'] = evaluator.calculate_clustering_metrics(
-            embeddings, labels, batch_size
-        )
-    else:
-        logging.error("Invalid labels or embeddings for clustering metrics calculation.")
-        evaluation_metrics['clustering'] = None
-
-    evaluation_file = output_dir / f"evaluation_{run_id}.json"
-    with open(evaluation_file, 'w') as f:
-        json.dump(evaluation_metrics, f)
-    logging.info(f"Saved evaluation metrics to {evaluation_file}")
+    try:
+        clustering_metrics = evaluator.calculate_clustering_metrics(embeddings, clusters['labels'])
+        logging.info(f"Clustering Metrics: {clustering_metrics}")
+    except Exception as e:
+        logging.error(f"Error calculating clustering metrics: {e}")
 
 
 if __name__ == '__main__':
