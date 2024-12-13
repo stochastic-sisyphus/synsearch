@@ -227,37 +227,36 @@ def main():
         visualizer.visualize_embeddings(embeddings, save_path=visualization_file)
         log.info("Saved visualizations to %s", visualization_file)
 
-        # Create summary and reference lists for evaluation
+        # Convert summaries to the correct format for evaluation
+        processed_summaries = {}
+        for label, summary_data in summaries.items():
+            if isinstance(summary_data, dict):
+                processed_summaries[label] = summary_data.get('summary', '')
+            else:
+                processed_summaries[label] = str(summary_data)
+
+        # Create lists for evaluation maintaining order
         summary_texts = []
         reference_texts = []
+        unique_labels = sorted(set(clusters['labels']))
 
-        # Convert summaries to the correct format
-        for label in sorted(summaries.keys()):
-            if isinstance(summaries[label], dict) and 'summary' in summaries[label]:
-                summary_text = summaries[label]['summary']
-            else:
-                summary_text = summaries[label]
-            
-            summary_texts.append(summary_text)
-            
-            # Use the first text from each cluster as reference
-            cluster_indices = [i for i, l in enumerate(clusters['labels']) if str(l) == str(label)]
-            if cluster_indices:
-                reference_texts.append(processed_texts[cluster_indices[0]])
-            else:
-                reference_texts.append("")  # Empty string as fallback
+        for label in unique_labels:
+            str_label = str(label)
+            if str_label in processed_summaries:
+                summary_texts.append(processed_summaries[str_label])
+                
+                # Get reference text from the first document in each cluster
+                cluster_docs = [processed_texts[i] for i, l in enumerate(clusters['labels']) if l == label]
+                reference_texts.append(cluster_docs[0] if cluster_docs else '')
 
-        # Ensure embeddings is a numpy array
-        if not isinstance(embeddings, np.ndarray):
-            embeddings = np.array(embeddings)
-
-        # Convert labels to numpy array
+        # Ensure arrays are properly formatted
+        embeddings = np.array(embeddings) if not isinstance(embeddings, np.ndarray) else embeddings
         labels = np.array(clusters['labels'])
 
         evaluator = EvaluationMetrics()
         evaluation_metrics = evaluator.calculate_comprehensive_metrics(
-            summaries=summary_texts,
-            references=reference_texts,
+            summaries=dict(enumerate(summary_texts)),  # Convert to dict with numeric keys
+            references=dict(enumerate(reference_texts)),  # Convert to dict with numeric keys
             embeddings=embeddings,
             labels=labels,
             batch_size=batch_size

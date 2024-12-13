@@ -219,73 +219,62 @@ class EvaluationMetrics:
 
     def calculate_comprehensive_metrics(
         self,
-        summaries: Dict[str, str],
-        references: Dict[str, str],
+        summaries: Union[Dict[str, str], List[str]],
+        references: Union[Dict[str, str], List[str]],
         embeddings: Optional[np.ndarray] = None,
         labels: Optional[np.ndarray] = None,
         batch_size: int = 32
     ) -> Dict[str, Dict[str, float]]:
-        """
-        Calculate all metrics with optimized batch processing.
-
-        Args:
-            summaries (Dict[str, str]): Dictionary of generated summaries.
-            references (Dict[str, str]): Dictionary of reference summaries.
-            embeddings (Optional[np.ndarray], optional): Embeddings array. Defaults to None.
-            labels (Optional[np.ndarray], optional): Cluster labels. Defaults to None.
-            batch_size (int, optional): Batch size for processing. Defaults to 32.
-    
-        Returns:
-            Dict[str, Dict[str, float]]: Dictionary of comprehensive metrics.
-        """
+        """Calculate all metrics with optimized batch processing."""
         try:
             self.logger.info("Starting comprehensive metrics calculation")
-            self.logger.debug(f"Summaries: {len(summaries)}, References: {len(references)}, Embeddings provided: {embeddings is not None}")
-    
-            # Start timing
-            self.start_time = datetime.now()
-            self.num_samples = len(summaries)
-    
-            # Calculate ROUGE and BERT scores
+            self.logger.debug(f"Summaries type: {type(summaries)}, References type: {type(references)}")
+            
+            # Convert inputs to lists if they're dictionaries
+            summary_texts = list(summaries.values()) if isinstance(summaries, dict) else summaries
+            reference_texts = list(references.values()) if isinstance(references, dict) else references
+            
+            # Calculate ROUGE scores
             rouge_scores = self.calculate_rouge_scores(
-                summaries=list(summaries.values()),
-                references=list(references.values())
+                summaries=summary_texts,
+                references=reference_texts
             )
-    
+            
+            # Calculate BERT scores
             bert_scores = self.calculate_bert_scores(
-                summaries=list(summaries.values()),
-                references=list(references.values())
+                summaries=summary_texts,
+                references=reference_texts
             )
-    
+            
             metrics = {
                 'rouge_scores': rouge_scores,
                 'bert_scores': bert_scores
             }
-    
-            # Calculate clustering metrics if embeddings and labels are provided
+            
+            # Calculate clustering metrics if provided
             if embeddings is not None and labels is not None:
                 clustering_metrics = self.calculate_clustering_metrics(
-                    embeddings, labels, batch_size
+                    embeddings=embeddings,
+                    labels=labels,
+                    batch_size=batch_size
                 )
                 metrics['clustering'] = clustering_metrics
-    
-            # Calculate runtime metrics
+            
+            # Add runtime metrics
             runtime_metrics = self._calculate_runtime_metrics()
             metrics['runtime'] = runtime_metrics
-    
-            self.logger.info("Completed comprehensive metrics calculation")
-            self.logger.debug(f"Comprehensive metrics: {metrics}")
-    
+            
             return metrics
-    
+            
         except Exception as e:
             self.logger.error(f"Error calculating comprehensive metrics: {e}")
             return {
                 'rouge_scores': {},
                 'bert_scores': {},
-                'runtime': {},
-                'clustering': {}
+                'clustering': {},
+                'runtime': {}
             }
+
     def _calculate_runtime_metrics(self) -> Dict[str, float]:
         """
         Calculate runtime metrics for the evaluation.
