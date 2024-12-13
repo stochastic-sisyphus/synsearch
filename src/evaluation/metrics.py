@@ -540,4 +540,23 @@ def _calculate_methods_coverage(summaries: List[str], references: List[str]) -> 
     Returns:
         float: Coverage score.
     """
-    #
+    try:
+        import spacy
+        nlp = spacy.load('en_core_web_sm')
+        
+        total_coverage = 0.0
+        for summary, reference in zip(summaries, references):
+            summary_doc = nlp(summary)
+            reference_doc = nlp(reference)
+            
+            # Extract methodology-related terms (verbs and noun phrases)
+            summary_methods = {token.lemma_.lower() for token in summary_doc if token.pos_ in {'VERB', 'NOUN'}}
+            reference_methods = {token.lemma_.lower() for token in reference_doc if token.pos_ in {'VERB', 'NOUN'}}
+            
+            if reference_methods:
+                coverage = len(summary_methods.intersection(reference_methods)) / len(reference_methods)
+                total_coverage += coverage
+                
+        return total_coverage / len(summaries)
+    except Exception:
+        return 0.0
