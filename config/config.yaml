@@ -101,6 +101,7 @@ checkpoints:
   enabled: true
   dir: "outputs/checkpoints"
   save_frequency: 1000
+  enable_metrics: true
 
 # Validation Configuration
 validation:
