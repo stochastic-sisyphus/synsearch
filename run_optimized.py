@@ -44,6 +44,9 @@ def process_batch(batch_data):
 @with_error_handling
 def main():
     """Main function to run the optimized script."""
+    torch.cuda.empty_cache()
+    gc.collect()
+
     # Load configuration
     with open('config/config.yaml', 'r') as f:
         config = yaml.safe_load(f)
@@ -59,6 +62,9 @@ def main():
     # Initialize performance optimizer
     perf_optimizer = PerformanceOptimizer()
     batch_size = perf_optimizer.get_optimal_batch_size()
+    if torch.cuda.is_available():
+        gpu_mem = torch.cuda.get_device_properties(0).total_memory
+        batch_size = min(batch_size, int(gpu_mem * 0.3 / (768 * 4)))
     n_workers = perf_optimizer.get_optimal_workers()
     
     log.info("Using %d workers with batch size %d", n_workers, batch_size)
