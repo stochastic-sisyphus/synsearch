@@ -97,17 +97,18 @@ def main(config):
 
     # Handle missing values in the dataset
     if 'text' in dataset_df.columns:
-        missing_before = dataset_df['text'].isnull().sum()
+        missing_before = dataset_df.isnull().sum().sum()  # Total missing values across all columns
         if missing_before > 0:
             logging.info(f"Handling {missing_before} missing values in the dataset...")
-            dataset_df.dropna(subset=['text'], inplace=True)  # Drop rows with missing 'text'
-        missing_after = dataset_df['text'].isnull().sum()
+            dataset_df.dropna(inplace=True)  # Drop rows with missing values in any column
+        missing_after = dataset_df.isnull().sum().sum()
         logging.info(f"Missing values after handling: {missing_after}")
 
     # Validate dataset after handling missing values
     validation_results = validator.validate_dataset(dataset_df)
     if not validation_results['is_valid']:
-        logging.error(f"Dataset validation failed: {validation_results}")
+        for key, value in validation_results.items():
+            logging.error(f"Validation Check - {key}: {value}")
         sys.exit(1)
 
     texts = dataset_df['text'].tolist()
