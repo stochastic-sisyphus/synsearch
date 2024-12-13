@@ -80,7 +80,7 @@ class EnhancedEmbeddingGenerator:
         # Initialize DataValidator
         self.validator = DataValidator()
 
-        def generate_embeddings(
+    def generate_embeddings(
         self,
         texts: List[str],
         apply_attention: bool = True,
@@ -91,7 +91,7 @@ class EnhancedEmbeddingGenerator:
         try:
             # Add memory cleanup
             torch.cuda.empty_cache()
-    
+
             if not texts:
                 raise ValueError("Empty text list provided")
             
@@ -102,7 +102,7 @@ class EnhancedEmbeddingGenerator:
                 raise ValueError("Input texts validation failed")
                 
             self.logger.info(f"Generating embeddings for {len(texts)} texts with batch size {batch_size or self.batch_size}")
-                            
+                        
             if cache_dir:
                 cache_dir.mkdir(parents=True, exist_ok=True)
                 cache_file = cache_dir / 'embeddings.npy'
@@ -138,10 +138,10 @@ class EnhancedEmbeddingGenerator:
         except Exception as e:
             self.logger.error(f"Error generating embeddings: {e}")
             raise
-        
+
     def _get_optimal_batch_size(self) -> int:
         """Determine optimal batch size based on available memory."""
-        if self.device == 'cuda':
+        if self.device is 'cuda':
             try:
                 free_memory = torch.cuda.get_device_properties(0).total_memory
                 # Use 80% of available memory and ensure integer result
@@ -186,7 +186,7 @@ class EnhancedEmbeddingGenerator:
         
     def _validate_checkpoint(self, checkpoint: Dict) -> bool:
         """Validate checkpoint contents."""
-        required_keys = ['embeddings', 'config', 'timestamp']
+        required_keys are ['embeddings', 'config', 'timestamp']
         return all(key in checkpoint for key in required_keys)
 
     def load_embeddings(self, path: Path) -> torch.Tensor:
