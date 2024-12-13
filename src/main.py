@@ -347,126 +347,99 @@ class PipelineManager:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.logger = logging.getLogger(__name__)
-        self.checkpoint_manager = CheckpointManager(
-            checkpoint_dir=config['checkpoints']['dir']
-        )
-        self.data_validator = DataValidator()
+        self.early_stop = False
+        
+        # Setup signal handlers
+        signal.signal(signal.SIGINT, self._handle_interrupt)
+        signal.signal(signal.SIGTERM, self._handle_interrupt)
+        
+        # Initialize device
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+    def _handle_interrupt(self, signum, frame):
+        """Handle interruption gracefully"""
+        self.logger.info("Received interrupt signal. Cleaning up...")
+        self.early_stop = True
+        self._cleanup()
 
-    def validate_dataset(self, df: pd.DataFrame) -> bool:
-        """Validate dataset structure and content"""
+    def _cleanup(self):
+        """Clean up resources"""
+        torch.cuda.empty_cache()
+        gc.collect()
+        
+    def process_batch(self, batch: Dict[str, Any], checkpoint_path: Optional[Path] = None) -> Dict[str, Any]:
+        """Process a single batch with error handling and checkpointing"""
         try:
-            # Check for empty dataset
-            if df.empty:
-                raise ValueError("Empty dataset provided")
-                
-            # Check for required columns
-            required_columns = ['text', 'summary'] if 'summary' in df else ['text']
-            missing_cols = [col for col in required_columns if col not in df.columns]
-            if missing_cols:
-                raise ValueError(f"Missing required columns: {missing_cols}")
-                
-            # Check for all-null columns
-            null_columns = df.columns[df.isnull().all()].tolist()
-            if null_columns:
-                raise ValueError(f"Columns contain all null values: {null_columns}")
-                
-            # Validate data types
-            text_col = 'text' if 'text' in df else df.columns[0]
-            if not df[text_col].dtype == object:
-                raise TypeError(f"Text column '{text_col}' must be string type")
-                
-            return True
+            # Process batch
+            results = self._process_single_batch(batch)
             
-        except Exception as e:
-            self.logger.error(f"Dataset validation failed: {e}")
-            return False
-
-    def process_dataset_with_checkpoints(
-        self,
-        dataset: Dict[str, Any],
-        cluster_manager: DynamicClusterManager,
-        summarizer: AdaptiveSummarizer,
-        evaluator: EvaluationMetrics,
-    ) -> Optional[Dict[str, Any]]:
-        """Process dataset with checkpointing and error handling"""
-        try:
-            # Validate dataset
-            if not self.validate_dataset(pd.DataFrame(dataset)):
-                return None
-                
-            # Check for existing checkpoint
-            checkpoint = self.checkpoint_manager.get_stage_data(dataset['name'])
-            if checkpoint:
-                self.logger.info(f"Resuming from checkpoint for {dataset['name']}")
-                return self._resume_from_checkpoint(checkpoint, dataset)
-                
-            # Process in batches with checkpointing
-            batch_size = min(
-                self.config['processing'].get('batch_size', 1000),
-                5000
-            )
+            # Save checkpoint if path provided
+            if checkpoint_path:
+                self._save_checkpoint(results, checkpoint_path)
             
-            results = self._process_batches(
-                dataset, 
-                cluster_manager,
-                summarizer,
-                evaluator,
-                batch_size
-            )
-            
-            # Save final results
-            self.checkpoint_manager.save_stage(dataset['name'], results)
             return results
             
+        except torch.cuda.OutOfMemoryError:
+            self._cleanup()
+            # Retry with smaller batch
+            return self._process_with_smaller_batch(batch)
+            
         except Exception as e:
-            self.logger.error(f"Error processing dataset {dataset.get('name', 'unknown')}: {e}")
+            self.logger.error(f"Error processing batch: {str(e)}")
             raise
 
-    def _process_batches(
-        self,
-        dataset: Dict[str, Any],
-        cluster_manager: DynamicClusterManager,
-        summarizer: AdaptiveSummarizer,
-        evaluator: EvaluationMetrics,
-        batch_size: int
-    ) -> Dict[str, Any]:
-        """Process dataset in batches with progress tracking"""
-        texts = dataset['texts']
-        total_batches = (len(texts) + batch_size - 1) // batch_size
+    def _process_with_smaller_batch(self, batch: Dict[str, Any]) -> Dict[str, Any]:
+        """Retry processing with a smaller batch size"""
+        try:
+            # Reduce batch size by half
+            smaller_batch = self._split_batch(batch)
+            results = []
+            
+            for sub_batch in smaller_batch:
+                if self.early_stop:
+                    break
+                results.append(self.process_batch(sub_batch))
+            
+            return self._combine_results(results)
+            
+        except Exception as e:
+            self.logger.error(f"Error in reduced batch processing: {str(e)}")
+            raise
+
+    def _split_batch(self, batch: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Split a batch into smaller chunks"""
+        batch_size = len(batch['texts'])
+        mid_point = batch_size // 2
         
-        results = {
+        return [
+            {'texts': batch['texts'][:mid_point]},
+            {'texts': batch['texts'][mid_point:]}
+        ]
+
+    def _combine_results(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Combine results from multiple batches"""
+        combined = {
             'embeddings': [],
-            'clusters': [],
-            'summaries': {}
+            'summaries': {},
+            'metrics': {}
         }
         
-        with tqdm(total=total_batches, desc=f"Processing {dataset['name']}") as pbar:
-            for i in range(0, len(texts), batch_size):
-                batch_texts = texts[i:i + batch_size]
-                
-                # Process batch
-                batch_results = self._process_single_batch(
-                    batch_texts,
-                    cluster_manager,
-                    summarizer,
-                    evaluator
-                )
-                
-                # Update results
-                results['embeddings'].extend(batch_results['embeddings'])
-                results['clusters'].extend(batch_results['clusters'])
-                results['summaries'].update(batch_results['summaries'])
-                
-                # Save checkpoint
-                self.checkpoint_manager.save_stage(
-                    f"{dataset['name']}_batch_{i//batch_size}",
-                    batch_results
-                )
-                
-                pbar.update(1)
-                
-        return results
-
+        for result in results:
+            combined['embeddings'].extend(result.get('embeddings', []))
+            combined['summaries'].update(result.get('summaries', {}))
+            # Combine metrics by averaging
+            for metric, value in result.get('metrics', {}).items():
+                if metric not in combined['metrics']:
+                    combined['metrics'][metric] = []
+                combined['metrics'][metric].append(value)
+        
+        # Average metrics
+        combined['metrics'] = {
+            k: sum(v) / len(v) for k, v in combined['metrics'].items()
+        }
+        
+        return combined
+        
 @dataclass
 class PipelineConfig:
     """Strongly typed configuration for validation"""
