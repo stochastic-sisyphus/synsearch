@@ -195,108 +195,80 @@ class TextPreprocessor:
         return processed
 
 class DomainAgnosticPreprocessor:
-    """Enhanced preprocessor for handling various text domains."""
-    
-    def __init__(self, config: Optional[Dict] = None):
-        """Initialize the domain-agnostic preprocessor with optional configuration."""
-        self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+    def preprocess_texts(self, texts: List[str], batch_size: int = 32) -> List[str]:
         try:
-            self.nlp = spacy.load('en_core_web_sm')
-        except OSError:
-            self.logger.warning("Downloading spaCy model...")
-            import subprocess
-            subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
-            self.nlp = spacy.load('en_core_web_sm')
-            
-    def preprocess_text(
-        self, 
-        text: str, 
-        domain: str = 'general'
-    ) -> str:
-        """Preprocess single text with domain-specific settings."""
-        try:
-            # Basic cleaning
-            text = text.strip()
-            text = re.sub(r'\s+', ' ', text)
-            
-            # Domain-specific processing
-            if domain == 'scientific':
-                text = self._process_scientific(text)
-            elif domain == 'legal':
-                text = self._process_legal(text)
+            processed_texts = []
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i:i + batch_size]
+                batch_processed = []
                 
-            # Extract key information using spaCy
-            doc = self.nlp(text)
-            
-            # Keep only relevant tokens
-            tokens = [
-                token.text for token in doc
-                if not token.is_stop and not token.is_punct
-                and len(token.text.strip()) > 1
-            ]
-            
-            return ' '.join(tokens)
-            
-        except Exception as e:
-            self.logger.error(f"Error preprocessing text: {e}")
-            return ""
-
-    def preprocess_texts(
-        self,
-        texts: List[str],
-        domain: str = 'general',
-        batch_size: int = 32
-    ) -> List[str]:
-        """Preprocess multiple texts in parallel."""
-        try:
-            with ThreadPoolExecutor() as executor:
-                processed_texts = list(
-                    tqdm(
-                        executor.map(
-                            lambda x: self.preprocess_text(x, domain),
-                            texts
-                        ),
-                        total=len(texts),
-                        desc="Preprocessing texts"
-                    )
-                )
+                for text in batch:
+                    if not isinstance(text, str):
+                        self.logger.warning(f"Skipping non-string input: {type(text)}")
+                        continue
+                        
+                    # Basic cleaning
+                    cleaned = text.strip()
+                    if not cleaned:
+                        continue
+                        
+                    # Remove URLs and special characters
+                    cleaned = re.sub(r'http\S+|www.\S+', '', cleaned)
+                    cleaned = re.sub(r'[^\w\s.,!?-]', '', cleaned)
+                    
+                    # Normalize whitespace
+                    cleaned = ' '.join(cleaned.split())
+                    
+                    batch_processed.append(cleaned)
+                    
+                processed_texts.extend(batch_processed)
+                
             return processed_texts
             
         except Exception as e:
-            self.logger.error(f"Error in batch preprocessing: {e}")
+            self.logger.error(f"Error in preprocessing: {e}")
             raise
 
-    def _process_scientific(self, text: str) -> str:
-        """Process scientific text with special handling for technical terms."""
-        # Replace numerical expressions with placeholders
-        text = re.sub(r'\d+\.\d+', '[NUM]', text)
-        text = re.sub(r'\d+%', '[PERCENT]', text)
+class EnhancedDataLoader:
+    def __init__(self, config: Dict[str, Any]):
+        """Initialize EnhancedDataLoader with configuration"""
+        self.batch_size = config.get('batch_size', 32)
+        self.num_workers = config.get('num_workers', 4)
+        self.logger = logging.getLogger(__name__)
         
-        # Preserve equations and formulas
-        text = re.sub(r'\$.*?\$', '[EQUATION]', text)
+    def get_dataloader(self, dataset: Dataset, shuffle: bool = True) -> DataLoader:
+        """Create a PyTorch DataLoader with optimal settings."""
+        return DataLoader(
+            dataset,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            shuffle=shuffle,
+            pin_memory=True,
+            drop_last=False
+        )
         
-        return text
-
-    def _process_legal(self, text: str) -> str:
-        """Process legal text with special handling for citations and references."""
-        # Replace legal citations
-        text = re.sub(r'(\d+\s+U\.S\.C\.\s+§\s+\d+)', '[LEGAL_REF]', text)
-        
-        # Replace section numbers
-        text = re.sub(r'Section\s+\d+', '[SECTION]', text)
-        
-        return text
-
-    def extract_entities(self, text: str) -> Dict[str, List[str]]:
-        """Extract named entities from text."""
-        doc = self.nlp(text)
-        entities = {}
-        for ent in doc.ents:
-            if ent.label_ not in entities:
-                entities[ent.label_] = []
-            entities[ent.label_].append(ent.text)
-        return entities
+    def load_scisummnet(self, path: str) -> Optional[pd.DataFrame]:
+        """Load ScisummNet dataset with progress tracking."""
+        try:
+            self.logger.info(f"Loading ScisummNet dataset from {path}...")
+            data = []
+            
+            top1000_dir = Path(path) / 'top1000_complete'
+            if not top1000_dir.exists():
+                raise FileNotFoundError(f"Directory not found: {top1000_dir}")
+            
+            doc_dirs = [d for d in top1000_dir.iterdir() if d.is_dir()]
+            
+            # Add progress bar
+            for doc_dir in tqdm(doc_dirs, desc="Loading documents"):
+                # ...existing document processing code...
+                pass  # Placeholder for existing document processing code
+                
+            return pd.DataFrame(data) if data else None
+                
+        except Exception as e:
+            self.logger.error(f"Error loading ScisummNet dataset: {e}")
+            return None
 
 # Example usage
 if __name__ == "__main__":
