@@ -47,26 +47,27 @@ def main(config):
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Set up logging
-    log_dir = Path(config['logging']['file']).parent
-    log_dir.mkdir(exist_ok=True)
+    log_dir = Path(config['data']['output_path'])
+    log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"run_optimized_{run_id}.log"
     logging.basicConfig(
         level=logging.INFO,
-        format=config['logging']['format'],
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(sys.stdout),
             logging.FileHandler(str(log_file))
         ]
     )
 
-    logging.info("Starting run with ID: %s", run_id)
+    logger = logging.getLogger(__name__)
+    logger.info(f"Starting run with ID: {run_id}")
     
     # Get optimal batch size and workers
     perf_optimizer = PerformanceOptimizer()
     batch_size = perf_optimizer.get_optimal_batch_size()
     n_workers = perf_optimizer.get_optimal_workers()
     
-    logging.info(f"Using {n_workers} workers with batch size {batch_size}")
+    logger.info(f"Using {n_workers} workers with batch size {batch_size}")
 
     # Load dataset with optimized settings
     dataset = load_dataset(
@@ -82,7 +83,7 @@ def main(config):
         texts[i:i + batch_size] 
         for i in range(0, len(texts), batch_size)
     ]
-    logging.info(f"Total batches: {len(batches)}")
+    logger.info(f"Total batches: {len(batches)}")
 
     # Initialize checkpoint manager
     checkpoint_manager = CheckpointManager()
@@ -90,7 +91,7 @@ def main(config):
     # Process texts
     try:
         processed_texts = checkpoint_manager.get_stage_data('processed_texts')
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, FileNotFoundError):
         processed_texts = None
 
     if processed_texts is None:
@@ -102,16 +103,16 @@ def main(config):
                     pbar.update(1)
         checkpoint_manager.save_stage('processed_texts', processed_texts)
 
-    logging.info(f"Processed {len(processed_texts)} texts")
+    logger.info(f"Processed {len(processed_texts)} texts")
 
     # Save processed texts
     output_dir = Path(config['data']['output_path'])
     output_dir.mkdir(exist_ok=True)
     output_file = output_dir / f"processed_texts_{run_id}.txt"
-    with open(output_file, 'w') as f:
+    with open(output_file, 'w', encoding='utf-8') as f:
         for text in processed_texts:
             f.write(f"{text}\n")
-    logging.info(f"Saved processed texts to {output_file}")
+    logger.info(f"Saved processed texts to {output_file}")
 
     # Initialize components
     embedding_generator = EnhancedEmbeddingGenerator()
@@ -123,7 +124,9 @@ def main(config):
     # Generate embeddings
     try:
         embeddings = checkpoint_manager.get_stage_data('embeddings')
-    except json.JSONDecodeError:
+        if embeddings is not None:
+            embeddings = np.array(embeddings)
+    except (json.JSONDecodeError, FileNotFoundError):
         embeddings = None
 
     if embeddings is None:
@@ -132,16 +135,16 @@ def main(config):
 
     embeddings_file = output_dir / f"embeddings_{run_id}.npy"
     np.save(embeddings_file, embeddings)
-    logging.info(f"Saved embeddings to {embeddings_file}")
+    logger.info(f"Saved embeddings to {embeddings_file}")
 
     # Clear memory
     perf_optimizer.clear_memory_cache()
-    logging.info("Completed embedding generation")
+    logger.info("Completed embedding generation")
 
     # Perform clustering
     try:
         clusters = checkpoint_manager.get_stage_data('clusters')
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, FileNotFoundError):
         clusters = None
 
     if clusters is None:
@@ -152,60 +155,73 @@ def main(config):
     clusters_file = output_dir / f"clusters_{run_id}.json"
     with open(clusters_file, 'w') as f:
         json.dump(clusters, f)
-    logging.info(f"Saved clusters to {clusters_file}")
+    logger.info(f"Saved clusters to {clusters_file}")
 
     # Clear memory
     perf_optimizer.clear_memory_cache()
-    logging.info("Completed clustering")
+    logger.info("Completed clustering")
 
     # Generate summaries
     try:
         summaries = checkpoint_manager.get_stage_data('summaries')
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, FileNotFoundError):
         summaries = None
 
     if summaries is None:
-        cluster_texts = {label: [] for label in set(clusters['labels'])}
+        cluster_texts = {str(label): [] for label in set(clusters['labels'])}
         for text, label, embedding in zip(processed_texts, clusters['labels'], embeddings):
-            cluster_texts[label].append({'processed_text': text, 'embedding': embedding.tolist()})
+            cluster_texts[str(label)].append({'processed_text': text, 'embedding': embedding.tolist()})
         summaries = summarizer.summarize_all_clusters(cluster_texts)
         checkpoint_manager.save_stage('summaries', summaries)
 
+    # Convert summaries dictionary values from dict to string if needed
+    summaries = {k: v['summary'] if isinstance(v, dict) else v 
+                for k, v in summaries.items()}
+
     summaries_file = output_dir / f"summaries_{run_id}.json"
-    with open(summaries_file, 'w') as f:
+    with open(summaries_file, 'w', encoding='utf-8') as f:
         json.dump(summaries, f)
-    logging.info(f"Saved summaries to {summaries_file}")
+    logger.info(f"Saved summaries to {summaries_file}")
 
     # Clear memory
     perf_optimizer.clear_memory_cache()
-    logging.info("Completed summarization")
+    logger.info("Completed summarization")
 
     # Visualize embeddings
     visualization_file = output_dir / f"visualizations_{run_id}.html"
     visualizer.visualize_embeddings(embeddings, save_path=visualization_file)
-    logging.info(f"Saved visualizations to {visualization_file}")
+    logger.info(f"Saved visualizations to {visualization_file}")
 
     # Create references from original texts
-    # Use the first text from each cluster as a reference
     references = {}
-    for label in set(clusters['labels']):
+    cluster_labels = set(clusters['labels'])
+    for label in cluster_labels:
         cluster_indices = [i for i, l in enumerate(clusters['labels']) if l == label]
         if cluster_indices:
+            # Convert label to string to match summaries keys
             references[str(label)] = processed_texts[cluster_indices[0]]
 
-    # Evaluate results
+    # Convert references and summaries to lists while maintaining alignment
+    summary_texts = []
+    reference_texts = []
+    for label in sorted(summaries.keys()):
+        if label in references:
+            summary_texts.append(summaries[label])
+            reference_texts.append(references[label])
+
+    # Evaluate results with properly aligned lists
     evaluation_metrics = evaluator.calculate_comprehensive_metrics(
-        summaries=summaries,
-        references=references,
+        summaries=summary_texts,
+        references=reference_texts,
         embeddings=embeddings,
         labels=np.array(clusters['labels']),
         batch_size=batch_size
     )
     
     evaluation_file = output_dir / f"evaluation_{run_id}.json"
-    with open(evaluation_file, 'w') as f:
+    with open(evaluation_file, 'w', encoding='utf-8') as f:
         json.dump(evaluation_metrics, f)
-    logging.info(f"Saved evaluation metrics to {evaluation_file}")
+    logger.info(f"Saved evaluation metrics to {evaluation_file}")
 
 if __name__ == '__main__':
     # Load configuration
