@@ -234,50 +234,50 @@ class EvaluationMetrics:
             embeddings (Optional[np.ndarray], optional): Embeddings array. Defaults to None.
             labels (Optional[np.ndarray], optional): Cluster labels. Defaults to None.
             batch_size (int, optional): Batch size for processing. Defaults to 32.
-
+    
         Returns:
             Dict[str, Dict[str, float]]: Dictionary of comprehensive metrics.
         """
         try:
             self.logger.info("Starting comprehensive metrics calculation")
             self.logger.debug(f"Summaries: {len(summaries)}, References: {len(references)}, Embeddings provided: {embeddings is not None}")
-
+    
             # Start timing
             self.start_time = datetime.now()
             self.num_samples = len(summaries)
-
+    
             # Calculate ROUGE and BERT scores
             rouge_scores = self.calculate_rouge_scores(
                 summaries=list(summaries.values()),
                 references=list(references.values())
             )
-
+    
             bert_scores = self.calculate_bert_scores(
                 summaries=list(summaries.values()),
                 references=list(references.values())
             )
-
+    
             metrics = {
                 'rouge_scores': rouge_scores,
                 'bert_scores': bert_scores
             }
-
+    
             # Calculate clustering metrics if embeddings and labels are provided
             if embeddings is not None and labels is not None:
                 clustering_metrics = self.calculate_clustering_metrics(
                     embeddings, labels, batch_size
                 )
                 metrics['clustering'] = clustering_metrics
-
+    
             # Calculate runtime metrics
             runtime_metrics = self._calculate_runtime_metrics()
             metrics['runtime'] = runtime_metrics
-
+    
             self.logger.info("Completed comprehensive metrics calculation")
             self.logger.debug(f"Comprehensive metrics: {metrics}")
-
+    
             return metrics
-
+    
         except Exception as e:
             self.logger.error(f"Error calculating comprehensive metrics: {e}")
             return {
@@ -286,7 +286,6 @@ class EvaluationMetrics:
                 'runtime': {},
                 'clustering': {}
             }
-
     def _calculate_runtime_metrics(self) -> Dict[str, float]:
         """
         Calculate runtime metrics for the evaluation.
