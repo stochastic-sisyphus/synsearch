@@ -12,15 +12,16 @@ from datetime import datetime
 import json
 import yaml
 
+# Imports adjusted to your repository structure
 from src.embedding_generator import EnhancedEmbeddingGenerator
 from src.clustering.dynamic_cluster_manager import DynamicClusterManager
 from src.summarization.hybrid_summarizer import EnhancedHybridSummarizer
 from src.visualization.embedding_visualizer import EmbeddingVisualizer
 from src.evaluation.metrics import EvaluationMetrics
 from src.utils.checkpoint_manager import CheckpointManager
-from src.utils.error_handler import with_error_handling, GlobalErrorHandler
-from src.utils.logging_utils import MetricsLogger
-from src.utils.validation_utils import validate_text_list, validate_embeddings, validate_labels, validate_cluster_metrics
+from src.utils.error_handler import with_error_handling
+from src.utils.performance import PerformanceOptimizer
+from src.data_validator import validate_text_list, validate_embeddings, validate_labels, validate_cluster_metrics
 
 
 def init_worker():
@@ -35,7 +36,7 @@ def init_worker():
 def process_batch(batch_data):
     """Process a batch of texts in parallel."""
     try:
-        from src.preprocessor import DomainAgnosticPreprocessor
+        from src.preprocessing.domain_agnostic_preprocessor import DomainAgnosticPreprocessor
         preprocessor = DomainAgnosticPreprocessor()
         processed_batch = [preprocessor.preprocess_text(text) for text in batch_data]
 
@@ -81,7 +82,6 @@ def main(config):
     logging.info("Starting run with ID: %s", run_id)
 
     # Get optimal batch size and workers
-    from src.utils.performance import PerformanceOptimizer
     perf_optimizer = PerformanceOptimizer()
     batch_size = perf_optimizer.get_optimal_batch_size()
     n_workers = perf_optimizer.get_optimal_workers()
