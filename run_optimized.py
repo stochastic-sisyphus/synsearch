@@ -174,10 +174,13 @@ def main(config):
         summaries = summarizer.summarize_all_clusters(cluster_texts)
         checkpoint_manager.save_stage('summaries', summaries)
 
-    # Ensure summaries is a dictionary with string values
+    # Ensure summaries is a dictionary of strings
     if isinstance(summaries, dict):
-        summaries = {str(k): v['summary'] if isinstance(v, dict) else str(v) 
+        summaries = {str(k): v['summary'] if isinstance(v, dict) else v 
                     for k, v in summaries.items()}
+    else:
+        logger.error("Summaries is not a dictionary")
+        summaries = {}
 
     summaries_file = output_dir / f"summaries_{run_id}.json"
     with open(summaries_file, 'w', encoding='utf-8') as f:
@@ -193,42 +196,32 @@ def main(config):
     visualizer.visualize_embeddings(embeddings, save_path=visualization_file)
     logger.info(f"Saved visualizations to {visualization_file}")
 
-    # Create references from original texts and align with summaries
+    # Create references dictionary
     references = {}
-    summary_texts = []
-    reference_texts = []
+    for label in set(clusters['labels']):
+        str_label = str(label)
+        cluster_indices = [i for i, l in enumerate(clusters['labels']) if str(l) == str_label]
+        if cluster_indices:
+            references[str_label] = processed_texts[cluster_indices[0]]
 
-    # Create aligned lists of summaries and references
-    for label in sorted(summaries.keys()):
-        cluster_indices = [i for i, l in enumerate(clusters['labels']) if str(l) == label]
-        if cluster_indices and label in summaries:
-            summary_text = summaries[label]
-            reference_text = processed_texts[cluster_indices[0]]
-            summary_texts.append(summary_text)
-            reference_texts.append(reference_text)
-            references[label] = reference_text
+    # Convert summaries and references to lists for metrics calculation
+    summary_list = []
+    reference_list = []
+    
+    # Ensure we only include pairs where both summary and reference exist
+    for label in summaries.keys():
+        if label in references:
+            summary_list.append(summaries[label])
+            reference_list.append(references[label])
 
-    # Convert labels to numpy array
-    labels_array = np.array([int(label) for label in sorted(summaries.keys())])
-
-    # Evaluate results
-    try:
-        evaluation_metrics = evaluator.calculate_comprehensive_metrics(
-            summaries=summary_texts,
-            references=reference_texts,
-            embeddings=embeddings,
-            labels=labels_array,
-            batch_size=batch_size
-        )
-    except Exception as e:
-        logger.error(f"Error in evaluation metrics calculation: {e}")
-        evaluation_metrics = {
-            'error': str(e),
-            'rouge_scores': {},
-            'bert_scores': {},
-            'clustering': {},
-            'runtime': {}
-        }
+    # Evaluate results with lists instead of dictionaries
+    evaluation_metrics = evaluator.calculate_comprehensive_metrics(
+        summaries=summary_list,
+        references=reference_list,
+        embeddings=embeddings,
+        labels=np.array(clusters['labels']),
+        batch_size=batch_size
+    )
     
     evaluation_file = output_dir / f"evaluation_{run_id}.json"
     with open(evaluation_file, 'w', encoding='utf-8') as f:
