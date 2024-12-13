@@ -208,11 +208,18 @@ def main(config):
     logging.info(f"Saved visualizations to {visualization_file}")
 
     # Evaluate results
-    evaluation_metrics = evaluator.calculate_comprehensive_metrics(
-        summaries=summaries,
-        references={},  # Add reference summaries if available
-        embeddings=embeddings
+    rouge_scores = evaluator.calculate_rouge_scores(
+        summaries=list(summaries.values()), 
+        references=[]
     )
+    evaluation_metrics = {
+        'rouge_scores': rouge_scores,
+        'runtime': evaluator._calculate_runtime_metrics()
+    }
+    if embeddings is not None:
+        evaluation_metrics['clustering'] = evaluator.calculate_clustering_metrics(
+            embeddings, batch_size
+        )
     evaluation_file = output_dir / f"evaluation_{run_id}.json"
     with open(evaluation_file, 'w') as f:
         json.dump(evaluation_metrics, f)
