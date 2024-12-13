@@ -258,44 +258,36 @@ def main():
         evaluator.start_time = datetime.now()
         evaluator.num_samples = len(processed_texts)
 
-        # Convert summaries and prepare for evaluation
-        summary_reference_map = {}
-        for label in unique_labels:
-            str_label = str(label)
-            if str_label in processed_summaries:
-                summary_text = processed_summaries[str_label]
-                # Get all documents in this cluster for better reference selection
-                cluster_docs = [processed_texts[i] for i, l in enumerate(clusters['labels']) if str(l) == str_label]
-                # Use the most representative document as reference
-                reference_text = cluster_docs[0] if cluster_docs else ''
-                summary_reference_map[str_label] = {
-                    'summary': summary_text,
-                    'reference': reference_text
-                }
-
         # Prepare evaluation inputs
         try:
+            # First create cluster_texts dictionary
+            cluster_texts = {}
+            for label, text, embedding in zip(labels, processed_texts, embeddings):
+                str_label = str(label)
+                if str_label not in cluster_texts:
+                    cluster_texts[str_label] = []
+                cluster_texts[str_label].append({
+                    'processed_text': text,
+                    'embedding': embedding.tolist() if isinstance(embedding, np.ndarray) else embedding
+                })
+
             # Convert summaries to proper format
             summary_texts = {}
             reference_texts = {}
             
-            for label, cluster_docs in cluster_texts.items():
-                if cluster_docs:  # Check if cluster has documents
+            for label in cluster_texts:
+                if cluster_texts[label]:  # Check if cluster has documents
                     # Get the summary for this cluster
-                    summary = summaries.get(label, {}).get('summary', '')
+                    summary = summaries.get(label, {})
                     if isinstance(summary, dict):
-                        summary = summary.get('text', '')  # Handle nested dict case
-                    summary_texts[label] = str(summary) if summary else ""
+                        summary_text = summary.get('summary', '') or summary.get('text', '')
+                    else:
+                        summary_text = str(summary)
+                    summary_texts[label] = summary_text if summary_text else ""
                     
                     # Use first document as reference
-                    reference = cluster_docs[0].get('processed_text', '')
+                    reference = cluster_texts[label][0]['processed_text']
                     reference_texts[label] = str(reference) if reference else ""
-            
-            # Convert embeddings and labels to numpy arrays if needed
-            if isinstance(embeddings, list):
-                embeddings = np.array(embeddings)
-            if isinstance(labels, list):
-                labels = np.array(labels)
             
             # Validate inputs before evaluation
             if not summary_texts or not reference_texts:
