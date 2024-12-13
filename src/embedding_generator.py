@@ -138,7 +138,7 @@ class EnhancedEmbeddingGenerator:
     except Exception as e:
         self.logger.error(f"Error generating embeddings: {e}")
         raise
-
+        
     def _get_optimal_batch_size(self) -> int:
         """Determine optimal batch size based on available memory."""
         if self.device == 'cuda':
