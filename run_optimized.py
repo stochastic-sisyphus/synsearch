@@ -1,4 +1,3 @@
-import pandas as pd
 import os
 import sys
 from pathlib import Path
@@ -7,13 +6,13 @@ import torch.multiprocessing as mp
 from datasets import load_dataset
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor
+import pandas as pd
 import numpy as np
 import logging
 from datetime import datetime
 import json
 import yaml
 
-# Imports adjusted to use your DataValidator and ConfigValidator
 from src.embedding_generator import EnhancedEmbeddingGenerator
 from src.clustering.dynamic_cluster_manager import DynamicClusterManager
 from src.summarization.hybrid_summarizer import EnhancedHybridSummarizer
@@ -95,9 +94,21 @@ def main(config):
     # Validate dataset using DataValidator
     validator = DataValidator()
     dataset_df = pd.DataFrame(dataset['train'])  # Assuming train set is structured
+
+    # Handle missing values in the dataset
+    if 'text' in dataset_df.columns:
+        missing_before = dataset_df['text'].isnull().sum()
+        if missing_before > 0:
+            logging.info(f"Handling {missing_before} missing values in the dataset...")
+            dataset_df.dropna(subset=['text'], inplace=True)  # Drop rows with missing 'text'
+        missing_after = dataset_df['text'].isnull().sum()
+        logging.info(f"Missing values after handling: {missing_after}")
+
+    # Validate dataset after handling missing values
     validation_results = validator.validate_dataset(dataset_df)
     if not validation_results['is_valid']:
-        raise ValueError(f"Dataset validation failed: {validation_results}")
+        logging.error(f"Dataset validation failed: {validation_results}")
+        sys.exit(1)
 
     texts = dataset_df['text'].tolist()
 
