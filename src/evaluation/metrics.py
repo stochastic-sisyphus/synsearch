@@ -39,6 +39,41 @@ class EvaluationMetrics:
         self.end_time = None
         self.num_samples = 0
 
+        # Initialize BERTScore model with caching
+        self._initialize_bert_score()
+
+    def _initialize_bert_score(self):
+        """Initialize and cache BERTScore model."""
+        try:
+            import torch
+            
+            # Set up caching for BERTScore
+            cache_dir = Path('.cache/bert_score')
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Initialize with specific model weights to avoid warnings
+            self.bert_scorer = bert_score.BERTScorer(
+                model_type='roberta-large',
+                num_layers=17,
+                batch_size=32,
+                nthreads=4,
+                all_layers=False,
+                lang='en',
+                rescale_with_baseline=True,
+                device=self.device,
+                cache_dir=str(cache_dir),
+                use_fast_tokenizer=True
+            )
+            
+            # Warm up the model to ensure weights are loaded
+            _ = self.bert_scorer.score(['test'], ['test'])
+            
+            self.logger.info("BERTScore model initialized successfully")
+            
+        except Exception as e:
+            self.logger.warning(f"BERTScore initialization failed: {e}. Falling back to default settings.")
+            self.bert_scorer = None
+
     def calculate_clustering_metrics(
         self,
         embeddings: np.ndarray,
@@ -319,9 +354,13 @@ class EvaluationMetrics:
         """
         try:
             self.logger.info("Starting BERT scores calculation")
-            self.logger.debug(f"Number of summaries: {len(summaries)}, Number of references: {len(references)}")
-
-            P, R, F1 = bert_score.score(summaries, references, lang='en', device=self.device)
+            
+            if self.bert_scorer is None:
+                self._initialize_bert_score()
+                if self.bert_scorer is None:
+                    raise ValueError("Failed to initialize BERTScore")
+            
+            P, R, F1 = self.bert_scorer.score(summaries, references)
 
             precision = float(P.mean())
             recall = float(R.mean())

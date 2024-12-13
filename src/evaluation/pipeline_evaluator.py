@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
 import json
+from ..evaluation.metrics import EvaluationMetrics  # Add this import
 
 class EmbeddingDataset(Dataset):
     """Custom Dataset for embeddings."""
