@@ -239,14 +239,15 @@ class EvaluationMetrics:
             self.logger.debug(f"Summaries: {summaries.keys()}, References: {references.keys()}, Embeddings: {embeddings is not None}")
 
             metrics = {
-                'summarization': self._calculate_summarization_metrics(
-                    summaries, references
+                'rouge_scores': self.calculate_rouge_scores(
+                    summaries=list(summaries.values()), 
+                    references=list(references.values())
                 ),
                 'runtime': self._calculate_runtime_metrics()
             }
             
             if embeddings is not None:
-                metrics['clustering'] = self._calculate_clustering_metrics(
+                metrics['clustering'] = self.calculate_clustering_metrics(
                     embeddings, batch_size
                 )
                 
@@ -258,7 +259,7 @@ class EvaluationMetrics:
         except Exception as e:
             self.logger.error(f"Error calculating comprehensive metrics: {e}")
             return {
-                'summarization': {},
+                'rouge_scores': {},
                 'runtime': {},
                 'clustering': {}
             }
@@ -292,7 +293,7 @@ class EvaluationMetrics:
             similarities = cosine_similarity(concatenated_embeddings)
             
             self.logger.info("Completed embedding quality calculation")
-            self.logger.debug(f"Embedding quality metrics: mean_similarity={np.mean(similarities)}, std_similarity={np.std(similarities)}, min_similarity={np.min(similarities)}, max_similarity={np.max(similarities)}")
+            self.logger.debug(f"Embedding quality metrics: mean_similarity={np.mean(similarities)}, std_similarity={np.std(similarities)}, min_similarity={np.min(similarities)}, max_similarity={np.max[...]
             return {
                 'mean_similarity': float(np.mean(similarities)),
                 'std_similarity': float(np.std(similarities)),
@@ -539,5 +540,4 @@ def _calculate_methods_coverage(summaries: List[str], references: List[str]) -> 
     Returns:
         float: Coverage score.
     """
-    # Implementation details 
-    return 0.0
+    #
