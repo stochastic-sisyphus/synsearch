@@ -1,206 +1,158 @@
-try:
-    import dash
-    from dash import html, dcc
-    import plotly.express as px
-    from dash.dependencies import Input, Output, State
-    import numpy as np
-    from umap import UMAP
-    DASHBOARD_ENABLED = True
-except ImportError:
-    DASHBOARD_ENABLED = False
-    
-class DashboardApp:
-    def __init__(self, embedding_generator, cluster_manager):
-        if not DASHBOARD_ENABLED:
-            raise ImportError("Dashboard dependencies not installed. Run: pip install dash plotly umap-learn")
-            
-        self.app = dash.Dash(__name__)
-        self.embedding_generator = embedding_generator
-        self.cluster_manager = cluster_manager
-        
-        self.app.layout = self._create_dashboard_layout()
-        self._setup_callbacks()
-        
-    def _create_dashboard_layout(self):
-        return html.Div([
-            html.H1("Research Synthesis Dashboard"),
-            
-            # Input section
-            html.Div([
-                dcc.Upload(
-                    id='upload-data',
-                    children=html.Div(['Drag and Drop or ', html.A('Select Files')]),
-                    multiple=False
-                ),
-                
-                # Clustering parameters
-                html.Div([
-                    html.Label('Min Cluster Size'),
-                    dcc.Slider(
-                        id='min-cluster-size',
-                        min=2, max=20, value=5, step=1,
-                        marks={i: str(i) for i in range(2, 21, 2)}
-                    )
-                ]),
-                
-                # Visualization parameters
-                html.Div([
-                    html.Label('UMAP Neighbors'),
-                    dcc.Slider(
-                        id='umap-neighbors',
-                        min=2, max=100, value=15, step=1
-                    )
-                ])
-            ]),
-            
-            # Results section
-            html.Div([
-                # Cluster visualization
-                dcc.Graph(id='cluster-plot'),
-                
-                # Metrics display
-                html.Div(id='metrics-display'),
-                
-                # Cluster summaries
-                html.Div(id='cluster-summaries')
-            ])
-        ])
-        
-    def _setup_callbacks(self):
-        @self.app.callback(
-            [Output('cluster-plot', 'figure'),
-             Output('metrics-display', 'children')],
-            [Input('upload-data', 'contents'),
-             Input('min-cluster-size', 'value'),
-             Input('umap-neighbors', 'value')]
-        )
-        def update_output(contents, min_cluster_size, n_neighbors):
-            if contents is None:
-                return dash.no_update
-                
-            # Process uploaded data
-            data = self._parse_contents(contents)
-            
-            # Generate embeddings
-            embeddings = self.embedding_generator.generate_embeddings(data)
-            
-            # Update clustering parameters
-            self.cluster_manager.config['thresholds']['min_cluster_size'] = min_cluster_size
-            
-            # Perform clustering
-            labels, metrics = self.cluster_manager.fit_predict(embeddings)
-            
-            # Generate UMAP visualization
-            umap = UMAP(n_neighbors=n_neighbors)
-            embedding_2d = umap.fit_transform(embeddings)
-            
-            # Create figure
-            fig = px.scatter(
-                x=embedding_2d[:, 0], y=embedding_2d[:, 1],
-                color=labels,
-                title='Cluster Visualization'
-            )
-            
-            # Format metrics display
-            metrics_html = html.Div([
-                html.H3("Clustering Metrics"),
-                html.P(f"Silhouette Score: {metrics['silhouette']:.3f}"),
-                html.P(f"Davies-Bouldin Index: {metrics['davies_bouldin']:.3f}"),
-                html.P(f"Algorithm Selected: {metrics['algorithm']}")
-            ])
-            
-            return fig, metrics_html
-            
-    def run_server(self, debug=True, port=8050):
-        self.app.run_server(debug=debug, port=8050)
-
-import streamlit as st
+import dash
+from dash import html, dcc
 import plotly.express as px
+import plotly.graph_objs as go
+from dash.dependencies import Input, Output, State
+import numpy as np
 from pathlib import Path
 import json
-from typing import Dict, Any
-import pandas as pd
-from src.visualization.embedding_visualizer import EmbeddingVisualizer
-from src.utils.metrics_calculator import MetricsCalculator
+from datetime import datetime
 
-class Dashboard:
-    def __init__(self, config: Dict[str, Any]):
-        self.config = config
-        self.visualizer = EmbeddingVisualizer(config)
-        self.metrics = MetricsCalculator()
+class DashboardApp:
+    def __init__(self, config_path="config/config.yaml"):
+        """Initialize dashboard with configuration."""
+        self.app = dash.Dash(__name__)
+        self.load_config(config_path)
+        self.setup_layout()
+        self.setup_callbacks()
         
-    def run(self):
-        st.title("Dynamic Summarization Dashboard")
-        
-        # Sidebar controls
-        st.sidebar.header("Controls")
-        dataset = st.sidebar.selectbox(
-            "Select Dataset",
-            ["xlsum", "scisummnet"]
-        )
-        
-        # Load results
-        results = self._load_results(dataset)
-        if not results:
-            st.error("No results found for selected dataset")
-            return
+    def load_config(self, config_path):
+        """Load dashboard configuration."""
+        import yaml
+        with open(config_path) as f:
+            self.config = yaml.safe_load(f).get('dashboard', {})
             
-        # Display metrics
-        self._show_metrics(results)
+    def setup_layout(self):
+        """Create the dashboard layout."""
+        self.app.layout = html.Div([
+            # Header
+            html.H1("Research Synthesis Dashboard", className="header"),
+            
+            # Control Panel
+            html.Div([
+                html.Div([
+                    html.H3("Dataset Selection"),
+                    dcc.Dropdown(
+                        id='dataset-selector',
+                        options=[
+                            {'label': 'XL-Sum', 'value': 'xlsum'},
+                            {'label': 'ScisummNet', 'value': 'scisummnet'}
+                        ],
+                        value='xlsum'
+                    ),
+                ], className="control-panel"),
+                
+                html.Div([
+                    html.H3("Visualization Settings"),
+                    dcc.Checklist(
+                        id='viz-options',
+                        options=[
+                            {'label': 'Show Cluster Labels', 'value': 'show_labels'},
+                            {'label': 'Show Centroids', 'value': 'show_centroids'}
+                        ],
+                        value=['show_labels']
+                    )
+                ], className="control-panel")
+            ], className="controls-container"),
+            
+            # Main Content
+            html.Div([
+                # Visualization Panel
+                html.Div([
+                    html.H2("Cluster Visualization"),
+                    dcc.Graph(id='cluster-plot')
+                ], className="viz-panel"),
+                
+                # Metrics Panel
+                html.Div([
+                    html.H2("Metrics"),
+                    html.Div(id='metrics-display')
+                ], className="metrics-panel")
+            ], className="main-content"),
+            
+            # Summary Panel
+            html.Div([
+                html.H2("Cluster Summaries"),
+                html.Div(id='summaries-display')
+            ], className="summary-panel")
+        ])
         
-        # Show visualizations
-        self._show_visualizations(results)
-        
-        # Display summaries
-        self._show_summaries(results)
+    def setup_callbacks(self):
+        """Set up interactive callbacks."""
+        @self.app.callback(
+            [Output('cluster-plot', 'figure'),
+             Output('metrics-display', 'children'),
+             Output('summaries-display', 'children')],
+            [Input('dataset-selector', 'value'),
+             Input('viz-options', 'value')]
+        )
+        def update_dashboard(dataset, viz_options):
+            try:
+                # Load results for selected dataset
+                results = self.load_results(dataset)
+                if not results:
+                    return self.create_empty_plot(), "No data available", "No summaries available"
+                
+                # Create visualization
+                fig = self.create_cluster_plot(results, viz_options)
+                
+                # Format metrics display
+                metrics_html = self.format_metrics(results.get('metrics', {}))
+                
+                # Format summaries display
+                summaries_html = self.format_summaries(results.get('summaries', {}))
+                
+                return fig, metrics_html, summaries_html
+                
+            except Exception as e:
+                print(f"Error updating dashboard: {e}")
+                return self.create_empty_plot(), "Error loading metrics", "Error loading summaries"
     
-    def _load_results(self, dataset: str) -> Dict:
-        results_path = Path(self.config['data']['output_path']) / f"{dataset}_results.json"
+    def load_results(self, dataset):
+        """Load results from the specified dataset."""
+        results_path = Path(self.config.get('data_dir', 'data/output')) / f"{dataset}_results.json"
         if not results_path.exists():
             return None
         with open(results_path) as f:
             return json.load(f)
-    
-    def _show_metrics(self, results: Dict):
-        st.header("Evaluation Metrics")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Clustering Quality")
-            metrics = results['metrics']['clustering']
-            st.metric("Silhouette Score", f"{metrics['silhouette_score']:.3f}")
-            st.metric("Davies-Bouldin Index", f"{metrics['davies_bouldin_score']:.3f}")
             
-        with col2:
-            st.subheader("Summarization Quality")
-            rouge = results['metrics']['summarization']['rouge']['rougeL']
-            st.metric("ROUGE-L F1", f"{rouge['fmeasure']:.3f}")
-            st.metric("ROUGE-L Precision", f"{rouge['precision']:.3f}")
-            
-    def _show_visualizations(self, results: Dict):
-        st.header("Visualizations")
-        
-        # UMAP plot of embeddings
-        fig = self.visualizer.plot_embeddings(
-            results['embeddings'],
-            results['clustering']['labels']
+    def create_cluster_plot(self, results, viz_options):
+        """Create interactive cluster visualization."""
+        return px.scatter(
+            x=results.get('embeddings_2d', [])[:, 0],
+            y=results.get('embeddings_2d', [])[:, 1],
+            color=results.get('labels', []),
+            title="Document Clusters"
         )
-        st.plotly_chart(fig)
+    
+    def create_empty_plot(self):
+        """Create empty plot for error states."""
+        return go.Figure()
+    
+    def format_metrics(self, metrics):
+        """Format metrics for display."""
+        return html.Div([
+            html.H3("Clustering Metrics"),
+            html.P(f"Silhouette Score: {metrics.get('silhouette_score', 'N/A')}"),
+            html.P(f"Davies-Bouldin Index: {metrics.get('davies_bouldin_score', 'N/A')}"),
+            html.H3("ROUGE Scores"),
+            html.P(f"ROUGE-L F1: {metrics.get('rouge_scores', {}).get('rougeL', {}).get('fmeasure', 'N/A')}")
+        ])
+    
+    def format_summaries(self, summaries):
+        """Format summaries for display."""
+        return html.Div([
+            html.Div([
+                html.H4(f"Cluster {cluster_id}"),
+                html.P(summary.get('summary', ''))
+            ]) for cluster_id, summary in summaries.items()
+        ])
         
-    def _show_summaries(self, results: Dict):
-        st.header("Generated Summaries")
-        
-        for cluster_id, summary in results['summaries'].items():
-            with st.expander(f"Cluster {cluster_id}"):
-                st.markdown(summary['summary'])
-                st.caption(f"Style: {summary['style']}")
+    def run_server(self, debug=True, port=None):
+        """Run the dashboard server."""
+        port = port or self.config.get('port', 8050)
+        self.app.run_server(debug=debug, port=port)
 
 if __name__ == "__main__":
-    import yaml
-    
-    with open("config/config.yaml") as f:
-        config = yaml.safe_load(f)
-        
-    dashboard = Dashboard(config)
-    dashboard.run()
+    dashboard = DashboardApp()
+    dashboard.run_server(debug=True)
