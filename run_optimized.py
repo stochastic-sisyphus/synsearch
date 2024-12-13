@@ -12,7 +12,7 @@ from datetime import datetime
 import json
 import yaml
 
-# Imports adjusted to your repository structure
+# Imports adjusted to use your DataValidator and ConfigValidator
 from src.embedding_generator import EnhancedEmbeddingGenerator
 from src.clustering.dynamic_cluster_manager import DynamicClusterManager
 from src.summarization.hybrid_summarizer import EnhancedHybridSummarizer
@@ -21,7 +21,7 @@ from src.evaluation.metrics import EvaluationMetrics
 from src.utils.checkpoint_manager import CheckpointManager
 from src.utils.error_handler import with_error_handling
 from src.utils.performance import PerformanceOptimizer
-from src.data_validator import validate_text_list, validate_embeddings, validate_labels, validate_cluster_metrics
+from src.data_validator import DataValidator, ConfigValidator
 
 
 def init_worker():
@@ -40,28 +40,23 @@ def process_batch(batch_data):
         preprocessor = DomainAgnosticPreprocessor()
         processed_batch = [preprocessor.preprocess_text(text) for text in batch_data]
 
-        # Validate processed texts
-        validate_text_list(processed_batch, name="processed_batch")
+        # Use DataValidator to validate processed texts
+        validator = DataValidator()
+        if not validator.validate_texts(processed_batch)['is_valid']:
+            raise ValueError("Processed batch validation failed.")
         return processed_batch
     except Exception as e:
         logging.error(f"Error processing batch: {e}")
         return []
 
 
-def validate_config(config):
-    """Validate the structure of the YAML config file."""
-    required_keys = ['data', 'logging', 'clustering', 'summarization', 'metrics']
-    for key in required_keys:
-        if key not in config:
-            raise ValueError(f"Missing required config key: {key}")
-    logging.info("Config file validated successfully.")
-
-
 @with_error_handling
 def main(config):
     """Main function to run the optimized script."""
     # Validate config file structure
-    validate_config(config)
+    config_validator = ConfigValidator()
+    if not config_validator.validate_config(config):
+        raise ValueError("Configuration validation failed.")
 
     # Generate a unique run identifier
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -96,12 +91,14 @@ def main(config):
         num_proc=n_workers
     )
 
-    # Validate dataset
-    if 'train' not in dataset or 'text' not in dataset['train']:
-        raise KeyError("Dataset does not contain the required 'train' or 'text' keys.")
+    # Validate dataset using DataValidator
+    validator = DataValidator()
+    dataset_df = pd.DataFrame(dataset['train'])  # Assuming train set is structured
+    validation_results = validator.validate_dataset(dataset_df)
+    if not validation_results['is_valid']:
+        raise ValueError(f"Dataset validation failed: {validation_results}")
 
-    texts = dataset['train']['text']
-    validate_text_list(texts, name="dataset texts")
+    texts = dataset_df['text'].tolist()
 
     # Split data into batches
     batches = [
@@ -137,8 +134,9 @@ def main(config):
 
     logging.info(f"Processed {len(processed_texts)} texts")
 
-    # Validate processed texts
-    validate_text_list(processed_texts, name="processed_texts")
+    # Validate processed texts using DataValidator
+    if not validator.validate_texts(processed_texts)['is_valid']:
+        raise ValueError("Processed texts validation failed.")
 
     # Save processed texts to output file
     output_dir = Path(config['data']['output_path'])
@@ -157,57 +155,33 @@ def main(config):
     visualizer = EmbeddingVisualizer()
     evaluator = EvaluationMetrics()
 
-    # Check for existing embeddings
-    try:
-        embeddings = checkpoint_manager.get_stage_data('embeddings')
-    except json.JSONDecodeError:
-        logging.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
-        embeddings = None
-
-    if embeddings is None:
-        # Generate embeddings
-        embeddings = embedding_generator.generate_embeddings(processed_texts)
-        validate_embeddings(embeddings)
-
-        # Save embeddings
-        checkpoint_manager.save_stage('embeddings', embeddings.tolist())
+    # Generate embeddings
+    embeddings = embedding_generator.generate_embeddings(processed_texts)
+    if not validator.validate_embeddings(embeddings)['is_valid']:
+        raise ValueError("Embeddings validation failed.")
 
     embeddings_file = output_dir / f"embeddings_{run_id}.npy"
     np.save(embeddings_file, embeddings)
     logging.info(f"Saved embeddings to {embeddings_file}")
 
-    # Clear memory cache
-    perf_optimizer.clear_memory_cache()
-
-    # Check for existing clusters
-    try:
-        clusters = checkpoint_manager.get_stage_data('clusters')
-    except json.JSONDecodeError:
-        logging.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
-        clusters = None
-
-    if clusters is None:
-        # Perform clustering
-        labels, clustering_metrics = cluster_manager.fit_predict(embeddings)
-        validate_labels(labels, len(processed_texts))
-        validate_cluster_metrics(clustering_metrics)
-
-        # Save clusters
-        clusters = {'labels': labels.tolist(), 'metrics': clustering_metrics}
-        checkpoint_manager.save_stage('clusters', clusters)
+    # Perform clustering
+    labels, clustering_metrics = cluster_manager.fit_predict(embeddings)
+    if not validator.validate_summaries(labels)['is_valid']:
+        raise ValueError("Labels validation failed.")
 
     clusters_file = output_dir / f"clusters_{run_id}.json"
     with open(clusters_file, 'w') as f:
-        json.dump(clusters, f)
+        json.dump({'labels': labels, 'metrics': clustering_metrics}, f)
     logging.info(f"Saved clusters to {clusters_file}")
 
     # Summarization
-    cluster_texts = {label: [] for label in set(clusters['labels'])}
-    for text, label in zip(processed_texts, clusters['labels']):
+    cluster_texts = {label: [] for label in set(labels)}
+    for text, label in zip(processed_texts, labels):
         cluster_texts[label].append(text)
 
     summaries = summarizer.summarize_all_clusters(cluster_texts)
-    validate_text_list(list(summaries.values()), name="summaries")
+    if not validator.validate_summaries(list(summaries.values()))['is_valid']:
+        raise ValueError("Summaries validation failed.")
 
     summaries_file = output_dir / f"summaries_{run_id}.json"
     with open(summaries_file, 'w') as f:
@@ -227,7 +201,7 @@ def main(config):
         logging.error(f"Error calculating ROUGE scores: {e}")
 
     try:
-        clustering_metrics = evaluator.calculate_clustering_metrics(embeddings, clusters['labels'])
+        clustering_metrics = evaluator.calculate_clustering_metrics(embeddings, labels)
         logging.info(f"Clustering Metrics: {clustering_metrics}")
     except Exception as e:
         logging.error(f"Error calculating clustering metrics: {e}")
