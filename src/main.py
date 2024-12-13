@@ -9,6 +9,7 @@ import numpy as np
 from tqdm import tqdm
 import json
 import multiprocessing
+import gc  # Add this import
 from typing import List, Dict, Any
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor

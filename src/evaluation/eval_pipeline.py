@@ -3,6 +3,7 @@ import numpy as np
 from torch.utils.data import DataLoader, Dataset
 from ..utils.metrics_utils import calculate_cluster_metrics, calculate_summary_metrics
 from ..utils.logging_utils import MetricsLogger
+from ..utils.metrics_calculator import MetricsCalculator  # Add this import
 import logging
 
 class EmbeddingDataset(Dataset):
