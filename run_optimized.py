@@ -232,7 +232,7 @@ def main(config):
     
     rouge_scores = evaluator.calculate_rouge_scores(
         summaries=list(summaries.values()), 
-        references=references
+        references=references if references else summaries  # Use summaries as references if none provided
     )
     evaluation_metrics = {
         'rouge_scores': rouge_scores
