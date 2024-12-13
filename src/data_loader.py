@@ -256,3 +256,47 @@ class EnhancedDataLoader:
         except Exception as e:
             self.logger.error(f"Error loading ScisummNet dataset: {e}")
             return None
+
+class DataLoader:
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.logger = logging.getLogger(__name__)
+        self.validator = DataValidator()
+
+    def load_all_datasets(self) -> Dict[str, pd.DataFrame]:
+        datasets = {}
+        
+        for dataset_config in self.config['data']['datasets']:
+            if not dataset_config.get('enabled', False):
+                continue
+                
+            try:
+                dataset_name = dataset_config['name']
+                if dataset_name == 'xlsum':
+                    dataset = load_dataset(
+                        dataset_config['dataset_name'], 
+                        dataset_config.get('language', 'english'),
+                        cache_dir=self.config['data'].get('cache_dir', 'data/cache')
+                    )
+                    if dataset and 'train' in dataset:
+                        df = pd.DataFrame({
+                            'text': dataset['train']['text'],
+                            'summary': dataset['train']['target'],
+                            'id': range(len(dataset['train'])),
+                            'source': ['xlsum'] * len(dataset['train'])
+                        })
+                        datasets['xlsum'] = df
+                        
+                elif dataset_name == 'scisummnet':
+                    df = self._load_scisummnet_dataset()
+                    if df is not None:
+                        datasets['scisummnet'] = df
+                        
+            except Exception as e:
+                self.logger.error(f"Error loading dataset {dataset_name}: {e}")
+                continue
+                
+        if not datasets:
+            raise ValueError("No datasets were successfully loaded")
+            
+        return datasets
