@@ -253,18 +253,39 @@ def main():
         embeddings = np.array(embeddings) if not isinstance(embeddings, np.ndarray) else embeddings
         labels = np.array(clusters['labels'])
 
+        # Initialize metrics evaluator with timing
         evaluator = EvaluationMetrics()
+        evaluator.start_time = datetime.now()
+        evaluator.num_samples = len(processed_texts)
+
+        # Convert summaries and prepare for evaluation
+        summary_reference_map = {}
+        for label in unique_labels:
+            str_label = str(label)
+            if str_label in processed_summaries:
+                summary_text = processed_summaries[str_label]
+                # Get all documents in this cluster for better reference selection
+                cluster_docs = [processed_texts[i] for i, l in enumerate(clusters['labels']) if str(l) == str_label]
+                # Use the most representative document as reference
+                reference_text = cluster_docs[0] if cluster_docs else ''
+                summary_reference_map[str_label] = {
+                    'summary': summary_text,
+                    'reference': reference_text
+                }
+
+        # Prepare evaluation inputs
         evaluation_metrics = evaluator.calculate_comprehensive_metrics(
-            summaries=dict(enumerate(summary_texts)),  # Convert to dict with numeric keys
-            references=dict(enumerate(reference_texts)),  # Convert to dict with numeric keys
+            summaries={k: v['summary'] for k, v in summary_reference_map.items()},
+            references={k: v['reference'] for k, v in summary_reference_map.items()},
             embeddings=embeddings,
             labels=labels,
             batch_size=batch_size
         )
         
+        # Save evaluation results
         evaluation_file = output_dir / f"evaluation_{run_id}.json"
         with open(evaluation_file, 'w', encoding='utf-8') as f:
-            json.dump(evaluation_metrics, f)
+            json.dump(evaluation_metrics, f, indent=2)
         log.info("Saved evaluation metrics to %s", evaluation_file)
 
     except Exception as e:
