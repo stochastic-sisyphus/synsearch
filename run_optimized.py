@@ -213,8 +213,7 @@ def main(config):
         references=[]
     )
     evaluation_metrics = {
-        'rouge_scores': rouge_scores,
-        'runtime': evaluator._calculate_runtime_metrics()
+        'rouge_scores': rouge_scores
     }
     if embeddings is not None:
         evaluation_metrics['clustering'] = evaluator.calculate_clustering_metrics(
