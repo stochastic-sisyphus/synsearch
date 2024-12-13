@@ -45,13 +45,7 @@ class EvaluationMetrics:
     def _initialize_bert_score(self):
         """Initialize and cache BERTScore model."""
         try:
-            import torch
-            
-            # Set up caching for BERTScore
-            cache_dir = Path('.cache/bert_score')
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Initialize with specific model weights to avoid warnings
+            # Set up model parameters without cache_dir
             self.bert_scorer = bert_score.BERTScorer(
                 model_type='roberta-large',
                 num_layers=17,
@@ -61,7 +55,6 @@ class EvaluationMetrics:
                 lang='en',
                 rescale_with_baseline=True,
                 device=self.device,
-                cache_dir=str(cache_dir),
                 use_fast_tokenizer=True
             )
             
@@ -337,31 +330,26 @@ class EvaluationMetrics:
                 'average_runtime_per_sample_seconds': 0.0
             }
 
-    def calculate_bert_scores(
-        self,
-        summaries: List[str],
-        references: List[str]
-    ) -> Dict[str, float]:
-        """
-        Calculate BERTScore for summaries.
-
-        Args:
-            summaries (List[str]): List of generated summaries.
-            references (List[str]): List of reference summaries.
-
-        Returns:
-            Dict[str, float]: Dictionary of BERT scores.
-        """
+    def calculate_bert_scores(self, summaries: List[str], references: List[str]) -> Dict[str, float]:
+        """Calculate BERTScore with proper error handling."""
         try:
             self.logger.info("Starting BERT scores calculation")
             
             if self.bert_scorer is None:
-                self._initialize_bert_score()
-                if self.bert_scorer is None:
-                    raise ValueError("Failed to initialize BERTScore")
+                # Create scorer inline if initialization failed
+                self.bert_scorer = bert_score.BERTScorer(
+                    model_type='roberta-large',
+                    num_layers=17,
+                    batch_size=32,
+                    nthreads=4,
+                    all_layers=False,
+                    lang='en',
+                    rescale_with_baseline=True,
+                    device=self.device
+                )
             
             P, R, F1 = self.bert_scorer.score(summaries, references)
-
+            
             precision = float(P.mean())
             recall = float(R.mean())
             f1_score = float(F1.mean())
