@@ -27,16 +27,43 @@ import logging
 
 def init_worker():
     """Initialize worker process with optimized settings."""
-    torch.cuda.empty_cache()
-    if torch.cuda.is_available():
-        torch.backends.cudnn.benchmark = True
-        torch.backends.cudnn.enabled = True
+    try:
+        # Configure CUDA optimizations
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.backends.cudnn.benchmark = True
+            torch.backends.cudnn.enabled = True
+            torch.backends.cudnn.deterministic = False  # Added for speed
+            
+            # Set device specific settings
+            device = torch.device('cuda')
+            torch.cuda.set_device(device)
+            
+            # Optional: Set TensorFloat-32 for faster processing on Ampere GPUs
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+    except Exception as e:
+        logging.error(f"CUDA initialization failed: {e}")
+        device = torch.device('cpu')
 
 def _get_optimal_batch_size() -> int:
+    """Calculate optimal batch size with safety margin."""
     if torch.cuda.is_available():
-        free_memory = torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated()
-        # Use 80% of available memory, assuming 768 dimensions and float32
-        return max(1, int((free_memory * 0.8) // (768 * 4)))
+        try:
+            gpu_props = torch.cuda.get_device_properties(0)
+            free_memory = gpu_props.total_memory - torch.cuda.memory_allocated()
+            embedding_size = 768  # Model embedding dimension
+            dtype_size = 4  # float32 size
+            safety_margin = 0.8  # Use 80% of available memory
+            
+            # Account for both input and gradient memory
+            memory_per_sample = embedding_size * dtype_size * 3
+            optimal_batch = int((free_memory * safety_margin) // memory_per_sample)
+            
+            return max(1, min(optimal_batch, 512))  # Cap at 512 for stability
+        except Exception as e:
+            logging.warning(f"Batch size calculation failed: {e}")
+            return 32  # Fallback batch size for GPU
     return 64  # Default CPU batch size
 
 @with_error_handling
