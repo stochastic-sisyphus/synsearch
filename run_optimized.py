@@ -83,7 +83,6 @@ def main(config):
 
     logging.info(f"Using {n_workers} workers with batch size {batch_size}")
 
-    # Load dataset with optimized settings
     dataset = load_dataset(
         config['data']['datasets'][1]['dataset_name'],
         config['data']['datasets'][1]['language'],
@@ -91,9 +90,33 @@ def main(config):
         num_proc=n_workers
     )
 
-    # Validate dataset using DataValidator
-    validator = DataValidator()
+    # Convert dataset to Pandas DataFrame and handle missing values
     dataset_df = pd.DataFrame(dataset['train'])  # Assuming train set is structured
+
+    # Insert the block to handle missing values and validate the dataset
+    missing_before = dataset_df.isnull().sum().sum()
+    logging.info(f"Missing values before handling: {missing_before}")
+
+    if missing_before > 0:
+        logging.info(f"Handling {missing_before} missing values in the dataset...")
+        dataset_df.dropna(inplace=True)  # Drop rows with missing values in any column
+
+    missing_after = dataset_df.isnull().sum().sum()
+    logging.info(f"Missing values after handling: {missing_after}")
+
+    # Log the dataset's structure post-cleaning
+    logging.info(f"Dataset structure after cleaning: {dataset_df.info()}")
+
+    # Validate dataset
+    validation_results = validator.validate_dataset(dataset_df)
+
+    # Log detailed validation results
+    logging.info(f"Validation results: {validation_results}")
+
+    if not validation_results['is_valid']:
+        for key, value in validation_results.items():
+            logging.error(f"Validation Check - {key}: {value}")
+        sys.exit(1)
 
     # Handle missing values in the dataset
     if 'text' in dataset_df.columns:
