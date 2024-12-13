@@ -1,8 +1,19 @@
+import logging
+from typing import Dict, Any, Optional, List
+import numpy as np
+from sklearn.metrics import silhouette_score, davies_bouldin_score
+import json
+from datetime import datetime
+from pathlib import Path
+import psutil
+import time
+
 class MetricsCalculator:
     """Calculate and manage various metrics for the pipeline."""
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        self.start_time = time.time()
         
     def calculate_clustering_metrics(
         self,
@@ -81,4 +92,35 @@ class MetricsCalculator:
         metrics = {}
         for gen_summary, ref_summary in zip(generated_summaries, reference_summaries):
             metrics.update(self._calculate_reference_metrics(gen_summary, ref_summary))
+        return metrics
+
+    def calculate_comprehensive_metrics(
+        self,
+        embeddings: np.ndarray,
+        labels: np.ndarray,
+        summaries: Dict[str, str],
+        references: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
+        metrics = {}
+        
+        # Clustering metrics
+        metrics['clustering'] = {
+            'silhouette': float(silhouette_score(embeddings, labels)),
+            'davies_bouldin': float(davies_bouldin_score(embeddings, labels)),
+            'num_clusters': len(np.unique(labels[labels != -1]))
+        }
+        
+        # Summary metrics
+        if references:
+            metrics['summarization'] = self._calculate_summarization_metrics(
+                list(summaries.values()),
+                list(references.values())
+            )
+            
+        # Performance metrics
+        metrics['performance'] = {
+            'memory_used': psutil.Process().memory_info().rss / 1024 / 1024,
+            'processing_time': time.time() - self.start_time
+        }
+        
         return metrics
