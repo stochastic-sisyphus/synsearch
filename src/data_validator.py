@@ -78,16 +78,18 @@ class DataValidator:
 
     def _check_missing_values(self, df: pd.DataFrame) -> bool:
         """
-        Check if missing values are below threshold (5%).
+        Check if missing values are below the threshold.
 
         Args:
             df (pd.DataFrame): DataFrame to check for missing values.
 
         Returns:
-            bool: True if missing values are below threshold, False otherwise.
+            bool: True if there are missing values above threshold, False otherwise.
         """
-        missing_pct = df.isnull().sum() / len(df) * 100
-        return all(missing_pct < 5)
+        missing_pct = df.isnull().mean() * 100  # Percentage of missing values per column
+        self.logger.info(f"Missing value percentage per column: {missing_pct}")
+        threshold = 5  # Configurable threshold
+        return any(missing_pct > threshold)  # Flag columns exceeding the threshold
 
     def _check_text_length(self, df: pd.DataFrame) -> bool:
         """
