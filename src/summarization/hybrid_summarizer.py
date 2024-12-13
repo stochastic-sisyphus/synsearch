@@ -15,14 +15,31 @@ import json  # Ensure this import is present
 class HybridSummarizer:
     """Base class for hybrid summarization approaches."""
     
-    def __init__(self, model_name='t5-base', tokenizer=None, device='cuda' if torch.cuda.is_available() else 'cpu'):
-        self.model_name = model_name
-        self.device = device
-        self.tokenizer = tokenizer or AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(device)
-        self.validator = DataValidator()
+    def __init__(
+        self,
+        model_name: str = 'facebook/bart-large-cnn',
+        max_length: int = 150,
+        min_length: int = 50,
+        batch_size: Optional[int] = None,
+        device: Optional[str] = None
+    ):
         self.logger = logging.getLogger(__name__)
-        logging.basicConfig(level=logging.INFO)
+        
+        # Set device
+        if device is None:
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        else:
+            self.device = device
+            
+        # Set batch size
+        self.batch_size = batch_size or self._get_optimal_batch_size()
+        
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(self.device)
+        except Exception as e:
+            self.logger.error(f"Failed to load model {model_name}: {e}")
+            raise
 
     def summarize(self, texts: List[str], max_length: int = 150) -> List[str]:
         """Generate summaries for input texts."""
@@ -62,6 +79,32 @@ class HybridSummarizer:
         self.logger.info(f"Output validation results: {validation_results}")
 
         return summaries
+
+    def summarize_all_clusters(
+        self,
+        cluster_texts: Dict[str, List[Dict]],
+        style: str = 'balanced'
+    ) -> Dict[str, Dict]:
+        try:
+            summaries = {}
+            for cluster_id, texts in tqdm(cluster_texts.items(), desc="Summarizing clusters"):
+                # Clear GPU cache if needed
+                if self.device == 'cuda':
+                    torch.cuda.empty_cache()
+                    
+                processed_texts = [doc['processed_text'] for doc in texts]
+                summary = self._generate_cluster_summary(processed_texts, style)
+                summaries[cluster_id] = {
+                    'summary': summary,
+                    'style': style,
+                    'num_docs': len(texts)
+                }
+                
+            return summaries
+            
+        except Exception as e:
+            self.logger.error(f"Error in summarize_all_clusters: {e}")
+            raise
 
 class EnhancedHybridSummarizer(HybridSummarizer):
     """
