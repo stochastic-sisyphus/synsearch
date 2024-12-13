@@ -274,19 +274,55 @@ def main():
                 }
 
         # Prepare evaluation inputs
-        evaluation_metrics = evaluator.calculate_comprehensive_metrics(
-            summaries={k: v['summary'] for k, v in summary_reference_map.items()},
-            references={k: v['reference'] for k, v in summary_reference_map.items()},
-            embeddings=embeddings,
-            labels=labels,
-            batch_size=batch_size
-        )
-        
-        # Save evaluation results
-        evaluation_file = output_dir / f"evaluation_{run_id}.json"
-        with open(evaluation_file, 'w', encoding='utf-8') as f:
-            json.dump(evaluation_metrics, f, indent=2)
-        log.info("Saved evaluation metrics to %s", evaluation_file)
+        try:
+            # Convert summaries to proper format
+            summary_texts = {}
+            reference_texts = {}
+            
+            for label, cluster_docs in cluster_texts.items():
+                if cluster_docs:  # Check if cluster has documents
+                    # Get the summary for this cluster
+                    summary = summaries.get(label, {}).get('summary', '')
+                    if isinstance(summary, dict):
+                        summary = summary.get('text', '')  # Handle nested dict case
+                    summary_texts[label] = str(summary) if summary else ""
+                    
+                    # Use first document as reference
+                    reference = cluster_docs[0].get('processed_text', '')
+                    reference_texts[label] = str(reference) if reference else ""
+            
+            # Convert embeddings and labels to numpy arrays if needed
+            if isinstance(embeddings, list):
+                embeddings = np.array(embeddings)
+            if isinstance(labels, list):
+                labels = np.array(labels)
+            
+            # Validate inputs before evaluation
+            if not summary_texts or not reference_texts:
+                raise ValueError("No valid summaries or references for evaluation")
+            
+            # Calculate evaluation metrics
+            evaluation_metrics = evaluator.calculate_comprehensive_metrics(
+                summaries=summary_texts,
+                references=reference_texts,
+                embeddings=embeddings,
+                labels=labels
+            )
+            
+            # Save evaluation results
+            evaluation_file = output_dir / f"evaluation_{run_id}.json"
+            with open(evaluation_file, 'w', encoding='utf-8') as f:
+                json.dump(evaluation_metrics, f, indent=2)
+            log.info("Saved evaluation metrics to %s", evaluation_file)
+            
+        except Exception as e:
+            log.error(f"Error during evaluation: {e}")
+            evaluation_metrics = {
+                'error': str(e),
+                'rouge_scores': {},
+                'bert_scores': {},
+                'clustering': {}
+            }
 
     except Exception as e:
         log.error(f"Error in main function: {e}")

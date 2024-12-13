@@ -69,52 +69,41 @@ class EvaluationMetrics:
 
     def calculate_clustering_metrics(
         self,
-        embeddings: np.ndarray,
-        labels: np.ndarray,
-        batch_size: int = 32
+        embeddings: Union[np.ndarray, List],
+        labels: Union[np.ndarray, List]
     ) -> Dict[str, float]:
-        """
-        Calculate clustering quality metrics.
-
-        Args:
-            embeddings (np.ndarray): Array of embeddings.
-            labels (np.ndarray): Array of cluster labels.
-            batch_size (int, optional): Batch size for processing. Defaults to 32.
-
-        Returns:
-            Dict[str, float]: Dictionary of clustering metrics.
-        """
+        """Calculate clustering metrics with robust input handling."""
         try:
-            self.logger.info("Starting clustering metrics calculation")
-            self.logger.debug(f"Embeddings shape: {embeddings.shape}, Labels shape: {labels.shape}")
-
-            # Filter out noise points (label -1) if any
+            # Convert inputs to numpy arrays if they're lists
+            if isinstance(embeddings, list):
+                embeddings = np.array(embeddings)
+            if isinstance(labels, list):
+                labels = np.array(labels)
+                
+            # Ensure proper shapes
+            if embeddings.ndim != 2:
+                raise ValueError(f"Embeddings must be 2D array, got shape {embeddings.shape}")
+            if labels.ndim != 1:
+                raise ValueError(f"Labels must be 1D array, got shape {labels.shape}")
+                
+            # Remove noise points (label -1)
             mask = labels != -1
             if not np.any(mask):
-                self.logger.warning("No valid labels found for clustering metrics calculation")
-                return {
-                    'silhouette_score': 0.0,
-                    'davies_bouldin_score': float('inf')
-                }
-
+                raise ValueError("No valid clusters found (all points are noise)")
+                
             valid_embeddings = embeddings[mask]
             valid_labels = labels[mask]
-
-            # Since the embeddings are already in numpy format, no need for DataLoader here
-            concatenated_embeddings = valid_embeddings
-
-            # Calculate metrics
-            silhouette = silhouette_score(concatenated_embeddings, valid_labels)
-            davies_bouldin = davies_bouldin_score(concatenated_embeddings, valid_labels)
-
-            self.logger.info("Completed clustering metrics calculation")
-            self.logger.debug(f"Clustering metrics: silhouette_score={silhouette}, davies_bouldin_score={davies_bouldin}")
-
-            return {
-                'silhouette_score': float(silhouette),
-                'davies_bouldin_score': float(davies_bouldin)
+            
+            if len(set(valid_labels)) < 2:
+                raise ValueError("Need at least 2 clusters for metrics calculation")
+                
+            metrics = {
+                'silhouette_score': float(silhouette_score(valid_embeddings, valid_labels)),
+                'davies_bouldin_score': float(davies_bouldin_score(valid_embeddings, valid_labels))
             }
-
+            
+            return metrics
+            
         except Exception as e:
             self.logger.error(f"Error calculating clustering metrics: {e}")
             return {
@@ -124,23 +113,27 @@ class EvaluationMetrics:
 
     def calculate_rouge_scores(
         self,
-        summaries: List[str],
-        references: List[str]
+        summaries: Union[List[str], Dict[str, str]],
+        references: Union[List[str], Dict[str, str]]
     ) -> Dict[str, Dict[str, float]]:
-        """
-        Calculate ROUGE scores for summaries.
-
-        Args:
-            summaries (List[str]): List of generated summaries.
-            references (List[str]): List of reference summaries.
-
-        Returns:
-            Dict[str, Dict[str, float]]: Dictionary of ROUGE scores.
-        """
+        """Calculate ROUGE scores with robust input handling."""
         try:
             self.logger.info("Starting ROUGE scores calculation")
-            self.logger.debug(f"Number of summaries: {len(summaries)}, Number of references: {len(references)}")
-
+            
+            # Convert inputs to lists if they're dictionaries
+            if isinstance(summaries, dict):
+                summaries = list(summaries.values())
+            if isinstance(references, dict):
+                references = list(references.values())
+                
+            # Ensure inputs are strings
+            summaries = [str(s) if s is not None else "" for s in summaries]
+            references = [str(r) if r is not None else "" for r in references]
+            
+            # Validate lengths
+            if len(summaries) != len(references):
+                raise ValueError("Number of summaries and references must match")
+                
             scores = {
                 'rouge1': {'precision': [], 'recall': [], 'fmeasure': []},
                 'rouge2': {'precision': [], 'recall': [], 'fmeasure': []},
@@ -148,25 +141,30 @@ class EvaluationMetrics:
             }
 
             for summary, reference in zip(summaries, references):
-                score = self.rouge_scorer.score(reference, summary)
-
-                for metric, values in score.items():
-                    scores[metric]['precision'].append(values.precision)
-                    scores[metric]['recall'].append(values.recall)
-                    scores[metric]['fmeasure'].append(values.fmeasure)
+                try:
+                    score = self.rouge_scorer.score(reference, summary)
+                    for metric, values in score.items():
+                        scores[metric]['precision'].append(values.precision)
+                        scores[metric]['recall'].append(values.recall)
+                        scores[metric]['fmeasure'].append(values.fmeasure)
+                except Exception as e:
+                    self.logger.warning(f"Error calculating ROUGE for single pair: {e}")
+                    # Add zero scores for failed calculations
+                    for metric in scores:
+                        scores[metric]['precision'].append(0.0)
+                        scores[metric]['recall'].append(0.0)
+                        scores[metric]['fmeasure'].append(0.0)
 
             # Calculate averages
             averaged_scores = {}
             for metric, values in scores.items():
                 averaged_scores[metric] = {
-                    k: float(np.mean(v)) for k, v in values.items()
+                    k: float(np.mean(v)) if v else 0.0 
+                    for k, v in values.items()
                 }
 
-            self.logger.info("Completed ROUGE scores calculation")
-            self.logger.debug(f"ROUGE scores: {averaged_scores}")
-
             return averaged_scores
-
+            
         except Exception as e:
             self.logger.error(f"Error calculating ROUGE scores: {e}")
             return {
@@ -174,6 +172,42 @@ class EvaluationMetrics:
                 'rouge2': {'precision': 0.0, 'recall': 0.0, 'fmeasure': 0.0},
                 'rougeL': {'precision': 0.0, 'recall': 0.0, 'fmeasure': 0.0}
             }
+
+    def calculate_bert_scores(
+        self,
+        summaries: Union[List[str], Dict[str, str]],
+        references: Union[List[str], Dict[str, str]]
+    ) -> Dict[str, float]:
+        """Calculate BERTScore with robust input handling."""
+        try:
+            # Convert inputs to lists if they're dictionaries
+            if isinstance(summaries, dict):
+                summaries = list(summaries.values())
+            if isinstance(references, dict):
+                references = list(references.values())
+                
+            # Ensure inputs are strings
+            summaries = [str(s) if s is not None else "" for s in summaries]
+            references = [str(r) if r is not None else "" for r in references]
+            
+            if not summaries or not references:
+                raise ValueError("Empty input for BERTScore calculation")
+                
+            # Initialize BERTScorer if not already done
+            if not hasattr(self, 'bert_scorer'):
+                self._initialize_bert_score()
+                
+            P, R, F1 = self.bert_scorer.score(summaries, references)
+            
+            return {
+                'precision': float(P.mean()),
+                'recall': float(R.mean()),
+                'f1': float(F1.mean())
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error calculating BERTScore: {e}")
+            return {'precision': 0.0, 'recall': 0.0, 'f1': 0.0}
 
     def save_metrics(
         self,
@@ -247,51 +281,29 @@ class EvaluationMetrics:
 
     def calculate_comprehensive_metrics(
         self,
-        summaries: Union[Dict[str, str], List[str]],
-        references: Union[Dict[str, str], List[str]],
-        embeddings: Optional[np.ndarray] = None,
-        labels: Optional[np.ndarray] = None,
-        batch_size: int = 32
-    ) -> Dict[str, Dict[str, float]]:
-        """Calculate all metrics with optimized batch processing."""
+        summaries: Dict[str, str],
+        references: Dict[str, str],
+        embeddings: Optional[Union[np.ndarray, List]] = None,
+        labels: Optional[Union[np.ndarray, List]] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Calculate all metrics with improved error handling."""
         try:
-            self.logger.info("Starting comprehensive metrics calculation")
-            self.logger.debug(f"Summaries type: {type(summaries)}, References type: {type(references)}")
-            
-            # Convert inputs to lists if they're dictionaries
-            summary_texts = list(summaries.values()) if isinstance(summaries, dict) else summaries
-            reference_texts = list(references.values()) if isinstance(references, dict) else references
+            metrics = {}
             
             # Calculate ROUGE scores
-            rouge_scores = self.calculate_rouge_scores(
-                summaries=summary_texts,
-                references=reference_texts
-            )
+            rouge_scores = self.calculate_rouge_scores(summaries, references)
+            metrics['rouge_scores'] = rouge_scores
             
             # Calculate BERT scores
-            bert_scores = self.calculate_bert_scores(
-                summaries=summary_texts,
-                references=reference_texts
-            )
-            
-            metrics = {
-                'rouge_scores': rouge_scores,
-                'bert_scores': bert_scores
-            }
+            bert_scores = self.calculate_bert_scores(summaries, references)
+            metrics['bert_scores'] = bert_scores
             
             # Calculate clustering metrics if provided
             if embeddings is not None and labels is not None:
-                clustering_metrics = self.calculate_clustering_metrics(
-                    embeddings=embeddings,
-                    labels=labels,
-                    batch_size=batch_size
-                )
+                clustering_metrics = self.calculate_clustering_metrics(embeddings, labels)
                 metrics['clustering'] = clustering_metrics
-            
-            # Add runtime metrics
-            runtime_metrics = self._calculate_runtime_metrics()
-            metrics['runtime'] = runtime_metrics
-            
+                
             return metrics
             
         except Exception as e:
@@ -299,8 +311,7 @@ class EvaluationMetrics:
             return {
                 'rouge_scores': {},
                 'bert_scores': {},
-                'clustering': {},
-                'runtime': {}
+                'clustering': {}
             }
 
     def _calculate_runtime_metrics(self) -> Dict[str, float]:
