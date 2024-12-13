@@ -3,10 +3,9 @@ import logging
 import traceback
 from functools import wraps
 from typing import Callable, Any, Optional
-from pathlib import Path
 
 class GlobalErrorHandler:
-    """Global error handler for consistent error management"""
+    """Global error handler for consistent error management."""
     
     def __init__(self, logger: Optional[logging.Logger] = None):
         self.logger = logger or logging.getLogger(__name__)
