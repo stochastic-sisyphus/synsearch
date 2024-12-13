@@ -11,59 +11,53 @@ from joblib import Parallel, delayed
 
 class DynamicClusterManager:
     """Manages dynamic clustering with adaptive thresholds and online updates."""
-    
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.min_cluster_size = config.get('min_cluster_size', 5)
-        self.min_samples = config.get('min_samples', 3)
         self.logger = logging.getLogger(__name__)
+        self.clusterer = None
         
-        # Initialize clustering models
-        self.clusterer = MiniBatchKMeans(
-            n_clusters=config.get('n_clusters', 10),
-            batch_size=config.get('batch_size', 1000)
-        )
+        # Add memory tracking
+        self.memory_tracker = PerformanceOptimizer()
+        self.batch_size = self.memory_tracker.get_optimal_batch_size()
         
     def fit_predict(self, embeddings: np.ndarray) -> Tuple[np.ndarray, Dict]:
-        """Perform clustering with dynamic threshold adaptation."""
-        self.logger.info("Starting fit_predict method")
-        self.logger.debug(f"Embeddings shape: {embeddings.shape}")
-        
         try:
-            # Ensure structural correctness of inputs
-            if not isinstance(embeddings, np.ndarray):
-                raise ValueError("Embeddings must be a numpy array")
-            if embeddings.ndim != 2:
-                raise ValueError("Embeddings must be a 2D array")
+            self.logger.info(f"Starting clustering with embeddings shape: {embeddings.shape}")
             
-            # Initial clustering with MiniBatchKMeans
+            # Initialize HDBSCAN with optimal parameters
+            self.clusterer = HDBSCAN(
+                min_cluster_size=self.config.get('min_cluster_size', 5),
+                min_samples=self.config.get('min_samples', 3),
+                metric='euclidean',
+                core_dist_n_jobs=self.memory_tracker.get_optimal_workers()
+            )
+            
+            # Process in batches if needed
+            if len(embeddings) > self.batch_size:
+                return self._batch_process_clustering(embeddings)
+            
             labels = self.clusterer.fit_predict(embeddings)
-            self.logger.debug(f"Initial labels: {labels}")
-            
-            # Calculate clustering metrics
             metrics = self._calculate_metrics(embeddings, labels)
-            self.logger.debug(f"Initial metrics: {metrics}")
             
-            # Adapt thresholds if needed
-            if metrics['silhouette_score'] < 0.5:
-                self.logger.info("Adapting clustering parameters...")
-                labels = self._adapt_clustering(embeddings, metrics)
-                metrics = self._calculate_metrics(embeddings, labels)
-                self.logger.debug(f"Adapted labels: {labels}")
-                self.logger.debug(f"Adapted metrics: {metrics}")
-                
-            # Save intermediate outputs
-            self._save_intermediate_outputs(embeddings, labels, metrics)
-            
-            # Clear unused variables and cache
-            del embeddings
-            torch.cuda.empty_cache()
-            self.logger.info("Completed clustering")
             return labels, metrics
             
         except Exception as e:
             self.logger.error(f"Error in clustering: {e}")
             raise
+
+    def _batch_process_clustering(self, embeddings: np.ndarray) -> Tuple[np.ndarray, Dict]:
+        batches = [embeddings[i:i + self.batch_size] 
+                  for i in range(0, len(embeddings), self.batch_size)]
+        
+        all_labels = []
+        for batch in batches:
+            labels = self.clusterer.fit_predict(batch)
+            all_labels.extend(labels)
+            
+        final_labels = np.array(all_labels)
+        metrics = self._calculate_metrics(embeddings, final_labels)
+        
+        return final_labels, metrics
 
     def _adapt_clustering(self, embeddings: np.ndarray, metrics: Dict) -> np.ndarray:
         """Adapt clustering parameters based on metrics."""
