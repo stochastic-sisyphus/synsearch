@@ -81,59 +81,59 @@ class EnhancedEmbeddingGenerator:
         self.validator = DataValidator()
 
     def generate_embeddings(
-    self,
-    texts: List[str],
-    apply_attention: bool = True,
-    batch_size: Optional[int] = None,
-    cache_dir: Optional[Path] = None
-) -> np.ndarray:
-    """Generate embeddings with optimized batch processing and caching."""
-        try:
-            # Add memory cleanup
-            torch.cuda.empty_cache()
-    
-            if not texts:
-                raise ValueError("Empty text list provided")
-            
-            # Validate input texts
-            validation_results = self.validator.validate_texts(texts)
-            if not validation_results['is_valid']:
-                self.logger.warning(f"Input texts validation failed: {validation_results}")
-                raise ValueError("Input texts validation failed")
+        self,
+        texts: List[str],
+        apply_attention: bool = True,
+        batch_size: Optional[int] = None,
+        cache_dir: Optional[Path] = None
+    ) -> np.ndarray:
+        """Generate embeddings with optimized batch processing and caching."""
+            try:
+                # Add memory cleanup
+                torch.cuda.empty_cache()
+        
+                if not texts:
+                    raise ValueError("Empty text list provided")
                 
-            self.logger.info(f"Generating embeddings for {len(texts)} texts with batch size {batch_size or self.batch_size}")
-                            
-            if cache_dir:
-                cache_dir.mkdir(parents=True, exist_ok=True)
-                cache_file = cache_dir / 'embeddings.npy'
-                if cache_file.exists():
-                    return np.load(cache_file)
-            
-            # Use smaller batch size if memory is limited
-            if batch_size is None:
-                batch_size = min(self.batch_size, len(texts))
-            
-            # Add proper batching
-            dataset = EmbeddingDataset(texts)
-            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-            
-            all_embeddings = []
-            for batch in tqdm(dataloader, desc="Generating embeddings"):
-                embeddings = self._generate_batch_embeddings(batch)
-                all_embeddings.append(embeddings)
-            
-            final_embeddings = np.concatenate(all_embeddings, axis=0)
-            
-            # Validate generated embeddings
-            validation_results = self.validator.validate_embeddings(final_embeddings)
-            if not validation_results['is_valid']:
-                self.logger.warning(f"Generated embeddings validation failed: {validation_results}")
-                raise ValueError("Generated embeddings validation failed")
-            
-            if cache_dir:
-                np.save(cache_file, final_embeddings)
+                # Validate input texts
+                validation_results = self.validator.validate_texts(texts)
+                if not validation_results['is_valid']:
+                    self.logger.warning(f"Input texts validation failed: {validation_results}")
+                    raise ValueError("Input texts validation failed")
+                    
+                self.logger.info(f"Generating embeddings for {len(texts)} texts with batch size {batch_size or self.batch_size}")
+                                
+                if cache_dir:
+                    cache_dir.mkdir(parents=True, exist_ok=True)
+                    cache_file = cache_dir / 'embeddings.npy'
+                    if cache_file.exists():
+                        return np.load(cache_file)
                 
-            return final_embeddings
+                # Use smaller batch size if memory is limited
+                if batch_size is None:
+                    batch_size = min(self.batch_size, len(texts))
+                
+                # Add proper batching
+                dataset = EmbeddingDataset(texts)
+                dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+                
+                all_embeddings = []
+                for batch in tqdm(dataloader, desc="Generating embeddings"):
+                    embeddings = self._generate_batch_embeddings(batch)
+                    all_embeddings.append(embeddings)
+                
+                final_embeddings = np.concatenate(all_embeddings, axis=0)
+                
+                # Validate generated embeddings
+                validation_results = self.validator.validate_embeddings(final_embeddings)
+                if not validation_results['is_valid']:
+                    self.logger.warning(f"Generated embeddings validation failed: {validation_results}")
+                    raise ValueError("Generated embeddings validation failed")
+                
+                if cache_dir:
+                    np.save(cache_file, final_embeddings)
+                    
+                return final_embeddings
         
     except Exception as e:
         self.logger.error(f"Error generating embeddings: {e}")
