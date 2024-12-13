@@ -108,6 +108,10 @@ def main():
         # Save processed texts to output file
         output_dir = Path(config['data']['output_path'])
         output_dir.mkdir(exist_ok=True)
+        
+        # Define run_id
+        run_id = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
         output_file = output_dir / f"processed_texts_{run_id}.txt"
         with open(output_file, 'w', encoding='utf-8') as f:
             for text in processed_texts:
