@@ -67,7 +67,7 @@ class DataValidator:
         missing_pct = df.isnull().mean() * 100  # Percentage of missing values per column
         self.logger.info(f"Missing value percentage per column: {missing_pct}")
         threshold = 5  # Configurable threshold
-    return any(missing_pct > threshold)  # Flag columns exceeding the threshold
+        return any(missing_pct > threshold)  # Flag columns exceeding the threshold
 
     def _check_text_lengths(self, df: pd.DataFrame) -> bool:
         """Validate text lengths"""
