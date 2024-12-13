@@ -7,6 +7,8 @@ from datasets import load_dataset
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor
 import numpy as np
+from src.utils.performance import PerformanceOptimizer
+import logging
 from datetime import datetime
 import json
 import yaml
@@ -17,11 +19,8 @@ from src.summarization.hybrid_summarizer import EnhancedHybridSummarizer
 from src.visualization.embedding_visualizer import EmbeddingVisualizer
 from src.evaluation.metrics import EvaluationMetrics
 from src.utils.checkpoint_manager import CheckpointManager
-from src.utils.error_handler import with_error_handling
-from src.utils.performance import PerformanceOptimizer
+from src.utils.error_handler import with_error_handling, GlobalErrorHandler
 from src.utils.logging_utils import MetricsLogger
-import logging
-
 
 def init_worker():
     """Initialize worker process with optimized settings."""
@@ -42,106 +41,107 @@ def process_batch(batch_data):
         return []
 
 @with_error_handling
-def main():
+def main(config):
     """Main function to run the optimized script."""
-    # Load configuration
-    with open('config/config.yaml', 'r') as f:
-        config = yaml.safe_load(f)
-
-    # Initialize MetricsLogger and get its logger
-    logger = MetricsLogger(config)
-    log = logger.logger
-
     # Generate a unique run identifier
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log.info("Starting run with ID: %s", run_id)
 
-    # Initialize performance optimizer
+    # Set up logging
+    log_dir = Path(config['logging']['file']).parent
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / f"run_optimized_{run_id}.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format=config['logging']['format'],
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler(str(log_file))
+        ]
+    )
+
+    logging.info("Starting run with ID: %s", run_id)
+    
+    # Get optimal batch size and workers
     perf_optimizer = PerformanceOptimizer()
     batch_size = perf_optimizer.get_optimal_batch_size()
     n_workers = perf_optimizer.get_optimal_workers()
     
-    log.info("Using %d workers with batch size %d", n_workers, batch_size)
+    logging.info(f"Using {n_workers} workers with batch size {batch_size}")
 
-    # Load dataset
-    dataset_name = config['data']['datasets'][1]['dataset_name']
-    language = config['data']['datasets'][1].get('language', 'english')
+    # Load dataset with optimized settings
     dataset = load_dataset(
-        dataset_name,
-        language,
-        cache_dir='data/cache',
+        config['data']['datasets'][1]['dataset_name'],
+        config['data']['datasets'][1]['language'],
+        cache_dir=config['data']['output_path'],
         num_proc=n_workers
     )
 
+    # Split data into batches
     texts = dataset['train']['text']
-    batches = [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
-    log.info("Total batches: %d", len(batches))
+    batches = [
+        texts[i:i + batch_size] 
+        for i in range(0, len(texts), batch_size)
+    ]
+    logging.info(f"Total batches: {len(batches)}")
 
     # Initialize checkpoint manager
     checkpoint_manager = CheckpointManager()
 
-    # Load or process text batches
+    # Process texts
     try:
         processed_texts = checkpoint_manager.get_stage_data('processed_texts')
     except json.JSONDecodeError:
-        log.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
         processed_texts = None
 
     if processed_texts is None:
         processed_texts = []
         with ProcessPoolExecutor(max_workers=n_workers, initializer=init_worker) as executor:
-            for batch_result in tqdm(executor.map(process_batch, batches), total=len(batches), desc="Processing batches"):
-                processed_texts.extend(batch_result)
-
+            with tqdm(total=len(batches), desc="Processing batches") as pbar:
+                for batch_result in executor.map(process_batch, batches):
+                    processed_texts.extend(batch_result)
+                    pbar.update(1)
         checkpoint_manager.save_stage('processed_texts', processed_texts)
 
-    log.info("Processed %d texts", len(processed_texts))
+    logging.info(f"Processed {len(processed_texts)} texts")
 
-    # Save processed texts to output file
-    output_dir = Path("outputs")
+    # Save processed texts
+    output_dir = Path(config['data']['output_path'])
     output_dir.mkdir(exist_ok=True)
     output_file = output_dir / f"processed_texts_{run_id}.txt"
     with open(output_file, 'w') as f:
         for text in processed_texts:
             f.write(f"{text}\n")
+    logging.info(f"Saved processed texts to {output_file}")
 
-    log.info("Saved processed texts to %s", output_file)
-
-    # Initialize pipeline components
+    # Initialize components
     embedding_generator = EnhancedEmbeddingGenerator()
+    cluster_manager = DynamicClusterManager(config=config['clustering'])
+    summarizer = EnhancedHybridSummarizer()
+    visualizer = EmbeddingVisualizer()
+    evaluator = EvaluationMetrics()
 
-    # Load or generate embeddings
+    # Generate embeddings
     try:
         embeddings = checkpoint_manager.get_stage_data('embeddings')
     except json.JSONDecodeError:
-        log.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
         embeddings = None
 
     if embeddings is None:
         embeddings = embedding_generator.generate_embeddings(processed_texts)
-        embeddings_list = embeddings.tolist()
-        checkpoint_manager.save_stage('embeddings', embeddings_list)
-    else:
-        # If embeddings were loaded from checkpoint, ensure it's a numpy array
-        embeddings = np.array(embeddings)
-        embeddings_list = embeddings
+        checkpoint_manager.save_stage('embeddings', embeddings.tolist())
 
     embeddings_file = output_dir / f"embeddings_{run_id}.npy"
     np.save(embeddings_file, embeddings)
-    log.info("Saved embeddings to %s", embeddings_file)
+    logging.info(f"Saved embeddings to {embeddings_file}")
 
+    # Clear memory
     perf_optimizer.clear_memory_cache()
-    checkpoint_manager.save_periodic_checkpoint('embeddings', embeddings_list)
-    log.info("Completed embedding generation")
+    logging.info("Completed embedding generation")
 
-    cluster_config = config.get('clustering', {})
-    cluster_manager = DynamicClusterManager(config=cluster_config)
-
-    # Load or perform clustering
+    # Perform clustering
     try:
         clusters = checkpoint_manager.get_stage_data('clusters')
     except json.JSONDecodeError:
-        log.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
         clusters = None
 
     if clusters is None:
@@ -152,54 +152,65 @@ def main():
     clusters_file = output_dir / f"clusters_{run_id}.json"
     with open(clusters_file, 'w') as f:
         json.dump(clusters, f)
-    log.info("Saved clusters to %s", clusters_file)
+    logging.info(f"Saved clusters to {clusters_file}")
 
+    # Clear memory
     perf_optimizer.clear_memory_cache()
-    checkpoint_manager.save_periodic_checkpoint('clusters', clusters)
-    log.info("Completed clustering")
+    logging.info("Completed clustering")
 
-    summarizer = EnhancedHybridSummarizer()
-
-    # Load or generate summaries
+    # Generate summaries
     try:
         summaries = checkpoint_manager.get_stage_data('summaries')
     except json.JSONDecodeError:
-        log.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
         summaries = None
 
     if summaries is None:
         cluster_texts = {label: [] for label in set(clusters['labels'])}
         for text, label, embedding in zip(processed_texts, clusters['labels'], embeddings):
-            cluster_texts[label].append({'processed_text': text, 'embedding': embedding})
+            cluster_texts[label].append({'processed_text': text, 'embedding': embedding.tolist()})
         summaries = summarizer.summarize_all_clusters(cluster_texts)
         checkpoint_manager.save_stage('summaries', summaries)
 
     summaries_file = output_dir / f"summaries_{run_id}.json"
     with open(summaries_file, 'w') as f:
         json.dump(summaries, f)
-    log.info("Saved summaries to %s", summaries_file)
+    logging.info(f"Saved summaries to {summaries_file}")
 
+    # Clear memory
     perf_optimizer.clear_memory_cache()
-    checkpoint_manager.save_periodic_checkpoint('summaries', summaries)
-    log.info("Completed summarization")
+    logging.info("Completed summarization")
 
-    visualizer = EmbeddingVisualizer()
+    # Visualize embeddings
     visualization_file = output_dir / f"visualizations_{run_id}.html"
     visualizer.visualize_embeddings(embeddings, save_path=visualization_file)
-    log.info("Saved visualizations to %s", visualization_file)
+    logging.info(f"Saved visualizations to {visualization_file}")
 
-    evaluator = EvaluationMetrics()
+    # Create references from original texts
+    # Use the first text from each cluster as a reference
+    references = {}
+    for label in set(clusters['labels']):
+        cluster_indices = [i for i, l in enumerate(clusters['labels']) if l == label]
+        if cluster_indices:
+            references[str(label)] = processed_texts[cluster_indices[0]]
+
+    # Evaluate results
     evaluation_metrics = evaluator.calculate_comprehensive_metrics(
         summaries=summaries,
-        references={},  # Add reference summaries if available
-        embeddings=embeddings
+        references=references,
+        embeddings=embeddings,
+        labels=np.array(clusters['labels']),
+        batch_size=batch_size
     )
+    
     evaluation_file = output_dir / f"evaluation_{run_id}.json"
     with open(evaluation_file, 'w') as f:
         json.dump(evaluation_metrics, f)
-    log.info("Saved evaluation metrics to %s", evaluation_file)
-
+    logging.info(f"Saved evaluation metrics to {evaluation_file}")
 
 if __name__ == '__main__':
+    # Load configuration
+    with open('config/config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+
     mp.set_start_method('spawn', force=True)
-    main()
+    main(config)
