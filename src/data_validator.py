@@ -58,9 +58,16 @@ class DataValidator:
             return False
 
     def _check_missing_values(self, df: pd.DataFrame) -> bool:
-        """Check for missing values in required columns"""
-        required = ['text']
-        return df[required].isnull().any().any()
+        """
+        Check if missing values are below the threshold.
+
+        Returns:
+            bool: True if there are missing values above threshold, False otherwise.
+        """
+        missing_pct = df.isnull().mean() * 100  # Percentage of missing values per column
+        self.logger.info(f"Missing value percentage per column: {missing_pct}")
+        threshold = 5  # Configurable threshold
+    return any(missing_pct > threshold)  # Flag columns exceeding the threshold
 
     def _check_text_lengths(self, df: pd.DataFrame) -> bool:
         """Validate text lengths"""
