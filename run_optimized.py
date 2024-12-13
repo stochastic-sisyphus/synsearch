@@ -20,10 +20,10 @@ from src.utils.checkpoint_manager import CheckpointManager
 from src.utils.error_handler import with_error_handling
 from src.utils.performance import PerformanceOptimizer
 from src.utils.logging_utils import MetricsLogger
-from src.utils.metrics_utils import MetricsCalculator
-from src.utils.pipeline_utils import ProgressTracker, run_with_recovery, manage_memory
+from src.utils.metrics_calculator import MetricsCalculator
 import gc
 import logging
+
 
 def init_worker():
     """Initialize worker process with optimized settings."""
@@ -40,7 +40,6 @@ def _get_optimal_batch_size() -> int:
     return 64  # Default CPU batch size
 
 @with_error_handling
-@run_with_recovery(max_retries=3)
 def process_batch(batch_data):
     """Process a batch of texts in parallel."""
     try:
@@ -50,29 +49,21 @@ def process_batch(batch_data):
     except Exception as e:
         logging.error(f"Error processing batch: {e}")
         return []
-
 @with_error_handling
-@run_with_recovery(max_retries=3)
 def main():
-    # Initialize progress tracker
-    tracker = ProgressTracker()
-    
     try:
         torch.cuda.empty_cache()
         gc.collect()
 
-        # Load configuration
-        tracker.start_stage("configuration")
+        # Add configuration
         with open('config/config.yaml', 'r') as f:
             config = yaml.safe_load(f)
-        tracker.end_stage("configuration")
         
         # Initialize logger and get its logger
         logger = MetricsLogger(config)
         log = logger.logger
         
         # Initialize performance optimizer
-        tracker.start_stage("initialization")
         perf_optimizer = PerformanceOptimizer()
         batch_size = _get_optimal_batch_size()
         n_workers = perf_optimizer.get_optimal_workers()
@@ -82,11 +73,8 @@ def main():
             checkpoint_dir=config.get('checkpoints', {}).get('dir', 'outputs/checkpoints'),
             enable_metrics=True
         )
-        tracker.end_stage("initialization")
 
         # Load dataset
-        tracker.start_stage("data_loading")
-        manage_memory()
         dataset_name = config['data']['datasets'][1]['dataset_name']
         language = config['data']['datasets'][1].get('language', 'english')
         dataset = load_dataset(
@@ -95,7 +83,6 @@ def main():
             cache_dir='data/cache',
             num_proc=n_workers
         )
-        tracker.end_stage("data_loading")
 
         texts = dataset['train']['text']
         batches = [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
@@ -121,7 +108,7 @@ def main():
         # Save processed texts to output file
         output_dir = Path(config['data']['output_path'])
         output_dir.mkdir(exist_ok=True)
-        output_file = output_dir / f"processed_texts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        output_file = output_dir / f"processed_texts_{run_id}.txt"
         with open(output_file, 'w', encoding='utf-8') as f:
             for text in processed_texts:
                 f.write(f"{text}\n")
@@ -147,7 +134,7 @@ def main():
             embeddings = np.array(embeddings)
             embeddings_list = embeddings
 
-        embeddings_file = output_dir / f"embeddings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.npy"
+        embeddings_file = output_dir / f"embeddings_{run_id}.npy"
         np.save(embeddings_file, embeddings)
         log.info("Saved embeddings to %s", embeddings_file)
 
@@ -170,7 +157,7 @@ def main():
             clusters = {'labels': labels.tolist(), 'metrics': clustering_metrics}
             checkpoint_manager.save_stage('clusters', clusters)
 
-        clusters_file = output_dir / f"clusters_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        clusters_file = output_dir / f"clusters_{run_id}.json"
         with open(clusters_file, 'w') as f:
             json.dump(clusters, f)
         log.info("Saved clusters to %s", clusters_file)
@@ -195,7 +182,7 @@ def main():
             summaries = summarizer.summarize_all_clusters(cluster_texts)
             checkpoint_manager.save_stage('summaries', summaries)
 
-        summaries_file = output_dir / f"summaries_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        summaries_file = output_dir / f"summaries_{run_id}.json"
         with open(summaries_file, 'w', encoding='utf-8') as f:
             json.dump(summaries, f)
         log.info("Saved summaries to %s", summaries_file)
@@ -205,7 +192,7 @@ def main():
         log.info("Completed summarization")
 
         visualizer = EmbeddingVisualizer()
-        visualization_file = output_dir / f"visualizations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+        visualization_file = output_dir / f"visualizations_{run_id}.html"
         visualizer.visualize_embeddings(embeddings, save_path=visualization_file)
         log.info("Saved visualizations to %s", visualization_file)
 
@@ -245,7 +232,7 @@ def main():
             batch_size=batch_size
         )
         
-        evaluation_file = output_dir / f"evaluation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        evaluation_file = output_dir / f"evaluation_{run_id}.json"
         with open(evaluation_file, 'w', encoding='utf-8') as f:
             json.dump(evaluation_metrics, f)
         log.info("Saved evaluation metrics to %s", evaluation_file)
@@ -253,6 +240,7 @@ def main():
     except Exception as e:
         log.error(f"Error in main function: {e}")
         raise
+
 
 if __name__ == '__main__':
     mp.set_start_method('spawn', force=True)
