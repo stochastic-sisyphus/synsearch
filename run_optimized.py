@@ -218,9 +218,16 @@ def main(config):
     if isinstance(embeddings, list):
         embeddings = np.array(embeddings)
 
-    evaluation_metrics['clustering'] = evaluator.calculate_clustering_metrics(
-        embeddings, batch_size
-    )
+    # Ensure labels are correctly passed
+    labels = clusters['labels'] if isinstance(clusters, dict) and 'labels' in clusters else None
+
+    if labels is not None:
+        evaluation_metrics['clustering'] = evaluator.calculate_clustering_metrics(
+            embeddings, labels, batch_size
+        )
+    else:
+        logging.error("No valid labels found for clustering metrics calculation")
+
     evaluation_file = output_dir / f"evaluation_{run_id}.json"
     with open(evaluation_file, 'w') as f:
         json.dump(evaluation_metrics, f)
