@@ -22,12 +22,14 @@ from src.utils.checkpoint_manager import CheckpointManager
 from src.utils.error_handler import with_error_handling, GlobalErrorHandler
 from src.utils.logging_utils import MetricsLogger
 
+
 def init_worker():
     """Initialize worker process with optimized settings."""
     torch.cuda.empty_cache()
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
         torch.backends.cudnn.enabled = True
+
 
 @with_error_handling
 def process_batch(batch_data):
@@ -40,6 +42,7 @@ def process_batch(batch_data):
         logging.error(f"Error processing batch: {e}")
         return []
 
+
 def validate_config(config):
     """Validate the structure of the YAML config file."""
     required_keys = ['data', 'logging', 'clustering', 'summarization', 'metrics']
@@ -47,6 +50,7 @@ def validate_config(config):
         if key not in config:
             raise ValueError(f"Missing required config key: {key}")
     logging.info("Config file validated successfully.")
+
 
 @with_error_handling
 def main(config):
@@ -71,12 +75,12 @@ def main(config):
     )
 
     logging.info("Starting run with ID: %s", run_id)
-    
+
     # Get optimal batch size and workers
     perf_optimizer = PerformanceOptimizer()
     batch_size = perf_optimizer.get_optimal_batch_size()
     n_workers = perf_optimizer.get_optimal_workers()
-    
+
     logging.info(f"Using {n_workers} workers with batch size {batch_size}")
 
     # Load dataset with optimized settings
@@ -91,9 +95,9 @@ def main(config):
     texts = dataset['train']['text']
     if not texts:
         raise ValueError("No texts found in the dataset.")
-        
+
     batches = [
-        texts[i:i + batch_size] 
+        texts[i:i + batch_size]
         for i in range(0, len(texts), batch_size)
     ]
 
@@ -112,7 +116,7 @@ def main(config):
 
         # Process batches in parallel
         with ProcessPoolExecutor(
-            max_workers=n_workers, 
+            max_workers=n_workers,
             initializer=init_worker
         ) as executor:
             with tqdm(total=len(batches), desc="Processing batches") as pbar:
@@ -159,7 +163,7 @@ def main(config):
         embeddings_list = embeddings.tolist()
         checkpoint_manager.save_stage('embeddings', embeddings_list)
     else:
-        embeddings_list = embeddings  # Ensure embeddings_list is assigned if it already exists
+        embeddings_list = embeddings
 
     embeddings_file = output_dir / f"embeddings_{run_id}.npy"
     np.save(embeddings_file, embeddings)
@@ -207,6 +211,12 @@ def main(config):
         cluster_texts = {label: [] for label in set(clusters['labels'])}
         for text, label, embedding in zip(processed_texts, clusters['labels'], embeddings):
             cluster_texts[label].append({'processed_text': text, 'embedding': embedding})
+
+        # Remove empty clusters
+        cluster_texts = {label: texts for label, texts in cluster_texts.items() if texts}
+        if not cluster_texts:
+            raise ValueError("No valid clusters with texts for summarization.")
+
         summaries = summarizer.summarize_all_clusters(cluster_texts)
         checkpoint_manager.save_stage('summaries', summaries)
 
@@ -229,31 +239,31 @@ def main(config):
     references = []  # Assuming you have references, otherwise handle empty case
     if not references:
         logging.warning("No references provided for ROUGE score calculation.")
-    
+
     rouge_scores = evaluator.calculate_rouge_scores(
-        summaries=list(summaries.values()), 
-        references=references if references else summaries  # Use summaries as references if none provided
+        summaries=list(summaries.values()),
+        references=references if references else summaries
     )
     evaluation_metrics = {
         'rouge_scores': rouge_scores
     }
-    if isinstance(embeddings, list):
-        embeddings = np.array(embeddings)
 
     # Ensure labels are correctly passed
     labels = clusters['labels'] if isinstance(clusters, dict) and 'labels' in clusters else None
 
-    if labels is not None:
+    if labels is not None and hasattr(embeddings, 'shape'):
         evaluation_metrics['clustering'] = evaluator.calculate_clustering_metrics(
             embeddings, labels, batch_size
         )
     else:
-        logging.error("No valid labels found for clustering metrics calculation")
+        logging.error("Invalid labels or embeddings for clustering metrics calculation.")
+        evaluation_metrics['clustering'] = None
 
     evaluation_file = output_dir / f"evaluation_{run_id}.json"
     with open(evaluation_file, 'w') as f:
         json.dump(evaluation_metrics, f)
     logging.info(f"Saved evaluation metrics to {evaluation_file}")
+
 
 if __name__ == '__main__':
     # Load configuration from a YAML file
