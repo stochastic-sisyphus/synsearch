@@ -73,7 +73,15 @@ def main(config):
     logger.info(f"Using {n_workers} workers with batch size {batch_size}")
 
     # Load dataset
-    dataset_path = Path(config['data']['input_path'])
+    dataset_dir = Path(config['data']['input_path'])
+    if dataset_dir.is_dir():
+        dataset_path = next(dataset_dir.glob("*.csv"), None)
+        if not dataset_path:
+            raise FileNotFoundError(f"No CSV file found in the directory: {dataset_dir}")
+    else:
+        dataset_path = dataset_dir
+
+    logger.info(f"Loading dataset from: {dataset_path}")
     dataset_df = pd.read_csv(dataset_path)
 
     # Validate dataset structure
