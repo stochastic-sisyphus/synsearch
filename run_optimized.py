@@ -22,7 +22,6 @@ from src.utils.error_handler import with_error_handling
 from src.utils.performance import PerformanceOptimizer
 from src.utils.logging_utils import MetricsLogger
 
-
 def init_worker():
     """Initialize worker process with optimized settings."""
     torch.cuda.empty_cache()
@@ -30,112 +29,196 @@ def init_worker():
         torch.backends.cudnn.benchmark = True
         torch.backends.cudnn.enabled = True
 
-
 @with_error_handling
 def process_batch(batch_data):
     """Process a batch of texts in parallel."""
-    from src.preprocessor import DomainAgnosticPreprocessor
-    preprocessor = DomainAgnosticPreprocessor()
-    return [preprocessor.preprocess_text(text) for text in batch_data]
-
+    try:
+        from src.preprocessor import DomainAgnosticPreprocessor
+        preprocessor = DomainAgnosticPreprocessor()
+        return [preprocessor.preprocess_text(text) for text in batch_data]
+    except Exception as e:
+        logging.error(f"Error processing batch: {e}")
+        return []
 
 @with_error_handling
 def main():
     """Main function to run the optimized script."""
-    # Load configuration
-    config_path = Path("config/config.yaml")
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-
-    # Initialize MetricsLogger
-    logger = MetricsLogger(config)
-
     # Generate a unique run identifier
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    logger.logger.info("Starting run with ID: %s", run_id)
 
-    # Optimize batch size and workers
+    # Load configuration
+    with open('config/config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+
+    # Set up initial logging (if desired; MetricsLogger also sets this up)
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / f"run_optimized_{run_id}.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler(str(log_file))
+        ]
+    )
+
+    logging.info("Starting run with ID: %s", run_id)
+    
+    # Initialize performance optimizer
     perf_optimizer = PerformanceOptimizer()
-    batch_size = config['data'].get('batch_size', perf_optimizer.get_optimal_batch_size())
+    batch_size = perf_optimizer.get_optimal_batch_size()
     n_workers = perf_optimizer.get_optimal_workers()
-
-    logger.logger.info("Using %d workers with batch size %d", n_workers, batch_size)
+    
+    logging.info(f"Using {n_workers} workers with batch size {batch_size}")
 
     # Load dataset
-    dataset = load_dataset('GEM/xlsum', 'english', cache_dir=config['embedding']['cache_dir'])
-    texts = dataset['train']['text']
+    dataset = load_dataset(
+        config['data']['datasets'][1]['dataset_name'],  # "GEM/xlsum"
+        config['data']['datasets'][1].get('language', 'english'),
+        cache_dir='data/cache',
+        num_proc=n_workers
+    )
 
-    # Split data into batches
+    texts = dataset['train']['text']
     batches = [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
-    logger.logger.info("Processing %d batches", len(batches))
 
     # Initialize checkpoint manager
     checkpoint_manager = CheckpointManager()
 
-    # Process batches
-    processed_texts = []
-    with ProcessPoolExecutor(max_workers=n_workers, initializer=init_worker) as executor:
-        for result in tqdm(executor.map(process_batch, batches), total=len(batches)):
-            processed_texts.extend(result)
+    # Load or process text batches
+    try:
+        processed_texts = checkpoint_manager.get_stage_data('processed_texts')
+    except json.JSONDecodeError:
+        logging.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
+        processed_texts = None
 
-    logger.logger.info("Processed %d texts", len(processed_texts))
+    if processed_texts is None:
+        processed_texts = []
 
-    # Save processed texts
-    output_dir = Path(config['data']['output_path'])
-    output_dir.mkdir(parents=True, exist_ok=True)
-    processed_file = output_dir / f"processed_texts_{run_id}.txt"
-    with open(processed_file, 'w') as f:
+        # Process batches in parallel
+        with ProcessPoolExecutor(
+            max_workers=n_workers, 
+            initializer=init_worker
+        ) as executor:
+            with tqdm(total=len(batches), desc="Processing batches") as pbar:
+                for batch_result in executor.map(process_batch, batches):
+                    processed_texts.extend(batch_result)
+                    pbar.update(1)
+
+        # Save processed texts checkpoint
+        checkpoint_manager.save_stage('processed_texts', processed_texts)
+
+    logging.info(f"Processed {len(processed_texts)} texts")
+
+    # Save processed texts to output file
+    output_dir = Path("outputs")
+    output_dir.mkdir(exist_ok=True)
+    output_file = output_dir / f"processed_texts_{run_id}.txt"
+    with open(output_file, 'w') as f:
         for text in processed_texts:
             f.write(f"{text}\n")
 
-    logger.logger.info("Saved processed texts to %s", processed_file)
+    logging.info(f"Saved processed texts to {output_file}")
 
-    # Generate embeddings
+    # Instantiate logger for metrics now that we have config loaded
+    logger = MetricsLogger(config)
+
+    # Initialize pipeline components
     embedding_generator = EnhancedEmbeddingGenerator()
-    embeddings = embedding_generator.generate_embeddings(processed_texts)
+
+    # Load or generate embeddings
+    try:
+        embeddings = checkpoint_manager.get_stage_data('embeddings')
+    except json.JSONDecodeError:
+        logging.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
+        embeddings = None
+
+    if embeddings is None:
+        embeddings = embedding_generator.generate_embeddings(processed_texts)
+        embeddings_list = embeddings.tolist()
+        checkpoint_manager.save_stage('embeddings', embeddings_list)
+    else:
+        # If embeddings were loaded from checkpoint, ensure it's a numpy array
+        embeddings = np.array(embeddings)
+        embeddings_list = embeddings
 
     embeddings_file = output_dir / f"embeddings_{run_id}.npy"
     np.save(embeddings_file, embeddings)
-    logger.logger.info("Saved embeddings to %s", embeddings_file)
+    logging.info(f"Saved embeddings to {embeddings_file}")
 
-    # Perform clustering
-    cluster_manager = DynamicClusterManager(config=config['clustering'])
-    labels, clustering_metrics = cluster_manager.fit_predict(embeddings)
-    logger.logger.info("Clustering completed with metrics: %s", clustering_metrics)
+    perf_optimizer.clear_memory_cache()
+    checkpoint_manager.save_periodic_checkpoint('embeddings', embeddings_list)
+    logging.info("Completed embedding generation")
 
-    # Summarize clusters
+    # Dynamic Cluster Manager config
+    # Instead of a hard-coded config dict, we will rely on the loaded config file
+    # Adjusting as needed:
+    cluster_config = config.get('clustering', {})
+    cluster_manager = DynamicClusterManager(config=cluster_config)
+
+    # Load or perform clustering
+    try:
+        clusters = checkpoint_manager.get_stage_data('clusters')
+    except json.JSONDecodeError:
+        logging.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
+        clusters = None
+
+    if clusters is None:
+        labels, clustering_metrics = cluster_manager.fit_predict(embeddings)
+        clusters = {'labels': labels.tolist(), 'metrics': clustering_metrics}
+        checkpoint_manager.save_stage('clusters', clusters)
+
+    clusters_file = output_dir / f"clusters_{run_id}.json"
+    with open(clusters_file, 'w') as f:
+        json.dump(clusters, f)
+    logging.info(f"Saved clusters to {clusters_file}")
+
+    perf_optimizer.clear_memory_cache()
+    checkpoint_manager.save_periodic_checkpoint('clusters', clusters)
+    logging.info("Completed clustering")
+
     summarizer = EnhancedHybridSummarizer()
-    cluster_texts = {label: [] for label in set(labels)}
-    for text, label in zip(processed_texts, labels):
-        cluster_texts[label].append(text)
 
-    summaries = summarizer.summarize_all_clusters(cluster_texts)
+    # Load or generate summaries
+    try:
+        summaries = checkpoint_manager.get_stage_data('summaries')
+    except json.JSONDecodeError:
+        logging.error("JSONDecodeError: The state file is corrupted. Creating a new state.")
+        summaries = None
+
+    if summaries is None:
+        cluster_texts = {label: [] for label in set(clusters['labels'])}
+        for text, label, embedding in zip(processed_texts, clusters['labels'], embeddings):
+            cluster_texts[label].append({'processed_text': text, 'embedding': embedding})
+        summaries = summarizer.summarize_all_clusters(cluster_texts)
+        checkpoint_manager.save_stage('summaries', summaries)
 
     summaries_file = output_dir / f"summaries_{run_id}.json"
     with open(summaries_file, 'w') as f:
         json.dump(summaries, f)
-    logger.logger.info("Saved summaries to %s", summaries_file)
+    logging.info(f"Saved summaries to {summaries_file}")
 
-    # Visualize embeddings
+    perf_optimizer.clear_memory_cache()
+    checkpoint_manager.save_periodic_checkpoint('summaries', summaries)
+    logging.info("Completed summarization")
+
     visualizer = EmbeddingVisualizer()
     visualization_file = output_dir / f"visualizations_{run_id}.html"
-    visualizer.visualize_embeddings(embeddings, labels, save_path=visualization_file)
-    logger.logger.info("Saved visualizations to %s", visualization_file)
+    visualizer.visualize_embeddings(embeddings, save_path=visualization_file)
+    logging.info(f"Saved visualizations to {visualization_file}")
 
-    # Evaluate results
     evaluator = EvaluationMetrics()
     evaluation_metrics = evaluator.calculate_comprehensive_metrics(
         summaries=summaries,
         references={},  # Add reference summaries if available
         embeddings=embeddings
     )
-
     evaluation_file = output_dir / f"evaluation_{run_id}.json"
     with open(evaluation_file, 'w') as f:
         json.dump(evaluation_metrics, f)
-    logger.logger.info("Saved evaluation metrics to %s", evaluation_file)
+    logging.info(f"Saved evaluation metrics to {evaluation_file}")
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     mp.set_start_method('spawn', force=True)
     main()
