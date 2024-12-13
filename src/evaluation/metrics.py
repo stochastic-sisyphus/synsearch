@@ -1,4 +1,4 @@
-from typing import List, Dict, Union, Optional
+from typing import List, Dict, Union, Optional, Any
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -281,29 +281,61 @@ class EvaluationMetrics:
 
     def calculate_comprehensive_metrics(
         self,
-        summaries: Dict[str, str],
-        references: Dict[str, str],
-        embeddings: Optional[Union[np.ndarray, List]] = None,
-        labels: Optional[Union[np.ndarray, List]] = None,
+        summaries: Union[Dict[str, str], List[str]],
+        references: Union[Dict[str, str], List[str]],
+        embeddings: Optional[np.ndarray] = None,
+        labels: Optional[np.ndarray] = None,
         **kwargs
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Dict[str, float]]:
         """Calculate all metrics with improved error handling."""
         try:
+            # Convert and validate inputs
+            if isinstance(summaries, dict):
+                summary_texts = [str(s) for s in summaries.values()]
+            else:
+                summary_texts = [str(s) for s in summaries]
+
+            if isinstance(references, dict):
+                reference_texts = [str(r) for r in references.values()]
+            else:
+                reference_texts = [str(r) for r in references]
+
+            # Basic input validation
+            if not summary_texts or not reference_texts:
+                raise ValueError("Empty summaries or references")
+            
             metrics = {}
             
             # Calculate ROUGE scores
-            rouge_scores = self.calculate_rouge_scores(summaries, references)
+            rouge_scores = self.calculate_rouge_scores(summary_texts, reference_texts)
             metrics['rouge_scores'] = rouge_scores
             
-            # Calculate BERT scores
-            bert_scores = self.calculate_bert_scores(summaries, references)
-            metrics['bert_scores'] = bert_scores
+            # Calculate BERT scores if initialized
+            if hasattr(self, 'bert_scorer') and self.bert_scorer is not None:
+                bert_scores = self.calculate_bert_scores(summary_texts, reference_texts)
+                metrics['bert_scores'] = bert_scores
+            else:
+                self.logger.warning("BERTScore not initialized, skipping calculation")
+                metrics['bert_scores'] = {'precision': 0.0, 'recall': 0.0, 'f1': 0.0}
             
             # Calculate clustering metrics if provided
             if embeddings is not None and labels is not None:
-                clustering_metrics = self.calculate_clustering_metrics(embeddings, labels)
-                metrics['clustering'] = clustering_metrics
+                # Convert to numpy arrays if needed
+                if isinstance(embeddings, list):
+                    embeddings = np.array(embeddings)
+                if isinstance(labels, list):
+                    labels = np.array(labels)
                 
+                if embeddings.shape[0] > 0 and len(np.unique(labels)) > 1:
+                    clustering_metrics = self.calculate_clustering_metrics(embeddings, labels)
+                    metrics['clustering'] = clustering_metrics
+                else:
+                    self.logger.warning("Invalid embeddings or labels for clustering metrics")
+                    metrics['clustering'] = {
+                        'silhouette_score': 0.0,
+                        'davies_bouldin_score': float('inf')
+                    }
+                    
             return metrics
             
         except Exception as e:
@@ -340,42 +372,6 @@ class EvaluationMetrics:
                 'total_runtime_seconds': 0.0,
                 'average_runtime_per_sample_seconds': 0.0
             }
-
-    def calculate_bert_scores(self, summaries: List[str], references: List[str]) -> Dict[str, float]:
-        """Calculate BERTScore with proper error handling."""
-        try:
-            self.logger.info("Starting BERT scores calculation")
-            
-            if self.bert_scorer is None:
-                # Create scorer inline if initialization failed
-                self.bert_scorer = bert_score.BERTScorer(
-                    model_type='roberta-large',
-                    num_layers=17,
-                    batch_size=32,
-                    nthreads=4,
-                    all_layers=False,
-                    lang='en',
-                    rescale_with_baseline=True,
-                    device=self.device
-                )
-            
-            P, R, F1 = self.bert_scorer.score(summaries, references)
-            
-            precision = float(P.mean())
-            recall = float(R.mean())
-            f1_score = float(F1.mean())
-
-            self.logger.info("Completed BERT scores calculation")
-            self.logger.debug(f"BERT scores: precision={precision}, recall={recall}, f1={f1_score}")
-
-            return {
-                'precision': precision,
-                'recall': recall,
-                'f1': f1_score
-            }
-        except Exception as e:
-            self.logger.error(f"Error calculating BERTScore: {e}")
-            return {'precision': 0.0, 'recall': 0.0, 'f1': 0.0}
 
     def _calculate_embedding_quality(self, embeddings: np.ndarray, batch_size: int = 32) -> Dict[str, float]:
         """
