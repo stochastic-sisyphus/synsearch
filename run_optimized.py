@@ -22,6 +22,7 @@ from src.utils.performance import PerformanceOptimizer
 from src.utils.logging_utils import MetricsLogger
 import logging
 
+
 def init_worker():
     """Initialize worker process with optimized settings."""
     torch.cuda.empty_cache()
@@ -97,10 +98,10 @@ def main():
     log.info("Processed %d texts", len(processed_texts))
 
     # Save processed texts to output file
-    output_dir = Path("data/output")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = Path(config['data']['output_path'])
+    output_dir.mkdir(exist_ok=True)
     output_file = output_dir / f"processed_texts_{run_id}.txt"
-    with open(output_file, 'w') as f:
+    with open(output_file, 'w', encoding='utf-8') as f:
         for text in processed_texts:
             f.write(f"{text}\n")
 
@@ -121,17 +122,18 @@ def main():
         embeddings_list = embeddings.tolist()
         checkpoint_manager.save_stage('embeddings', embeddings_list)
     else:
+        # If embeddings were loaded from checkpoint, ensure it's a numpy array
         embeddings = np.array(embeddings)
-        embeddings_list = embeddings.tolist()
+        embeddings_list = embeddings
 
     embeddings_file = output_dir / f"embeddings_{run_id}.npy"
     np.save(embeddings_file, embeddings)
     log.info("Saved embeddings to %s", embeddings_file)
 
     perf_optimizer.clear_memory_cache()
+    checkpoint_manager.save_periodic_checkpoint('embeddings', embeddings_list)
     log.info("Completed embedding generation")
 
-    # Clustering
     cluster_config = config.get('clustering', {})
     cluster_manager = DynamicClusterManager(config=cluster_config)
 
@@ -153,9 +155,9 @@ def main():
     log.info("Saved clusters to %s", clusters_file)
 
     perf_optimizer.clear_memory_cache()
+    checkpoint_manager.save_periodic_checkpoint('clusters', clusters)
     log.info("Completed clustering")
 
-    # Summarization
     summarizer = EnhancedHybridSummarizer()
 
     # Load or generate summaries
@@ -166,67 +168,67 @@ def main():
         summaries = None
 
     if summaries is None:
-        # Create cluster_texts dictionary with string keys
         cluster_texts = {str(label): [] for label in set(clusters['labels'])}
         for text, label, embedding in zip(processed_texts, clusters['labels'], embeddings):
-            cluster_texts[str(label)].append({
-                'processed_text': text,
-                'embedding': embedding.tolist()
-            })
+            cluster_texts[str(label)].append({'processed_text': text, 'embedding': embedding.tolist()})
         summaries = summarizer.summarize_all_clusters(cluster_texts)
         checkpoint_manager.save_stage('summaries', summaries)
 
-    # Ensure summaries is a dictionary with string keys and string values
-    if isinstance(summaries, list):
-        summaries = {str(i): summary for i, summary in enumerate(summaries)}
-    elif isinstance(summaries, dict):
-        summaries = {str(k): str(v) if not isinstance(v, dict) else v['summary'] 
-                    for k, v in summaries.items()}
-
     summaries_file = output_dir / f"summaries_{run_id}.json"
-    with open(summaries_file, 'w') as f:
+    with open(summaries_file, 'w', encoding='utf-8') as f:
         json.dump(summaries, f)
     log.info("Saved summaries to %s", summaries_file)
 
     perf_optimizer.clear_memory_cache()
+    checkpoint_manager.save_periodic_checkpoint('summaries', summaries)
     log.info("Completed summarization")
 
-    # Visualization
     visualizer = EmbeddingVisualizer()
     visualization_file = output_dir / f"visualizations_{run_id}.html"
     visualizer.visualize_embeddings(embeddings, save_path=visualization_file)
     log.info("Saved visualizations to %s", visualization_file)
 
-    # Create reference summaries using the first text from each cluster
-    references = {}
-    cluster_labels = set(clusters['labels'])
-    for label in cluster_labels:
-        cluster_indices = [i for i, l in enumerate(clusters['labels']) if l == label]
-        if cluster_indices:
-            references[str(label)] = processed_texts[cluster_indices[0]]
-
-    # Convert summaries and references to lists while maintaining alignment
+    # Create summary and reference lists for evaluation
     summary_texts = []
     reference_texts = []
-    for label in sorted(summaries.keys()):
-        if label in references:
-            summary_texts.append(summaries[label])
-            reference_texts.append(references[label])
 
-    # Evaluation
+    # Convert summaries to the correct format
+    for label in sorted(summaries.keys()):
+        if isinstance(summaries[label], dict) and 'summary' in summaries[label]:
+            summary_text = summaries[label]['summary']
+        else:
+            summary_text = summaries[label]
+        
+        summary_texts.append(summary_text)
+        
+        # Use the first text from each cluster as reference
+        cluster_indices = [i for i, l in enumerate(clusters['labels']) if str(l) == str(label)]
+        if cluster_indices:
+            reference_texts.append(processed_texts[cluster_indices[0]])
+        else:
+            reference_texts.append("")  # Empty string as fallback
+
+    # Ensure embeddings is a numpy array
+    if not isinstance(embeddings, np.ndarray):
+        embeddings = np.array(embeddings)
+
+    # Convert labels to numpy array
+    labels = np.array(clusters['labels'])
+
     evaluator = EvaluationMetrics()
     evaluation_metrics = evaluator.calculate_comprehensive_metrics(
-        summaries=summary_texts,  # Now passing lists instead of dictionaries
+        summaries=summary_texts,
         references=reference_texts,
         embeddings=embeddings,
-        labels=np.array(clusters['labels']),
+        labels=labels,
         batch_size=batch_size
     )
     
     evaluation_file = output_dir / f"evaluation_{run_id}.json"
-    with open(evaluation_file, 'w') as f:
+    with open(evaluation_file, 'w', encoding='utf-8') as f:
         json.dump(evaluation_metrics, f)
     log.info("Saved evaluation metrics to %s", evaluation_file)
+
 
 if __name__ == '__main__':
     mp.set_start_method('spawn', force=True)
