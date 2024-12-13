@@ -215,10 +215,12 @@ def main(config):
     evaluation_metrics = {
         'rouge_scores': rouge_scores
     }
-    if embeddings is not None:
-        evaluation_metrics['clustering'] = evaluator.calculate_clustering_metrics(
-            embeddings, batch_size
-        )
+    if isinstance(embeddings, list):
+        embeddings = np.array(embeddings)
+
+    evaluation_metrics['clustering'] = evaluator.calculate_clustering_metrics(
+        embeddings, batch_size
+    )
     evaluation_file = output_dir / f"evaluation_{run_id}.json"
     with open(evaluation_file, 'w') as f:
         json.dump(evaluation_metrics, f)
