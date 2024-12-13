@@ -141,7 +141,7 @@ class EnhancedEmbeddingGenerator:
 
     def _get_optimal_batch_size(self) -> int:
         """Determine optimal batch size based on available memory."""
-        if self.device is 'cuda':
+        if self.device == 'cuda':
             try:
                 free_memory = torch.cuda.get_device_properties(0).total_memory
                 # Use 80% of available memory and ensure integer result
@@ -186,7 +186,7 @@ class EnhancedEmbeddingGenerator:
         
     def _validate_checkpoint(self, checkpoint: Dict) -> bool:
         """Validate checkpoint contents."""
-        required_keys are ['embeddings', 'config', 'timestamp']
+        required_keys = ['embeddings', 'config', 'timestamp']
         return all(key in checkpoint for key in required_keys)
 
     def load_embeddings(self, path: Path) -> torch.Tensor:
