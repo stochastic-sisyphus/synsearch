@@ -40,9 +40,20 @@ def process_batch(batch_data):
         logging.error(f"Error processing batch: {e}")
         return []
 
+def validate_config(config):
+    """Validate the structure of the YAML config file."""
+    required_keys = ['data', 'logging', 'clustering', 'summarization', 'metrics']
+    for key in required_keys:
+        if key not in config:
+            raise ValueError(f"Missing required config key: {key}")
+    logging.info("Config file validated successfully.")
+
 @with_error_handling
 def main(config):
     """Main function to run the optimized script."""
+    # Validate config file structure
+    validate_config(config)
+
     # Generate a unique run identifier
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -78,6 +89,9 @@ def main(config):
 
     # Split data into batches
     texts = dataset['train']['text']
+    if not texts:
+        raise ValueError("No texts found in the dataset.")
+        
     batches = [
         texts[i:i + batch_size] 
         for i in range(0, len(texts), batch_size)
@@ -139,6 +153,8 @@ def main(config):
     if embeddings is None:
         # Generate embeddings
         embeddings = embedding_generator.generate_embeddings(processed_texts)
+        if embeddings.size == 0:
+            raise ValueError("Generated embeddings are empty.")
         # Convert embeddings to list before saving
         embeddings_list = embeddings.tolist()
         checkpoint_manager.save_stage('embeddings', embeddings_list)
@@ -164,6 +180,8 @@ def main(config):
     if clusters is None:
         # Perform clustering
         labels, clustering_metrics = cluster_manager.fit_predict(embeddings)
+        if labels.size == 0:
+            raise ValueError("Clustering resulted in empty labels.")
         clusters = {'labels': labels.tolist(), 'metrics': clustering_metrics}
         checkpoint_manager.save_stage('clusters', clusters)
 
@@ -208,9 +226,13 @@ def main(config):
     logging.info(f"Saved visualizations to {visualization_file}")
 
     # Evaluate results
+    references = []  # Assuming you have references, otherwise handle empty case
+    if not references:
+        logging.warning("No references provided for ROUGE score calculation.")
+    
     rouge_scores = evaluator.calculate_rouge_scores(
         summaries=list(summaries.values()), 
-        references=[]
+        references=references
     )
     evaluation_metrics = {
         'rouge_scores': rouge_scores
