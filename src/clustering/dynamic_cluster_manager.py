@@ -8,6 +8,7 @@ import torch
 import json
 from sklearn.metrics import silhouette_score
 from joblib import Parallel, delayed
+from src.utils.performance import PerformanceOptimizer
 
 class DynamicClusterManager:
     """Manages dynamic clustering with adaptive thresholds and online updates."""
