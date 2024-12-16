@@ -59,3 +59,12 @@ htmlcov/
 
 # everything else
 .github/
+
+# Dashboard
+app/__pycache__/
+app/components/__pycache__/
+app/assets/*.css.map
+.dash_cache/
+*.pyc
+__pycache__/
+.env

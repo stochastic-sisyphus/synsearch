@@ -1,6 +1,7 @@
 import numpy as np
 import umap
-import plotly.express as px
+import matplotlib.pyplot as plt
+import seaborn as sns
 import pandas as pd
 from pathlib import Path
 import logging
@@ -52,20 +53,19 @@ class EmbeddingVisualizer:
                 viz_data[color_column] = metadata[color_column]
             
             # Create plot
-            fig = px.scatter(
-                viz_data,
-                x='UMAP1',
-                y='UMAP2',
-                color=color_column if color_column else None,
-                title='Document Embeddings Visualization',
-                template='plotly_white'
-            )
+            fig = plt.figure(figsize=(10, 8))
+            scatter = plt.scatter(reduced_embeddings[:, 0], reduced_embeddings[:, 1], 
+                                c=metadata[color_column] if color_column else None)
+            
+            if color_column:
+                plt.colorbar(scatter)
+            plt.title('Document Embeddings Visualization')
             
             # Save if path provided
             if save_path:
                 save_path = Path(save_path)
                 save_path.parent.mkdir(parents=True, exist_ok=True)
-                fig.write_html(save_path)
+                plt.savefig(save_path)
                 self.logger.info(f"Saved visualization to {save_path}")
             
             return {

@@ -250,7 +250,7 @@ def main():
                 reference_texts.append(cluster_docs[0] if cluster_docs else '')
 
         # Ensure arrays are properly formatted
-        embeddings = np.array(embeddings) if not isinstance(embeddings, np.ndarray) else embeddings
+        embeddings = embeddings if isinstance(embeddings, np.ndarray) else np.array(embeddings)
         labels = np.array(clusters['labels'])
 
         # Initialize metrics evaluator with timing
@@ -283,7 +283,7 @@ def main():
                         summary_text = summary.get('summary', '') or summary.get('text', '')
                     else:
                         summary_text = str(summary)
-                    summary_texts[label] = summary_text if summary_text else ""
+                    summary_texts[label] = summary_texts[label] = summary_text or ""
                     
                     # Use first document as reference
                     reference = cluster_texts[label][0]['processed_text']

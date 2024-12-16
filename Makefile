@@ -18,43 +18,68 @@ export TRANSFORMERS_OFFLINE=1  # Avoid network checks
 export HF_DATASETS_OFFLINE=1  # Avoid dataset downloads during processing
 
 venv:
-    python3 -m venv $(VENV)
+	python3 -m venv $(VENV)
 
-setup: venv download-data install
+setup: venv download-data install install-dashboard prepare-datasets
+	$(PYTHON) -m spacy download en_core_web_sm
 
 install-deps: venv
-    $(PIP) install requests tqdm datasets transformers torch numpy sentencepiece protobuf \
-        nltk spacy scikit-learn pandas scipy \
-        beautifulsoup4 lxml textacy
+	$(PIP) install requests tqdm datasets transformers torch numpy sentencepiece protobuf \
+		nltk spacy scikit-learn pandas scipy \
+		beautifulsoup4 lxml textacy
 
 download-data: install-deps
-    $(PYTHON) -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
-    $(PYTHON) scripts/download_datasets.py
+	$(PYTHON) -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+	$(PYTHON) scripts/download_datasets.py
 
 install: venv
-    $(PIP) install -e .
-    $(PIP) install spacy joblib pandas datasets transformers sentence-transformers tqdm torch numpy 
-    $(PYTHON) -m spacy download en_core_web_sm
+	$(PIP) install -e .
+	$(PIP) install spacy joblib pandas datasets transformers sentence-transformers tqdm torch numpy 
+	$(PYTHON) -m spacy download en_core_web_sm
 
 test: venv
-    PYTHONPATH=. $(PYTHON) -m pytest tests/ -v --cov=src
+	PYTHONPATH=. $(PYTHON) -m pytest tests/ -v --cov=src
 
 format: venv
-    $(PYTHON) -m black src/ tests/
-    $(PYTHON) -m isort src/ tests/
+	$(PYTHON) -m black src/ tests/
+	$(PYTHON) -m isort src/ tests/
 
 lint: venv
-    $(PYTHON) -m flake8 src/ tests/
-    $(PYTHON) -m mypy src/ tests/
+	$(PYTHON) -m flake8 src/ tests/
+	$(PYTHON) -m mypy src/ tests/
 
 run-optimized: install-deps
-    $(PYTHON) run_optimized.py --config config/config.yaml
+	$(PYTHON) run_optimized.py --config config/config.yaml
 
 run: venv
-    $(PYTHON) run_optimized.py --config config/config.yaml
+	$(PYTHON) run_optimized.py --config config/config.yaml
 
 clean:
-    rm -rf data/scisummnet.zip $(VENV)
-    find . -type d -name "__pycache__" -exec rm -rf {} +
-    find . -type d -name ".pytest_cache" -exec rm -rf {} +
-    find . -type d -name ".mypy_cache" -exec rm -rf {} +
+	rm -rf data/scisummnet.zip $(VENV)
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+	find . -type d -name ".pytest_cache" -exec rm -rf {} +
+	find . -type d -name ".mypy_cache" -exec rm -rf {} +
+
+# Dashboard commands
+run-dashboard:
+	$(PYTHON) scripts/run_dashboard.py
+
+install-dashboard:
+	$(PIP) install dash dash-bootstrap-components plotly requests
+
+test-api:
+	$(PYTHON) -m pytest tests/test_arxiv_api.py -v
+
+# Training commands
+train-models:
+	$(PYTHON) scripts/train_models.py
+
+compare-models:
+	$(PYTHON) scripts/compare_models.py
+
+test-models:
+	$(PYTHON) -m pytest tests/test_model_trainer.py -v
+
+# Dataset preparation
+prepare-datasets:
+	$(PYTHON) scripts/prepare_datasets.py

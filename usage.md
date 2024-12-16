@@ -1,204 +1,133 @@
-# Usage Guide
+# Detailed Usage Guide
 
-## Quick Commands
+## 1. Basic Paper Analysis
 
-### 1. Basic Operation
+### Using Interactive Tool
 ```bash
-# Process default dataset
-python run_optimized.py
-
-# With custom dataset
-python run_optimized.py --input data/my_documents/ --output results/
-
-# With specific configuration
-python run_optimized.py --config custom_config.yaml
+python my_analysis.py
 ```
 
-### 2. Dataset Processing
+Example session:
+```
+ArXiv Paper Analysis
+==================================================
 
+Enter your search query: quantum computing
+How many papers to analyze? [50]: 25
+
+Fetching papers...
+Generating embeddings...
+Clustering papers...
+
+Found 25 papers in 4 clusters
+
+Cluster 0 (8 papers):
+- Title: Quantum Computing with Neutral Atoms
+  Authors: John Smith, Jane Doe
+  Published: 2024-01-15
+...
+```
+
+### Search Query Examples
+1. Basic topic search:
+   ```
+   machine learning
+   ```
+
+2. Multiple topics:
+   ```
+   quantum computing AND artificial intelligence
+   ```
+
+3. Title-specific search:
+   ```
+   ti:"deep learning"
+   ```
+
+4. Author search:
+   ```
+   au:Smith
+   ```
+
+## 2. Detailed Analysis
+
+For more comprehensive analysis:
 ```bash
-# Process XL-Sum dataset
-python run_optimized.py --dataset xlsum --language english
-
-# Process ScisummNet dataset
-python run_optimized.py --dataset scisummnet
-
-# Process custom documents
-python run_optimized.py --input "path/to/documents/*/*.txt" --format txt
+python scripts/analyze_papers.py
 ```
 
-### 3. Performance Optimization
+This provides:
+- Detailed clustering analysis
+- Visualizations
+- Saved results in outputs directory
 
+## 3. Quick Start
+
+For a simple predefined analysis:
 ```bash
-# Use specific GPU
-CUDA_VISIBLE_DEVICES=0 python run_optimized.py
-
-# Optimize batch size
-python run_optimized.py --batch-size auto
-
-# Multi-worker processing
-python run_optimized.py --workers 4
+python quick_start.py
 ```
 
-### 4. Checkpointing & Recovery
+## 4. Output Files
 
-```bash
-# Enable checkpointing
-python run_optimized.py --enable-checkpoints
-
-# Resume from checkpoint
-python run_optimized.py --resume --checkpoint-dir checkpoints/
-
-# Force new run
-python run_optimized.py --no-resume
+Results are saved in:
+```
+outputs/
+├── papers_[timestamp]/
+│   ├── papers.json        # Raw paper data
+│   └── metadata.json      # Query information
+├── clusters_[timestamp]/
+│   └── cluster_data.json  # Clustering results
+└── visualizations/
+    └── clusters.html      # Interactive visualization
 ```
 
-### 5. Visualization & Dashboard
+## 5. Advanced Features
 
-```bash
-# Start dashboard
-python src/dashboard/app.py
+### Custom Analysis
+```python
+from src.api.arxiv_api import ArxivAPI
+from src.embedding_generator import EnhancedEmbeddingGenerator
 
-# Generate static visualizations
-python run_optimized.py --visualize-only
+# Initialize
+api = ArxivAPI()
+generator = EnhancedEmbeddingGenerator()
 
-# Export results as HTML
-python run_optimized.py --export html
+# Fetch papers
+papers = api.fetch_papers_batch("your query", max_papers=50)
+
+# Process
+embeddings = generator.generate_embeddings([p['summary'] for p in papers])
 ```
 
-## Common Use Cases
+## 6. Best Practices
 
-### Processing Your Own Documents
+1. **Start Small**
+   - Begin with 25-50 papers
+   - Increase if needed
 
-1. **Directory Structure**:
-```
-data/
-├── input/
-│   ├── documents.json
-│   ├── papers.csv
-│   └── texts/
-│       ├── doc1.txt
-│       └── doc2.txt
-```
+2. **Refine Searches**
+   - Use specific terms
+   - Add category filters
+   - Combine search terms
 
-2. **JSON Format**:
-```json
-{
-  "documents": [
-    {
-      "text": "Document content here",
-      "metadata": {
-        "id": "doc1",
-        "category": "research"
-      }
-    }
-  ]
-}
-```
+3. **Save Results**
+   - Results automatically saved
+   - Check outputs directory
 
-3. **CSV Format**:
-```csv
-id,text,category
-doc1,"Document text here",research
-```
+## 7. Troubleshooting
 
-4. **Command**:
-```bash
-python run_optimized.py \
-  --input data/input/documents.json \
-  --format json \
-  --output results/ \
-  --batch-size 32
-```
+1. **No Results**
+   - Broaden search terms
+   - Check internet connection
+   - Verify query syntax
 
-### Custom Dataset Integration
+2. **Slow Performance**
+   - Reduce number of papers
+   - Close other applications
+   - Check memory usage
 
-1. **Create Dataset Config**:
-```yaml
-# config/custom_dataset.yaml
-data:
-  name: "my_dataset"
-  format: "json"
-  text_field: "content"
-  metadata_fields: ["id", "category"]
-```
-
-2. **Run Processing**:
-```bash
-python run_optimized.py \
-  --config config/custom_dataset.yaml \
-  --input data/my_dataset/ \
-  --output results/my_dataset/
-```
-
-### Batch Processing Large Collections
-
-1. **Enable Memory Optimization**:
-```bash
-python run_optimized.py \
-  --input large_dataset/ \
-  --batch-size auto \
-  --optimize-memory \
-  --checkpoints
-```
-
-2. **Monitor Progress**:
-```bash
-tail -f logs/pipeline.log
-```
-
-### Advanced Features
-
-1. **Custom Preprocessing**:
-```bash
-python run_optimized.py \
-  --preprocess-config config/preprocess.yaml \
-  --custom-filters "remove_citations,clean_latex"
-```
-
-2. **Style-based Summarization**:
-```bash
-python run_optimized.py \
-  --summary-style technical \
-  --max-length 200 \
-  --min-length 50
-```
-
-3. **Export Options**:
-```bash
-python run_optimized.py \
-  --export-format json \
-  --export-metrics \
-  --include-embeddings
-```
-
-## Tips & Troubleshooting
-
-### Memory Issues
-```bash
-# Reduce batch size
-python run_optimized.py --batch-size 16
-
-# Enable memory optimization
-python run_optimized.py --optimize-memory
-```
-
-### CUDA Issues
-```bash
-# Force CPU usage
-python run_optimized.py --device cpu
-
-# Select specific GPU
-CUDA_VISIBLE_DEVICES=0 python run_optimized.py
-```
-
-### Data Validation
-```bash
-# Validate input data
-python run_optimized.py --validate-only
-
-# Show detailed validation results
-python run_optimized.py --validate-only --verbose
-```
-
-For more detailed information, refer to [README.md](README.md) and configuration examples in `config/`.
+3. **Installation Issues**
+   - Use Python 3.11
+   - Create fresh virtual environment
+   - Update pip and dependencies

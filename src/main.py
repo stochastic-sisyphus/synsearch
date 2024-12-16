@@ -18,6 +18,10 @@ from datasets import load_dataset
 from dataclasses import dataclass, asdict
 from typing import Optional, Union, Type
 from src.utils.performance import PerformanceOptimizer  # Add this
+from src.embedding_generator import EmbeddingGenerator
+from src.clustering.dynamic_cluster_manager import DynamicClusterManager
+from src.summarization.adaptive_summarizer import AdaptiveSummarizer
+from src.utils.style_selector import StyleSelector
 
 # Add project root to PYTHONPATH when running directly
 if __name__ == "__main__":
@@ -694,3 +698,36 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+class ResearchSynthesisPipeline:
+    def __init__(self, config: Dict):
+        self.config = config
+        self.embedding_generator = EmbeddingGenerator()
+        self.cluster_manager = DynamicClusterManager()
+        self.summarizer = AdaptiveSummarizer()
+        self.style_selector = StyleSelector()
+
+    def process(self, texts: List[str]) -> Dict:
+        # Generate embeddings
+        embeddings = self.embedding_generator.generate(texts)
+        
+        # Perform clustering
+        clusters = self.cluster_manager.cluster(embeddings)
+        
+        # Generate summaries with adaptive styles
+        summaries = {}
+        for cluster_id, cluster_texts in clusters.items():
+            style = self.style_selector.determine_cluster_style(
+                embeddings[clusters[cluster_id]],
+                cluster_texts,
+                self.config
+            )
+            summaries[cluster_id] = self.summarizer.summarize(
+                cluster_texts,
+                style=style
+            )
+        
+        return {
+            'clusters': clusters,
+            'summaries': summaries
+        }

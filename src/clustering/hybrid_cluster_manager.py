@@ -1,5 +1,7 @@
 from .attention_clustering import HybridClusteringModule
 from .dynamic_cluster_manager import DynamicClusterManager
+from typing import Dict, Tuple
+import numpy as np
 
 class HybridClusterManager:
     """Combines attention-based refinement with dynamic algorithm selection"""
@@ -21,3 +23,7 @@ class HybridClusterManager:
             **metrics,
             'attention_applied': True
         } 
+
+    def process_embeddings(self, embeddings: np.ndarray) -> Tuple[np.ndarray, Dict]:
+        # Implementation
+        pass
