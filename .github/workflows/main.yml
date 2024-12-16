@@ -1,0 +1,37 @@
+    - name: Repo Visualizer
+  # You may pin to the exact commit or the version.
+  # uses: githubocto/repo-visualizer@a999615bdab757559bf94bda1fe6eef232765f85
+  uses: githubocto/repo-visualizer@0.9.1
+  with:
+    output_file: github/workflows/outputs/diagram.svg
+    excluded_paths: README.md,.pycache,node_modules,dist,docs,build,env,temp
+    excluded_globs: |
+      **/*.md;
+      **/*.rst;
+      **/*.log;
+      **/__pycache__/**/*;
+      **/.*;
+      **/*.json;
+      **/*.yaml;
+      **/*.yml;
+      **/*.txt;
+      **/*.csv;
+      **/*.png;
+      **/*.jpg;
+      **/*.jpeg;
+      **/*.ico;
+      **/*.svg;
+      **/*.xml;
+      docs/**/*;
+      tests/**/*;
+      env/**/*;
+      dist/**/*;
+      build/**/*;
+      temp/**/*
+    root_path: ""
+    max_depth: 9
+    commit_message: "Repo visualizer: updated diagram"
+    branch: main
+    should_push: true
+    artifact_name: repo-visualizer-artifact
+    file_colors: '{"py":"#3572A5", "js":"#F1E05A", "html":"#E34C26", "css":"#563D7C"}'
