@@ -1,166 +1,262 @@
 # SynSearch
 
-SynSearch is an advanced document processing and semantic search system that combines embedding generation, clustering, and summarization capabilities to effectively process and analyze large collections of text documents.
+## Overview
+SynSearch is a sophisticated Python-based research paper analysis system that combines advanced NLP techniques, clustering algorithms, and scientific text processing. The project aims to help researchers effectively analyze and summarize large collections of scientific literature.
 
-## 🌟 Features
+## 📚 Table of Contents
+1. [Core Features](#core-features)
+2. [System Architecture](#system-architecture)
+3. [Installation](#installation)
+4. [Configuration](#configuration)
+5. [Usage Guide](#usage-guide)
+6. [API Reference](#api-reference)
+7. [Development](#development)
+8. [Testing](#testing)
+9. [Performance Optimization](#performance-optimization)
+10. [Troubleshooting](#troubleshooting)
 
-- **Document Processing Pipeline**
-  - Domain-agnostic text preprocessing
-  - Supports multiple dataset formats
-  - Efficient batch processing capabilities
+## Core Features
 
-- **Advanced Embedding Generation**
-  - Transformer-based embeddings
-  - Configurable model selection
-  - GPU acceleration support
-  - Optimized batch processing
+### 📖 Document Processing
+- **Multi-Dataset Support**
+  - XL-Sum dataset integration
+  - ScisummNet dataset processing
+  - Custom dataset handling capabilities
 
+### 🧠 Advanced Text Processing
+- **Domain-Specific Processing**
+  - Scientific text preprocessing
+  - Legal document handling
+  - Metadata extraction
+  - URL and special character normalization
+
+### 🔄 Data Pipeline
+- **Robust Data Loading**
+  - Batch processing support
+  - Progress tracking
+  - Automatic validation
+  - Performance optimization
+
+### 🎯 Clustering & Analysis
 - **Dynamic Clustering**
-  - Adaptive clustering algorithms
-  - Theme-based document grouping
-  - Support for multiple clustering strategies
+  - HDBSCAN implementation
+  - Silhouette score calculation
+  - Cluster quality metrics
+  - Adaptive cluster size
 
-- **Intelligent Summarization**
-  - Hybrid summarization approach
-  - Support for scientific and legal domains
-  - Cluster-based summary generation
-  - Configurable summary length
+### 📊 Summarization
+- **Hybrid Summarization System**
+  - Multiple summarization styles:
+    - Technical summaries
+    - Concise overviews
+    - Detailed analyses
+  - Batch processing support
+  - GPU acceleration
 
-- **ArXiv Integration**
-  - Direct ArXiv paper search
-  - Batch paper fetching
-  - Rate-limited API handling
+## System Architecture
 
-## 📋 Requirements
+### Directory Structure
+```
+synsearch/
+├── src/
+│   ├── api/                 # API integrations
+│   ├── preprocessing/       # Text preprocessing
+│   ├── clustering/          # Clustering algorithms
+│   ├── summarization/       # Summary generation
+│   ├── utils/              # Utility functions
+│   └── visualization/       # Visualization tools
+├── tests/                  # Test suite
+├── config/                 # Configuration files
+├── data/                   # Dataset storage
+├── logs/                   # Log files
+├── cache/                  # Cache storage
+└── outputs/               # Generated outputs
+```
 
+### Key Components
+
+#### 1. Data Management
+- `DataLoader`: Handles dataset loading and validation
+- `DataPreparator`: Prepares and preprocesses text data
+- `DataValidator`: Ensures data quality and format
+
+#### 2. Text Processing
+- `TextPreprocessor`: Handles text cleaning and normalization
+- `DomainAgnosticPreprocessor`: Generic text preprocessing
+- `EnhancedDataLoader`: Optimized data loading
+
+#### 3. Analysis
+- `ClusterManager`: Manages document clustering
+- `EnhancedEmbeddingGenerator`: Generates text embeddings
+- `HybridSummarizer`: Multi-style text summarization
+
+## Installation
+
+### Prerequisites
 - Python 3.8 or higher
-- CUDA-compatible GPU (optional, for acceleration)
-- Required Python packages:
-  - torch
-  - transformers
-  - pandas
-  - numpy
-  - spacy
-  - pyyaml
+- CUDA-compatible GPU (optional)
+- 8GB RAM minimum (16GB recommended)
 
-## 🚀 Installation
-
-1. Clone the repository:
+### Setup Steps
 ```bash
+# Clone repository
 git clone https://github.com/stochastic-sisyphus/synsearch.git
 cd synsearch
-```
 
-2. Set up a virtual environment (recommended):
-```bash
+# Create virtual environment
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
 
-3. Install dependencies:
-```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-4. Download required datasets:
-```bash
+# Download required datasets
 make download-data
+
+# Initialize system
+python -m src.initialization
 ```
 
-## ⚙️ Configuration
+## Configuration
 
-The system is configured through YAML files located in the `config` directory. Key configuration areas include:
-
-- Data sources and paths
-- Embedding model settings
-- Preprocessing parameters
-- Clustering configuration
-- Summarization options
-
-Example configuration:
+### Basic Configuration (config/config.yaml)
 ```yaml
 data:
-  datasets:
-    - name: scisummnet
-      enabled: true
-  scisummnet_path: "path/to/dataset"
+  input_path: "data/raw"
+  output_path: "data/processed"
+  scisummnet_path: "data/scisummnet"
+  batch_size: 32
+
+preprocessing:
+  min_length: 100
+  max_length: 1000
+  validation:
+    min_words: 50
 
 embedding:
   model_name: "bert-base-uncased"
   dimension: 768
-  max_seq_length: 512
   batch_size: 32
-
-preprocessing:
-  # Preprocessing settings
+  max_seq_length: 512
+  device: "cuda"
 
 clustering:
-  # Clustering settings
+  algorithm: "hdbscan"
+  min_cluster_size: 5
+  min_samples: 3
+  metric: "euclidean"
 
 summarization:
-  # Summarization settings
+  model_name: "t5-base"
+  max_length: 150
+  min_length: 50
+  batch_size: 16
 ```
 
-## 🔨 Usage
+### Advanced Settings
+- Performance optimization
+- Cache management
+- Logging configuration
+- Visualization options
 
-1. Basic usage:
+## Usage Guide
+
+### Basic Usage
 ```python
 from src.main import main
 
-# Run the complete pipeline
+# Run complete pipeline
 main()
 ```
 
-2. Using specific components:
+### Custom Pipeline
 ```python
+from src.api.arxiv_api import ArxivAPI
 from src.preprocessing.domain_agnostic_preprocessor import DomainAgnosticPreprocessor
-from src.embedding_generator import EnhancedEmbeddingGenerator
+from src.clustering.cluster_manager import ClusterManager
 
 # Initialize components
+api = ArxivAPI()
 preprocessor = DomainAgnosticPreprocessor()
-embedding_generator = EnhancedEmbeddingGenerator(model_name="bert-base-uncased")
+cluster_manager = ClusterManager(config)
 
-# Process texts
-processed_texts = preprocessor.preprocess_texts(your_texts)
-embeddings = embedding_generator.generate_embeddings(processed_texts)
+# Process papers
+papers = api.search("quantum computing", max_results=50)
+processed_texts = preprocessor.preprocess_texts([p['text'] for p in papers])
+clusters, metrics = cluster_manager.perform_clustering(processed_texts)
 ```
 
-## 🧪 Testing
+## Development
 
-Run the test suite:
-```bash
-pytest tests/
-```
+### Environment Setup
+- Use Python 3.8+ virtual environment
+- Install development dependencies: `pip install -r requirements-dev.txt`
+- Setup pre-commit hooks: `pre-commit install`
 
-Key test areas include:
-- Preprocessing functionality
-- ArXiv API integration
-- Embedding generation
-- Clustering algorithms
-- Summarization quality
+### Code Style
+- Follow PEP 8 guidelines
+- Use type hints
+- Document using Google docstring format
 
-## 📁 Project Structure
-
-```
-synsearch/
-├── src/
-│   ├── api/              # API integrations
-│   ├── preprocessing/    # Text preprocessing
-│   ├── clustering/       # Clustering algorithms
-│   ├── summarization/    # Summary generation
-│   └── utils/            # Utility functions
-├── tests/               # Test suite
-├── config/             # Configuration files
-├── data/              # Dataset storage
-└── outputs/           # Generated outputs
-```
-
-## 🤝 Contributing
-
+### Contributing
 1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
+2. Create feature branch
+3. Add tests
+4. Submit pull request
 
-## 📝 License
+## Testing
+
+### Running Tests
+```bash
+# Run all tests
+pytest tests/
+
+# Run specific test category
+pytest tests/test_preprocessor.py
+pytest tests/test_clustering.py
+```
+
+### Test Coverage
+- Unit tests for all components
+- Integration tests for pipelines
+- Performance benchmarks
+
+## Performance Optimization
+
+### Automatic Optimization
+- Batch size optimization
+- Worker count adjustment
+- GPU utilization
+- Memory management
+
+### Caching System
+- Embedding cache
+- Dataset cache
+- Results cache
+
+## Troubleshooting
+
+### Common Issues
+1. Memory errors
+   - Reduce batch size
+   - Enable disk caching
+2. GPU errors
+   - Check CUDA installation
+   - Reduce model size
+3. Dataset loading issues
+   - Verify paths
+   - Check file permissions
+
+### Logging
+- Logs stored in `logs/synsearch.log`
+- Debug level logging available
+- Performance metrics tracking
+
+## License
+[License information pending]
+
+## Contributors
+- @stochastic-sisyphus
+
+## Contact
+[Contact information pending]
