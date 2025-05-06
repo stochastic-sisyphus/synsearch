@@ -268,10 +268,12 @@ pytest tests/test_clustering.py
 - Performance metrics tracking
 
 ## License
-[License information pending]
+MIT, the usual
 
 ## Contributors
 - @stochastic-sisyphus
 
 ## Contact
-[Contact information pending]
+dont
+lol jk 
+do if you'd like
