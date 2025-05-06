@@ -3,6 +3,8 @@
 ## Overview
 SynSearch is a sophisticated Python-based research paper analysis system that combines advanced NLP techniques, clustering algorithms, and scientific text processing. The project aims to help researchers effectively analyze and summarize large collections of scientific literature.
 
+![SynSearch Demo](demo/48490F68-C858-45A6-9CE5-629A597DF06C.png)
+
 ## 📚 Table of Contents
 1. [Core Features](#core-features)
 2. [System Architecture](#system-architecture)
@@ -246,6 +248,19 @@ pytest tests/test_clustering.py
 3. Dataset loading issues
    - Verify paths
    - Check file permissions
+
+
+# Demo
+
+## Demo Screenshots
+
+![Screenshot 1](demo/48490F68-C858-45A6-9CE5-629A597DF06C.png)
+
+![Screenshot 2](demo/764ECC2B-2BCC-4F47-88C3-8077BB5FF5BC.png)
+
+![Screenshot 3](demo/CleanShot%202024-12-16%20at%2017.35.04@2x.png)
+
+![Screenshot 4](demo/F2D4FA76-728B-414E-94E6-4A10140D5308.png)
 
 ### Logging
 - Logs stored in `logs/synsearch.log`
