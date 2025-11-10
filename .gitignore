@@ -59,6 +59,7 @@ htmlcov/
 
 # everything else
 .github/
+!.github/copilot-instructions.md
 
 # Dashboard
 app/__pycache__/
