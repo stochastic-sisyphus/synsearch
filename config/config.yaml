@@ -171,3 +171,88 @@ training:
     xlsum:
       enabled: true
       validation_split: 0.1
+
+# Context Augmented Generation (CAG) Framework Configuration
+cag:
+  # Enable/disable CAG enhancement
+  enabled: true
+
+  # Aggregation settings
+  aggregation:
+    strategy: "WEIGHTED_AVERAGE"  # WEIGHTED_AVERAGE, WEIGHTED_GEOMETRIC, MAX_SCORE, MIN_SCORE, BAYESIAN
+    semantic_weight: 0.6  # Weight for original semantic similarity
+    context_weight: 0.4   # Weight for contextual intelligence
+    temporal_weight: 1.0
+    authority_weight: 1.0
+    sentiment_weight: 1.0
+    event_weight: 1.0
+
+  # Engine settings
+  engine:
+    parallel_analysis: true
+    max_workers: 4
+    cache_enabled: true
+    cache_max_size: 10000
+    min_score_threshold: 0.0
+    explain_results: false
+
+  # Temporal Context Provider - tracks concept evolution over time
+  temporal:
+    enabled: true
+    weight: 1.0
+    decay_rate: 0.1
+    half_life_days: 180  # Documents lose half their recency score after this many days
+    trend_window_days: 30  # Window for trend detection
+    min_data_points: 3
+    recency_weight: 0.5
+
+  # Authority Context Provider - assesses source credibility
+  authority:
+    enabled: true
+    weight: 1.0
+    domain: "general"  # Primary domain for authority assessment
+    min_citations: 10  # Minimum citations for high authority
+    author_weight: 0.4
+    source_weight: 0.4
+    institution_weight: 0.2
+    require_peer_review: true
+
+  # Sentiment Context Provider - community/domain sentiment
+  sentiment:
+    enabled: true
+    weight: 1.0
+    default_sentiment: 0.0
+    controversy_threshold: 0.3
+    sentiment_decay_days: 30
+    prefer_positive: false
+    prefer_neutral: false
+
+  # Event Context Provider - real-world events
+  events:
+    enabled: true
+    weight: 1.0
+    event_decay_days: 30
+    min_event_relevance: 0.1
+    max_events_per_query: 10
+    event_boost_multiplier: 1.5
+    track_domains:
+      - "ai"
+      - "ml"
+      - "nlp"
+      - "research"
+
+  # Pre-defined profiles
+  profiles:
+    research_papers:
+      authority_weight: 1.5
+      temporal_half_life_days: 365
+      sentiment_enabled: false
+    news_articles:
+      temporal_weight: 1.5
+      temporal_half_life_days: 7
+      event_weight: 1.5
+    technical_docs:
+      authority_weight: 1.2
+      temporal_half_life_days: 180
+      sentiment_enabled: false
+      events_enabled: false
