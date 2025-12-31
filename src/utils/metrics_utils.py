@@ -42,42 +42,52 @@ def calculate_cluster_metrics(embeddings: np.ndarray, texts: List[str]) -> Dict[
     }
 
 def calculate_rouge_scores(summaries: List[str], references: List[str]) -> Dict[str, Dict[str, float]]:
-    """Calculate ROUGE scores for summaries."""
+    """Calculate ROUGE scores for summaries.
+
+    Uses running sums for O(1) memory complexity instead of storing intermediate lists.
+    """
     scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
-    scores = {
-        'rouge1': {'precision': [], 'recall': [], 'fmeasure': []},
-        'rouge2': {'precision': [], 'recall': [], 'fmeasure': []},
-        'rougeL': {'precision': [], 'recall': [], 'fmeasure': []}
+
+    # Initialize running sums for O(1) memory usage
+    sums = {
+        metric: {'precision': 0.0, 'recall': 0.0, 'fmeasure': 0.0}
+        for metric in ['rouge1', 'rouge2', 'rougeL']
     }
-    
+    count = 0
+
     for summary, reference in zip(summaries, references):
         score = scorer.score(reference, summary)
-        
+        count += 1
+
         for metric, values in score.items():
-            scores[metric]['precision'].append(values.precision)
-            scores[metric]['recall'].append(values.recall)
-            scores[metric]['fmeasure'].append(values.fmeasure)
-    
-    # Calculate averages
-    averaged_scores = {}
-    for metric, values in scores.items():
-        averaged_scores[metric] = {
-            k: float(np.mean(v)) for k, v in values.items()
-        }
-        
-    return averaged_scores
+            sums[metric]['precision'] += values.precision
+            sums[metric]['recall'] += values.recall
+            sums[metric]['fmeasure'] += values.fmeasure
+
+    # Calculate averages using dictionary comprehension
+    return {
+        metric: {k: v / count if count > 0 else 0.0 for k, v in values.items()}
+        for metric, values in sums.items()
+    }
 
 def calculate_bleu_scores(summaries: List[str], references: List[str]) -> Dict[str, float]:
-    """Calculate BLEU scores for summaries."""
+    """Calculate BLEU scores for summaries.
+
+    Uses NLTK's word_tokenize for proper tokenization that handles punctuation,
+    contractions, and other edge cases better than simple whitespace splitting.
+    """
     smoothie = SmoothingFunction().method4
-    scores = []
-    
+    total_score = 0.0
+    count = 0
+
     for summary, reference in zip(summaries, references):
-        reference_tokens = [reference.split()]
-        summary_tokens = summary.split()
+        # Use word_tokenize for accurate tokenization
+        reference_tokens = [word_tokenize(reference.lower())]
+        summary_tokens = word_tokenize(summary.lower())
         score = sentence_bleu(reference_tokens, summary_tokens, smoothing_function=smoothie)
-        scores.append(score)
-    
+        total_score += score
+        count += 1
+
     return {
-        'bleu': float(np.mean(scores))
+        'bleu': total_score / count if count > 0 else 0.0
     }

@@ -122,11 +122,14 @@ python -m src.initialization
 ## Configuration
 
 ### Basic Configuration (config/config.yaml)
+
+> **Note:** Replace placeholder paths (indicated with `<...>`) with your actual directory paths.
+
 ```yaml
 data:
-  input_path: "data/raw"
-  output_path: "data/processed"
-  scisummnet_path: "data/scisummnet"
+  input_path: "<path_to_input_data>"        # e.g., "data/raw"
+  output_path: "<path_to_output_data>"      # e.g., "data/processed"
+  scisummnet_path: "<path_to_scisummnet>"   # e.g., "data/scisummnet"
   batch_size: 32
 
 preprocessing:

@@ -685,7 +685,11 @@ def main():
                 evaluator=evaluator,
                 config={**config, 'batch_size': batch_size}
             )
-            logger.info(f"Pipeline results for {dataset_name}: {results}")
+            # Log only key metrics to avoid performance issues with large result dictionaries
+            logger.info(f"Pipeline completed for {dataset_name}: "
+                       f"clusters={len(results.get('summaries', {}))}, "
+                       f"runtime={results.get('metrics', {}).get('runtime', {}).get('total_seconds', 'N/A')}s, "
+                       f"docs_processed={results.get('metrics', {}).get('runtime', {}).get('processed_documents', 'N/A')}")
         
         logger.info("Pipeline completed successfully!")
         
